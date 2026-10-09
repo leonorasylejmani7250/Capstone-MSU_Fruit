@@ -1,74 +1,21 @@
-# Python
+.venv/
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Python package/build files
-build/
-dist/
-*.egg-info/
-
-# Jupyter Notebook
 .ipynb_checkpoints/
-
-# IDE / Editor
 .vscode/
 .idea/
-
-# Operating System
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Environment / Secrets
 .env
 .env.*
-*.key
-
-# Project Data
-# note: Large datasets should not be committed to GitHub
-data/raw/
-data/processed/
-datasets/
-
-# Raw video files
+.DS_Store
+Thumbs.db
+external/
+data/
 videos/
-*.mp4
-*.mov
-*.avi
-*.mkv
-
-# Model Weights / Checkpoints
-weights/
-checkpoints/
-models/
-*.pt
-*.pth
-*.ckpt
-*.onnx
-
-# YOLO / Training Outputs
-runs/
 outputs/
-results/
-
-# Temporary Files / Logs
+runs/
+*.pt
+*.onnx
 *.log
-*.tmp
-*.temp
-.cache/
+*.cache
 /.venv/
-/external/
-/data/
 /videos/
-/outputs/
-/runs/
-/grape.yaml
-*.npz
-*.npy
