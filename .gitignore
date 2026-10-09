@@ -63,3 +63,12 @@ results/
 *.tmp
 *.temp
 .cache/
+/.venv/
+/external/
+/data/
+/videos/
+/outputs/
+/runs/
+/grape.yaml
+*.npz
+*.npy

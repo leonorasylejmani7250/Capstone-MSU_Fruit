@@ -31,3 +31,23 @@ The project uses image and video data collected from vineyards and orchards, inc
 
 **CMSE 495 — Experiential Learning in Data Science**  
 Michigan State University
+
+## YOLO11 Implementation
+
+This project implements YOLO11n-seg for grape cluster detection and instance segmentation using WGISD.
+
+### Features
+- Dataset preparation and label visualization
+- YOLO11n-seg training and evaluation
+- Video detection with bounding boxes, masks and confidence scores
+- Optional ByteTrack tracking
+- Video and CSV output
+
+### Training
+Run prepare_wgisd.py before training.
+Command: python train.py --epochs 50 --imgsz 512 --batch 2
+
+### Video Inference
+Run video.py with --video, --model, --mode detect and --max-frames 0.
+
+The dataset, video files, weights and generated outputs are stored locally.
