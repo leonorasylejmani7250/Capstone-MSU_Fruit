@@ -2,7 +2,7 @@ import os, sys, subprocess
 from pathlib import Path
 
 # Opened in Google Colab straight from GitHub? Then fetch the rest of the repository next to it first.
-BRANCH = "Saitej"          # the branch holding sam2_pipeline/ (change to "main" once it is merged)
+BRANCH = "main"            # the branch of the team repository that holds sam2_pipeline/
 if not Path("sam2_pipeline/fruit_sam2.py").exists() and "google.colab" in sys.modules:
     subprocess.run(["git", "clone", "-q", "--depth", "1", "-b", BRANCH,
                     "https://github.com/moehocbaidi/Capstone-MSU_Fruit.git", "/content/Capstone-MSU_Fruit"], check=True)

@@ -2,7 +2,7 @@
 
 These steps install the software, test the install, get the data and run the demo (`demo.ipynb`). The demo fine-tunes SAM 2.1 on sample grape images and scores it. It needs no GPU and no data from our community partner.
 
-**No-install option:** open [`demo.ipynb` in Google Colab](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/Saitej/demo.ipynb), choose *Runtime ▸ Run all*, and approve the warning that the notebook is not from Google. It fetches the code by itself. Use this option if the local install below gives trouble.
+**No-install option:** open [`demo.ipynb` in Google Colab](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/main/demo.ipynb), choose *Runtime ▸ Run all*, and approve the warning that the notebook is not from Google. It fetches the code by itself. Use this option if the local install below gives trouble.
 
 ## 1. What you need
 
@@ -20,7 +20,6 @@ These steps install the software, test the install, get the data and run the dem
 ```bash
 git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit
-git checkout Saitej          # the SAM 2.1 pipeline lives on this branch until it is merged into main
 ```
 
 Every command below runs from this `Capstone-MSU_Fruit` folder.
@@ -88,7 +87,7 @@ Jupyter opens in your browser. Open `demo.ipynb` and choose **Run ▸ Run All Ce
 
 | Where | How | When |
 |---|---|---|
-| **Google Colab** (free T4 GPU) | Open [`sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` in Colab](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/Saitej/sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb). Videos are uploaded to Google Drive. | Labelling and training. Nothing to install. |
+| **Google Colab** (free T4 GPU) | Open [`sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` in Colab](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/main/sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb). Videos are uploaded to Google Drive. | Labelling and training. Nothing to install. |
 | **This computer** | `cd sam2_pipeline/notebooks && jupyter notebook`, open the pipeline notebook, and in cell A untick `DEMO` and set `PROJECT_DIR = "../../data/msu_fruit_project"`. | Labelling and looking at results. Training is slow without a GPU. |
 | **MSU HPCC** | From `sam2_pipeline/`: `bash hpcc/setup_env.sh` once on a dev node, then `sbatch hpcc/run.sb train …` | Long training runs on V100 / A100 / H200 GPUs. |
 

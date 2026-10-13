@@ -1,6 +1,6 @@
 # MSU FRUIT · SAM 2.1 pipeline
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/Saitej/sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb)
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/main/sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb)
 
 Fine-tune **SAM 2.1** (the newest SAM 2 release) on our vineyard video, and score **any model** on the same held-out clips with the same rules. It runs in **Google Colab** and on the **MSU HPCC**, using the same code and the same project folder layout.
 
@@ -54,7 +54,7 @@ You need an HPCC account. A faculty member (Dr. Bunting, or the course instructo
 
 ```bash
 ssh dev-amd20-v100                 # a development node: these have internet, compute nodes may not
-git clone -b Saitej https://github.com/moehocbaidi/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
+git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
 nano hpcc/config.sh                # optional: change PROJECT_DIR (default ~/msu_fruit_project) or SAM2_SIZE
 bash hpcc/setup_env.sh             # conda env, SAM 2 code, weights, Jupyter kernel
