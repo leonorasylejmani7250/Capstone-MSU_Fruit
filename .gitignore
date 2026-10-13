@@ -63,3 +63,9 @@ results/
 *.tmp
 *.temp
 .cache/
+
+# SAM 2.1 pipeline (sam2_pipeline/, demo.ipynb): conda env from INSTALL.md, local project folders, job logs
+envs/
+data/demo_project/
+data/msu_fruit_project/
+sam2_pipeline/*.out

@@ -1,0 +1,46 @@
+#!/bin/bash --login
+# Run any pipeline command as a GPU batch job on the MSU HPCC. Submit it from the sam2_pipeline folder:
+#
+#     cd ~/Capstone-MSU_Fruit/sam2_pipeline
+#     sbatch hpcc/run.sb train --run grapes_v1 --steps 3000        fine-tune SAM 2.1
+#     sbatch hpcc/run.sb evaluate                                   leaderboard of every model in configs/lineup.yaml
+#     sbatch hpcc/run.sb video videos/row3.mp4 --seconds 60 --weights models/sam2.1_base_plus_grapes_v1.pt
+#     sbatch hpcc/run.sb train-detector                             YOLO-seg on the same labels
+#
+# Everything after `run.sb` is passed to fruit.py (python fruit.py --help lists all commands). Options that
+# apply to every command (--size, --project) go before the command name: sbatch hpcc/run.sb --size large evaluate
+# Override the job's defaults on the sbatch line, e.g.  sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate
+# Log: fruit-<job id>.out in this folder.   Status: squeue --me   Cancel: scancel <job id>
+#
+#SBATCH --job-name=fruit
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --gpus=a100:1
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+#SBATCH --output=%x-%j.out
+#
+# GPU types on the HPCC (Oct 2026): v100 / v100s (32 GB), a100 (40 or 80 GB), l40s (48 GB), h200 (141 GB).
+# Any of them works: the pipeline sizes the training to the card it gets. v100 nodes are the most numerous,
+# so try --gpus=v100:1 if an a100 job waits long. Jobs of 4 hours or less may also run on buy-in nodes,
+# so they tend to start sooner. A training run that hits the time limit resumes when you submit the same
+# command again on the same GPU type (a different type changes the training settings, so it starts over).
+
+set -eo pipefail
+CODE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
+if [ ! -f "$CODE_DIR/fruit.py" ]; then
+    echo "Submit from the sam2_pipeline folder (the one with fruit.py):" >&2
+    echo "    cd ~/Capstone-MSU_Fruit/sam2_pipeline && sbatch hpcc/run.sb ..." >&2
+    exit 1
+fi
+source "$CODE_DIR/hpcc/activate.sh"
+
+echo "job $SLURM_JOB_ID on $(hostname) · $(date)"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
+echo "command: python fruit.py $*"
+
+export FRUIT_CALLER_DIR="$CODE_DIR"      # relative paths you type (configs/…, exports/…) mean this folder
+cd "$FRUIT_BASE/weights"                 # where setup_env.sh put the detector weights
+python "$CODE_DIR/fruit.py" "$@"
+
+command -v js >/dev/null && js -j "$SLURM_JOB_ID" || true       # ICER's job summary (time, memory, GPU use)
