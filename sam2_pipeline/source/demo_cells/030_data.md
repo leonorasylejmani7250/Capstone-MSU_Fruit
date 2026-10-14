@@ -1,0 +1,2 @@
+## 2. Sample data: four grape photos, turned into short clips with exact labels
+Each photo is turned into a 12-frame clip by sliding a window across it, so the "video" comes with hand-drawn ground truth. Labels are images where each pixel holds a cluster number (0 = background), one PNG per frame. Our own videos and labels use the same format. Three clips are for training and one is held out for scoring.
