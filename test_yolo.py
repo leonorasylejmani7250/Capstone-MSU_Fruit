@@ -6,7 +6,7 @@ import csv
 from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parent
-IMAGE_DIR = ROOT / "data" / "images" / "test"
+IMAGE_DIR = ROOT / "data" / "wgisd_seg" / "images" / "test"
 RUNS_DIR = ROOT / "runs"
 
 data = [
@@ -25,18 +25,18 @@ data = [
     ("CSV_20180427_144507419.jpg", 16),
     ("CSV_1898.jpg", 11),
     ("CSV_1877.jpg", 8),
-    ("CSV_1666.jpg", 12),
-    ("CSV_1651.jpg", 14),
-    ("CSV_1643.jpg", 15),
-    ("CSV_1641.jpg", 30),
-    ("CSV_1639.jpg", 17),
-    ("CSV_1638.jpg", 10),
-    ("CSV_2054.jpg", 16),
-    ("CSV_2051.jpg", 11),
-    ("CSV_2046.jpg", 10),
-    ("CSV_2043.jpg", 10),
-    ("CSV_2040.jpg", 8),
-    ("CSV_2015.jpg", 20),
+    ("CFR_1666.jpg", 12),
+    ("CFR_1651.jpg", 14),
+    ("CFR_1643.jpg", 15),
+    ("CFR_1641.jpg", 30),
+    ("CFR_1639.jpg", 17),
+    ("CFR_1638.jpg", 10),
+    ("CDY_2054.jpg", 16),
+    ("CDY_2051.jpg", 11),
+    ("CDY_2046.jpg", 10),
+    ("CDY_2043.jpg", 10),
+    ("CDY_2040.jpg", 8),
+    ("CDY_2015.jpg", 20),
 ]
 
 
@@ -58,6 +58,7 @@ def main():
     model = YOLO(str(model_path))
 
     output_csv = ROOT / "yolo_test_results.csv"
+    (ROOT / "test_predictions").mkdir(exist_ok=True)
     results_data = []
 
     for filename, actual_count in data:
@@ -85,8 +86,8 @@ def main():
 
         print(f"{filename:38} "f"Actual: {actual_count:2} | "f"Predicted: {predicted_count:2} | "f"Error: {error:+3}")
 
- # Save visual predictions for inspection.
-    result.save(filename=str(ROOT / "test_predictions" / filename))
+        # Save visual predictions for inspection.
+        result.save(filename=str(ROOT / "test_predictions" / filename))
 
     if not results_data:
         print("No images were evaluated.")
