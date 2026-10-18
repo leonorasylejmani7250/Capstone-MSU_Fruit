@@ -1,6 +1,5 @@
-path: D:/VSC/Python/Hacode/Grape_detect_clean/data/wgisd_seg
-train: images/train
-val: images/val
-test: images/test
+train: data/wgisd_seg/images/train
+val: data/wgisd_seg/images/val
+test: data/wgisd_seg/images/test
 names:
   0: grape_cluster

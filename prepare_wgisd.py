@@ -97,8 +97,9 @@ def main():
         p.error('--val-fraction must be between 0 and 0.5')
     output = ROOT / 'data' / 'wgisd_seg'
     convert(args.source.resolve(), output, args.val_fraction, args.seed)
-    cfg = {'path': output.resolve().as_posix(), 'train': 'images/train',
-           'val': 'images/val', 'test': 'images/test', 'names': {0: 'grape_cluster'}}
+    # Paths relative to grape.yaml itself (no 'path:' key), so the file works on every computer.
+    cfg = {'train': 'data/wgisd_seg/images/train', 'val': 'data/wgisd_seg/images/val',
+           'test': 'data/wgisd_seg/images/test', 'names': {0: 'grape_cluster'}}
     (ROOT / 'grape.yaml').write_text(yaml.safe_dump(cfg, sort_keys=False), encoding='utf-8')
     print('Created:', ROOT / 'grape.yaml')
 
