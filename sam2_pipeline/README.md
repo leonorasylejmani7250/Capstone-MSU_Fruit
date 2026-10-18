@@ -53,12 +53,13 @@ You need an HPCC account. A faculty member (Dr. Bunting, or the course instructo
 **One-time setup** (10–20 min). Open a terminal on the HPCC: `ssh <netid>@hpcc.msu.edu`, or the shell in OnDemand (<https://ondemand.hpcc.msu.edu>, *Clusters* menu). Then:
 
 ```bash
-ssh dev-amd20-v100                 # a development node: these have internet, compute nodes may not
+ssh dev-amd20-v100
 git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
-nano hpcc/config.sh                # optional: change PROJECT_DIR (default ~/msu_fruit_project) or SAM2_SIZE
-bash hpcc/setup_env.sh             # conda env, SAM 2 code, weights, Jupyter kernel
+bash hpcc/setup_env.sh
 ```
+
+The first line moves to a development node: these have internet access, compute nodes may not. `setup_env.sh` creates the conda environment and installs the SAM 2 code, the weights and a Jupyter kernel. To change `PROJECT_DIR` (default `~/msu_fruit_project`) or `SAM2_SIZE`, edit `hpcc/config.sh` before running it.
 
 **Get videos onto the HPCC**, into `~/msu_fruit_project/videos/`, in one of these ways:
 - **OnDemand**: *Files ▸ Home Directory ▸ msu_fruit_project ▸ videos ▸ Upload*. Best for files under about 1 GB.
@@ -80,12 +81,12 @@ bash hpcc/setup_env.sh             # conda env, SAM 2 code, weights, Jupyter ker
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
-sbatch hpcc/run.sb train --run grapes_v1 --steps 3000          # fine-tune SAM 2.1  → models/sam2.1_base_plus_grapes_v1.pt
-sbatch hpcc/run.sb evaluate                                    # leaderboard → results/leaderboard_val.csv
+sbatch hpcc/run.sb train --run grapes_v1 --steps 3000
+sbatch hpcc/run.sb evaluate
 sbatch hpcc/run.sb video videos/row3.mp4 --start 60 --seconds 60 --weights models/sam2.1_base_plus_grapes_v1.pt
-squeue --me                                                    # is it running?
-tail -f fruit-<jobid>.out                                      # follow the log
 ```
+
+The first job fine-tunes SAM 2.1 and writes `models/sam2.1_base_plus_grapes_v1.pt`; the second writes the leaderboard to `results/leaderboard_val.csv`; the third runs the fine-tuned model on one minute of a video. `squeue --me` shows whether a job is running, and `tail -f fruit-<jobid>.out` follows its log.
 
 `run.sb` asks for one A100 for 4 hours. Change it per job, e.g. `sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate`. The GPU types are v100/v100s (32 GB), a100 (40 or 80 GB), l40s (48 GB) and h200 (141 GB). Any of them works: training sizes itself to the card. It freezes the image backbone below 38 GB, trains in float16 on V100s and bfloat16 on the newer cards, and steps down frames per sample if memory runs out. Keep jobs at 4 hours or less so they can also use buy-in nodes. A run that hits the time limit resumes when you submit the same command again, on the same GPU type (a different type changes the training settings, so the run starts over).
 
@@ -98,10 +99,11 @@ Options that apply to every command go *before* the command name: `sbatch hpcc/r
 ## 3. Labels you already have (Roboflow, CVAT, Label Studio, YOLO)
 
 ```bash
-python fruit.py import-coco export/train/_annotations.coco.json      # COCO segmentation export
-python fruit.py import-yolo export/train/images export/train/labels  # YOLO .txt (outlines or boxes)
-python fruit.py approve --all-drafts                                 # accept SAM-drawn masks without checking
+python fruit.py import-coco export/train/_annotations.coco.json
+python fruit.py import-yolo export/train/images export/train/labels
+python fruit.py approve --all-drafts
 ```
+The first command imports a COCO segmentation export, the second YOLO `.txt` labels (outlines or boxes), and the third accepts the SAM-drawn draft masks without checking them.
 On the HPCC, run `source hpcc/activate.sh` first. Elsewhere, name the project before the command: `python fruit.py --project ../data/msu_fruit_project import-coco …`. In the notebook, the same tools are `import_coco(...)` and `import_yolo_seg(...)` (Appendix A).
 
 - **Outlines** (polygons or masks) are used as they are.

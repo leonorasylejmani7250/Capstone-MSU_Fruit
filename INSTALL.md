@@ -1,6 +1,8 @@
 # Install instructions
 
-These steps install the software, test the install, get the data and run the demo (`demo.ipynb`). The demo fine-tunes SAM 2.1 on sample grape images and scores it. It needs no GPU and no data from our community partner.
+These steps install the SAM 2.1 pipeline, test the install, get the data and run the demo (`demo.ipynb`). The demo fine-tunes SAM 2.1 on sample grape images and scores it. It needs no GPU and no data from our community partner.
+
+The repository's other pipeline, YOLO11, installs separately, with its own Python environment: see [INSTALL_Moe_YOLO.md](INSTALL_Moe_YOLO.md). [README.md](README.md) describes both.
 
 **No-install option:** open [`demo.ipynb` in Google Colab](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/main/demo.ipynb), choose *Runtime ▸ Run all*, and approve the warning that the notebook is not from Google. It fetches the code by itself. Use this option if the local install below gives trouble.
 
@@ -8,12 +10,12 @@ These steps install the software, test the install, get the data and run the dem
 
 - **Git**: <https://git-scm.com/downloads>.
 - **Conda**, via Miniforge (recommended, <https://conda-forge.org/download/>) or Anaconda / Miniconda.
-- About **3 GB of free disk** for the environment, plus 200 MB of downloads on first use. Linux needs more (about 6 GB), because the Linux PyTorch build includes GPU libraries.
+- About **3 GB of free disk** for the environment, plus 200 MB of downloads on first use, plus 2 GB for the repository itself (it includes the YOLO11 dataset and checkpoints). Linux needs more (about 6 GB), because the Linux PyTorch build includes GPU libraries.
 - **Internet access** on the first run.
 - **Linux, macOS on Apple Silicon (M1–M4), or Windows**; no GPU needed.
   - **Intel Macs** cannot install a recent enough PyTorch; use the Colab link above.
   - **On Windows**, run the commands below in the *Miniforge Prompt* (or *Anaconda Prompt*). Meta recommends WSL (Ubuntu) for SAM 2 on Windows; if anything fails natively, use WSL or the Colab link.
-  - **Tested so far:** these steps were tested on Linux; macOS and Windows are expected to work but have not been run yet.
+  - **Tested so far:** these steps were tested on Linux and on macOS (Apple Silicon). Windows is expected to work but has not been run yet.
 
 ## 2. Get the code
 
