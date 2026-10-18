@@ -69,3 +69,6 @@ envs/
 data/demo_project/
 data/msu_fruit_project/
 sam2_pipeline/*.out
+
+# Additional cache rule from Moe
+*.cache
