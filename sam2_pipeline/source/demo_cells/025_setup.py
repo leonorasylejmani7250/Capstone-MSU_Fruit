@@ -6,7 +6,7 @@ from pathlib import Path
 BRANCH = "main"            # the branch of the team repository that holds sam2_pipeline/
 if not Path("sam2_pipeline/fruit_sam2.py").exists() and "google.colab" in sys.modules:
     subprocess.run(["git", "clone", "-q", "--depth", "1", "-b", BRANCH,
-                    "https://github.com/moehocbaidi/Capstone-MSU_Fruit.git", "/content/Capstone-MSU_Fruit"], check=True)
+                    "https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git", "/content/Capstone-MSU_Fruit"], check=True)
     os.chdir("/content/Capstone-MSU_Fruit")
 assert Path("sam2_pipeline/fruit_sam2.py").exists(), "Start Jupyter from the repository folder (see INSTALL.md)."
 

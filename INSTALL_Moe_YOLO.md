@@ -21,7 +21,7 @@ Run `git --version` and `python3.11 --version` (Mac) or `py -3.11 --version` (Wi
 In Terminal or PowerShell:
 
 ```bash
-git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git
+git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit
 ```
 

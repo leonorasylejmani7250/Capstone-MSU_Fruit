@@ -20,7 +20,7 @@ There are two pipelines, one built on SAM 2.1 and one on YOLO11. They are separa
 **Full steps: [INSTALL.md](INSTALL.md).** In short:
 
 ```bash
-git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit
+git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit
 conda env create --prefix ./envs --file environment.yml && conda activate ./envs
 python tests/test_install.py
 jupyter notebook
@@ -28,7 +28,7 @@ jupyter notebook
 
 The test ends with `INSTALL OK`. In Jupyter, open `demo.ipynb` and choose *Run ▸ Run All Cells*. It takes 5–10 minutes on a laptop CPU.
 
-No install: open [demo.ipynb in Google Colab](https://colab.research.google.com/github/moehocbaidi/Capstone-MSU_Fruit/blob/main/demo.ipynb).
+No install: open [demo.ipynb in Google Colab](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/demo.ipynb).
 
 ## What is in this repository
 

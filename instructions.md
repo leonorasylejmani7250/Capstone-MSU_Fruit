@@ -54,7 +54,7 @@ Capstone-MSU_Fruit/
 ### Clone the repository
 
 ```powershell
-git clone https://github.com/moehocbaidi/Capstone-MSU_Fruit.git
+git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit
 ```
 
