@@ -2,7 +2,7 @@
 
 These steps install the SAM 2.1 pipeline, test the install, get the data and run the demo (`demo.ipynb`). The demo fine-tunes SAM 2.1 on sample grape images and scores it. It needs no GPU and no data from our community partner.
 
-The repository's other pipeline, YOLO11, installs separately, with its own Python environment: see [INSTALL_Moe_YOLO.md](INSTALL_Moe_YOLO.md). [README.md](README.md) describes both.
+The repository's other pipeline, YOLO11, installs separately, with its own Python environment: see [yolo11_pipeline/INSTALL.md](yolo11_pipeline/INSTALL.md). [README.md](README.md) describes both.
 
 **No-install option:** open [`demo.ipynb` in Google Colab](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/demo.ipynb), choose *Runtime ▸ Run all*, and approve the warning that the notebook is not from Google. It fetches the code by itself. Use this option if the local install below gives trouble.
 

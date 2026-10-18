@@ -4,7 +4,7 @@ A **CMSE 495 — Experiential Learning in Data Science** project at **Michigan S
 
 This repository develops a computer-vision workflow for detecting and segmenting fruit in field imagery and video. The current implementation focuses on **grape-cluster instance segmentation** with **YOLO11n-seg**, using the [WGISD (Wine Grape Instance Segmentation Dataset)](https://github.com/thsant/wgisd) for training and evaluation. Video inference supports optional object tracking, visual overlays, and per-frame CSV diagnostics.
 
-The broader capstone aims to investigate scalable yield estimation and transfer to other fruits (including blueberries, apples, and peaches) and capture devices. **Those broader goals are not yet validated by the current grape-only implementation.** The repository also holds a separate SAM 2.1 pipeline (`sam2_pipeline/`, `INSTALL.md`, `demo.ipynb`; see `README.md`). It is not a dependency of the scripts described here.
+The broader capstone aims to investigate scalable yield estimation and transfer to other fruits (including blueberries, apples, and peaches) and capture devices. **Those broader goals are not yet validated by the current grape-only implementation.** This folder, `yolo11_pipeline/`, holds the whole YOLO11 pipeline; install it with [INSTALL.md](INSTALL.md) here. The repository also holds a separate SAM 2.1 pipeline (`../sam2_pipeline/`, `../INSTALL.md`, `../demo.ipynb`; see `../README.md`). It is not a dependency of the scripts described here.
 
 ## Features
 
@@ -22,7 +22,8 @@ The broader capstone aims to investigate scalable yield estimation and transfer 
 ## Repository layout
 
 ```text
-Capstone-MSU_Fruit/
+Capstone-MSU_Fruit/yolo11_pipeline/
+├── INSTALL.md                # Install and demo guide (macOS, Linux, Windows)
 ├── prepare_wgisd.py          # Convert WGISD instance masks into YOLO labels
 ├── preview_labels.py         # Visual quality check for converted labels
 ├── train.py                  # Train YOLO11n-seg
@@ -30,14 +31,15 @@ Capstone-MSU_Fruit/
 ├── video.py                  # Annotated video inference and optional tracking
 ├── extract_dji_frames.py    # Sample DJI frames for manual labeling
 ├── requirements.txt         # Python dependencies
-├── grape.yaml                # Dataset configuration (paths relative to the repository)
+├── grape.yaml                # Dataset configuration (paths relative to this folder)
 ├── external/wgisd/           # WGISD source data
 ├── data/wgisd_seg/           # Converted images and segmentation labels
 ├── runs/                     # Training checkpoints, plots, evaluation artifacts
 ├── outputs/                  # Annotated results, CSVs, label previews
 ├── tests/                    # Project smoke test(s)
-├── videos/                   # Local source videos; NOT committed to GitHub
-└── sam2_pipeline/, INSTALL.md, demo.ipynb   # The SAM 2.1 pipeline (separate environment; see README.md)
+└── videos/                   # Local source videos; NOT committed to GitHub
+
+The SAM 2.1 pipeline is in `../sam2_pipeline/` with its own install guide at `../INSTALL.md` (separate environment).
 ```
 
 **Repository storage:** `main` includes the WGISD dataset, the converted labels, model checkpoints and label previews (about 1.7 GB). The annotated result videos (9.5 GB in Git LFS) are kept on the `Moe` branch only, so `main` needs no Git LFS. The `videos/` and `.venv/` directories are intentionally excluded.
@@ -55,10 +57,10 @@ Capstone-MSU_Fruit/
 
 ```powershell
 git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
-cd Capstone-MSU_Fruit
+cd Capstone-MSU_Fruit\yolo11_pipeline
 ```
 
-If you already cloned the repository for the SAM 2.1 install (`INSTALL.md`), use that copy. The YOLO11 environment below is separate from the conda environment in `./envs`.
+If you already cloned the repository for the SAM 2.1 install (`../INSTALL.md`), use that copy and `cd` into `yolo11_pipeline`. The YOLO11 environment below is separate from the conda environment in `./envs`.
 
 ### Create a virtual environment (Windows)
 
@@ -88,7 +90,7 @@ The project uses Ultralytics `8.3.70` with the **YOLO11n-seg** checkpoint. The U
 
 The preprocessing script expects the WGISD data in `external/wgisd/`, including `train_masked.txt`, `test_masked.txt`, and the corresponding `.jpg` and `.npz` files under `external/wgisd/data/`.
 
-The converted labels and `grape.yaml` are committed, and `grape.yaml` uses paths relative to the repository, so this step is **optional**. Run it to rebuild the labels from the source masks (the conversion takes a few minutes):
+The converted labels and `grape.yaml` are committed, and `grape.yaml` uses paths relative to this folder, so this step is **optional**. Run it to rebuild the labels from the source masks (the conversion takes a few minutes):
 
 ```powershell
 .\.venv\Scripts\python.exe prepare_wgisd.py
@@ -326,7 +328,7 @@ Run `python reassemble.py`. Make sure there is enough disk space for the reconst
 - **Ultralytics YOLO:** [ultralytics/ultralytics](https://github.com/ultralytics/ultralytics).
 - **PyTorch:** [pytorch.org](https://pytorch.org/).
 
-Repository license: see [`LICENSE.txt`](LICENSE.txt). Dataset and third-party model licenses may differ from the repository's own license.
+Repository license: see [`LICENSE.txt`](../LICENSE.txt). Dataset and third-party model licenses may differ from the repository's own license.
 
 ## Course
 

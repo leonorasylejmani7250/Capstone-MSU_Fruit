@@ -13,7 +13,7 @@ There are two pipelines, one built on SAM 2.1 and one on YOLO11. They are separa
 | Pipeline | What it does | Guide |
 |---|---|---|
 | **SAM 2.1** | Label grape clusters in our videos with SAM 2.1's help, fine-tune SAM 2.1, score it and any other model on the same held-out clips, and run it on new video. Runs on a laptop, in Google Colab and on the MSU HPCC. | [INSTALL.md](INSTALL.md) to install it and run its demo, then [sam2_pipeline/README.md](sam2_pipeline/README.md) for everything else. |
-| **YOLO11** | Train YOLO11n-seg on the public WGISD grape dataset, evaluate it on WGISD's test images, and run detection and tracking on video. | [INSTALL_Moe_YOLO.md](INSTALL_Moe_YOLO.md) to install it and run its demo (macOS, Linux and Windows), then [instructions.md](instructions.md) for training, tracking and the other options (its commands are written for Windows PowerShell). |
+| **YOLO11** | Train YOLO11n-seg on the public WGISD grape dataset, evaluate it on WGISD's test images, and run detection and tracking on video. | [yolo11_pipeline/INSTALL.md](yolo11_pipeline/INSTALL.md) to install it and run its demo (macOS, Linux and Windows), then [yolo11_pipeline/README.md](yolo11_pipeline/README.md) for training, tracking and the other options (its commands are written for Windows PowerShell). |
 
 ## Quick start: the SAM 2.1 demo
 
@@ -39,11 +39,7 @@ No install: open [demo.ipynb in Google Colab](https://colab.research.google.com/
 | `tests/test_install.py` | One-minute check that the SAM 2.1 install works. |
 | `sam2_pipeline/` | The SAM 2.1 pipeline: upload video, label grape clusters, fine-tune SAM 2.1, score any model, run on new video. Runs in Google Colab and on the MSU HPCC. Start with [`sam2_pipeline/README.md`](sam2_pipeline/README.md). |
 | `data/demo_project/`, `data/msu_fruit_project/` | Local SAM 2.1 data and results, not in git. The demo writes to `data/demo_project/`, our videos go in `data/msu_fruit_project/videos/`. |
-| `INSTALL_Moe_YOLO.md`, `instructions.md`, `requirements.txt` | The YOLO11 pipeline's install guide, its full guide (training, evaluation, detection and tracking on video) and its packages. |
-| `prepare_wgisd.py`, `train.py`, `evaluate.py`, `video.py`, `preview_labels.py`, `extract_dji_frames.py`, `test_yolo.py` | The YOLO11 scripts. `grape.yaml` is their dataset file. |
-| `external/wgisd/`, `data/wgisd_seg/` | The public WGISD grape dataset and its converted YOLO labels, both committed. |
-| `runs/`, `outputs/` | Trained YOLO11 checkpoints (`runs/yolo11_wgisd2/weights/best.pt`) with their training logs, per-frame detection CSVs and label previews. The annotated result videos (9.5 GB, Git LFS) are kept on the `Moe` branch only. |
-| `tests/test_smoke.py` | YOLO11 conversion and rendering tests: `python -m unittest discover -s tests -v`. |
+| `yolo11_pipeline/` | The YOLO11 pipeline, all in one folder. Start with [`yolo11_pipeline/INSTALL.md`](yolo11_pipeline/INSTALL.md) (install and demo) and [`yolo11_pipeline/README.md`](yolo11_pipeline/README.md) (training, evaluation, detection and tracking on video). Inside: the scripts (`prepare_wgisd.py`, `train.py`, `evaluate.py`, `video.py`, `preview_labels.py`, `extract_dji_frames.py`, `test_yolo.py`), `grape.yaml` and `requirements.txt`, the public WGISD dataset (`external/wgisd/`) with its converted YOLO labels (`data/wgisd_seg/`), the trained checkpoints and training logs (`runs/`, best model `runs/yolo11_wgisd2/weights/best.pt`), per-frame detection CSVs and label previews (`outputs/`), and its tests (`tests/test_smoke.py`: `python -m unittest discover -s tests -v`, run inside the folder). The annotated result videos (9.5 GB, Git LFS) are kept on the `Moe` branch only. |
 
 ## Main Goals
 
@@ -73,7 +69,7 @@ Michigan State University
 
 ## YOLO11 Implementation
 
-This project implements YOLO11n-seg for grape cluster detection and instance segmentation using WGISD.
+This project implements YOLO11n-seg for grape cluster detection and instance segmentation using WGISD. Everything below lives in [`yolo11_pipeline/`](yolo11_pipeline/); run its commands from that folder.
 
 ### Features
 - Dataset preparation and label visualization
