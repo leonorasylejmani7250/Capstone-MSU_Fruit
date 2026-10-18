@@ -2,7 +2,7 @@
 
 **Project:** Scalable Fruit Yield Estimation Using Video-Based Computer Vision (CMSE 495, Michigan State University)
 
-This guide installs the **YOLO11n-seg grape-cluster segmentation** pipeline. The repository's other pipeline, SAM 2.1, installs separately with its own environment: see [INSTALL.md](INSTALL.md); [README.md](README.md) describes both. The model detects grape clusters, not individual berries, and its counts are not validated yield estimates.
+This guide installs the **YOLO11n-seg grape-cluster segmentation** pipeline. Everything it needs is in this folder, `yolo11_pipeline/`. The repository's other pipeline, SAM 2.1, installs separately with its own environment: see [../INSTALL.md](../INSTALL.md); [../README.md](../README.md) describes both. The model detects grape clusters, not individual berries, and its counts are not validated yield estimates.
 
 > **Compatibility:** Python 3.11 is required for the setup below. CPU execution is the default demo route; a GPU is not required. macOS and Windows commands are provided, but those operating systems have not been tested in this verification environment.
 
@@ -22,10 +22,10 @@ In Terminal or PowerShell:
 
 ```bash
 git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
-cd Capstone-MSU_Fruit
+cd Capstone-MSU_Fruit/yolo11_pipeline
 ```
 
-The repository includes the WGISD dataset, the converted labels and the trained checkpoint (about 2 GB), so allow time for the download. It does not need Git LFS: the large result videos are kept on the `Moe` branch only. If you already cloned the repository for the SAM 2.1 install, use that copy. Run all remaining commands from `Capstone-MSU_Fruit`. Use a fresh virtual environment.
+The repository includes the WGISD dataset, the converted labels and the trained checkpoint (about 2 GB), so allow time for the download. It does not need Git LFS: the large result videos are kept on the `Moe` branch only. If you already cloned the repository for the SAM 2.1 install, use that copy. Run all remaining commands from `Capstone-MSU_Fruit/yolo11_pipeline`. Use a fresh virtual environment.
 
 ## 3. Install Python dependencies
 
@@ -103,7 +103,7 @@ The project uses the public [WGISD dataset](https://github.com/thsant/wgisd). Th
 
 The WGISD source data is included in the repository. If those files are missing after the clone, obtain the public dataset from the link above and place its files in `external/wgisd/` with the expected structure. **Do not use private partner data for the public demo.**
 
-From the repository root:
+From the `yolo11_pipeline` folder:
 
 macOS:
 
@@ -192,7 +192,7 @@ Windows:
 | Problem | Suggested fix |
 | --- | --- |
 | `python3.11` or `py -3.11` not found | Install Python 3.11 and reopen the terminal. |
-| `grape.yaml` was edited to an absolute path | Run `prepare_wgisd.py` again from the repository root; it writes relative paths. |
+| `grape.yaml` was edited to an absolute path | Run `prepare_wgisd.py` again from the `yolo11_pipeline` folder; it writes relative paths. |
 | Missing `best.pt` | Check the actual run folder; update the model path. |
 | Out of memory | Reduce `--batch` for training or `--imgsz` for inference. |
 | CUDA not available | Use CPU or install the platform-compatible PyTorch build. |
@@ -202,7 +202,7 @@ Windows:
 
 Checked against the public `Moe` branch at commit `b5a70a66d69bc3883cf09eea4105189de664b830` on October 17, 2026. The trained `runs/yolo11_wgisd2/weights/best.pt` checkpoint is included directly in Git. The dataset-only Git LFS pull succeeded.
 
-On October 18, 2026 the YOLO11 files were merged into `main`, with the result videos left on the `Moe` branch and the one dataset file that was in Git LFS stored directly, so `main` needs no Git LFS. The evaluation command above was re-run from `main` on Linux (CPU) with the same test scores.
+On October 18, 2026 the YOLO11 files were merged into `main`, with the result videos left on the `Moe` branch and the one dataset file that was in Git LFS stored directly, so `main` needs no Git LFS. The evaluation command above was re-run from `main` on Linux (CPU) with the same test scores. Later that day the pipeline moved into the `yolo11_pipeline/` folder (this guide was `INSTALL_Moe_YOLO.md` at the repository root) and every command in this guide was re-run from the folder.
 
 A fresh Linux CPU environment using Python 3.11.17, PyTorch 2.2.2, torchvision 0.17.2 and the repository requirements passed dependency compatibility checks, both existing smoke tests, full dataset preparation (94 training / 16 validation / 27 test images), eight label previews, evaluation on all 27 test images, and the five-frame public-image video test. The optional training command initialized and processed its first batch; a complete epoch was not verified. Windows and macOS still require a separate clean-machine test. Observed test mAP50 was 0.8103 for boxes and 0.8192 for masks. These are execution checks on the included checkpoint and split, not an independent audit of training provenance or yield accuracy.
 
@@ -215,4 +215,4 @@ A fresh Linux CPU environment using Python 3.11.17, PyTorch 2.2.2, torchvision 0
 - Have at least one other teammate clone and follow this guide on a clean machine, ideally a different OS. Record any corrections in this file.
 - Ensure the final README links to `INSTALL.md`.
 
-For advanced options (full training, tracking, DJI frame extraction, and processing many videos), see the existing project `instructions.md` or README documentation.
+For advanced options (full training, tracking, DJI frame extraction, and processing many videos), see [README.md](README.md) in this folder.
