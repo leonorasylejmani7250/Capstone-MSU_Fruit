@@ -1,3 +1,4 @@
+"""Evaluate a trained YOLO11 segmentation checkpoint on the WGISD test split and print box and mask mAP."""
 from __future__ import annotations
 import argparse
 from pathlib import Path

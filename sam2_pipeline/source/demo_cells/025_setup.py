@@ -1,3 +1,4 @@
+# Step 1: load the pipeline code (sam2_pipeline/fruit_sam2.py) and pick the smallest SAM 2.1, so the demo runs on a laptop.
 import os, sys, subprocess
 from pathlib import Path
 

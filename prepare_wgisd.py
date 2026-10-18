@@ -1,3 +1,4 @@
+"""Convert the WGISD grape dataset (external/wgisd) into YOLO segmentation labels under data/wgisd_seg and write grape.yaml."""
 from __future__ import annotations
 
 import argparse

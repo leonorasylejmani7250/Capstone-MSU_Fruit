@@ -1,3 +1,4 @@
+"""Save still frames from a DJI video every few seconds, into data/dji_to_label, for labelling or testing."""
 import argparse
 from pathlib import Path
 import cv2

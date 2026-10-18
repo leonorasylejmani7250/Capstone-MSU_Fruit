@@ -1,3 +1,4 @@
+"""Draw the converted WGISD labels on a few images of one split and save them to outputs/label_preview for checking."""
 import argparse
 from pathlib import Path
 import cv2
