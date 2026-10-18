@@ -10,7 +10,7 @@ The repository's other pipeline, YOLO11, installs separately, with its own Pytho
 
 - **Git**: <https://git-scm.com/downloads>.
 - **Conda**, via Miniforge (recommended, <https://conda-forge.org/download/>) or Anaconda / Miniconda.
-- About **3 GB of free disk** for the environment, plus 200 MB of downloads on first use, plus 2 GB for the repository itself (it includes the YOLO11 dataset and checkpoints). Linux needs more (about 6 GB), because the Linux PyTorch build includes GPU libraries.
+- About **3 GB of free disk** for the environment, plus 200 MB of downloads on first use, plus about 3 GB for the repository itself (1.4 GB to download; it includes the YOLO11 dataset and checkpoints). Linux needs more (about 6 GB), because the Linux PyTorch build includes GPU libraries.
 - **Internet access** on the first run.
 - **Linux, macOS on Apple Silicon (M1–M4), or Windows**; no GPU needed.
   - **Intel Macs** cannot install a recent enough PyTorch; use the Colab link above.

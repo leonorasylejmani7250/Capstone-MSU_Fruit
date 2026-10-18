@@ -79,10 +79,10 @@ This project implements YOLO11n-seg for grape cluster detection and instance seg
 - Video and CSV output
 
 ### Training
-Run prepare_wgisd.py before training.
+prepare_wgisd.py converts the WGISD masks into YOLO labels (they are already committed, so this is optional).
 Command: python train.py --epochs 50 --imgsz 512 --batch 2
 
 ### Video Inference
 Run video.py with --video, --model, --mode detect and --max-frames 0.
 
-The dataset, video files, weights and generated outputs are stored locally.
+The WGISD dataset, the converted labels and the trained weights are committed in `yolo11_pipeline/`; source videos and new outputs stay local (see `.gitignore`).

@@ -42,7 +42,7 @@ Capstone-MSU_Fruit/yolo11_pipeline/
 The SAM 2.1 pipeline is in `../sam2_pipeline/` with its own install guide at `../INSTALL.md` (separate environment).
 ```
 
-**Repository storage:** `main` includes the WGISD dataset, the converted labels, model checkpoints and label previews (about 1.7 GB). The annotated result videos (9.5 GB in Git LFS) are kept on the `Moe` branch only, so `main` needs no Git LFS. The `videos/` and `.venv/` directories are intentionally excluded.
+**Repository storage:** `main` includes the WGISD dataset, the converted labels, model checkpoints and label previews (about 1.4 GB to download, 3 GB on disk with git history). The annotated result videos (9.5 GB in Git LFS) are kept on the `Moe` branch only, so `main` needs no Git LFS. The `videos/` and `.venv/` directories are intentionally excluded.
 
 ## 1. Clone and set up the environment
 

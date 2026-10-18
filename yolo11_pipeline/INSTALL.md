@@ -25,7 +25,7 @@ git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit/yolo11_pipeline
 ```
 
-The repository includes the WGISD dataset, the converted labels and the trained checkpoint (about 2 GB), so allow time for the download. It does not need Git LFS: the large result videos are kept on the `Moe` branch only. If you already cloned the repository for the SAM 2.1 install, use that copy. Run all remaining commands from `Capstone-MSU_Fruit/yolo11_pipeline`. Use a fresh virtual environment.
+The repository includes the WGISD dataset, the converted labels and the trained checkpoint (about 1.4 GB to download, 3 GB on disk), so allow time for the download. It does not need Git LFS: the large result videos are kept on the `Moe` branch only. If you already cloned the repository for the SAM 2.1 install, use that copy. Run all remaining commands from `Capstone-MSU_Fruit/yolo11_pipeline`. Use a fresh virtual environment.
 
 ## 3. Install Python dependencies
 
