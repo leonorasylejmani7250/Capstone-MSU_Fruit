@@ -1,3 +1,4 @@
+"""Train YOLO11n-seg on the WGISD grape clusters listed in grape.yaml; the run is saved under runs/."""
 from __future__ import annotations
 
 import argparse

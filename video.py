@@ -1,3 +1,4 @@
+"""Run a trained YOLO11 checkpoint on a video: an annotated output video (detection or ByteTrack tracking) plus a per-frame CSV."""
 from __future__ import annotations
 
 import argparse

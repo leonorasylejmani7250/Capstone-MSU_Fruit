@@ -2,34 +2,30 @@
 
 **Project:** Scalable Fruit Yield Estimation Using Video-Based Computer Vision (CMSE 495, Michigan State University)
 
-This guide installs the current **YOLO11n-seg grape-cluster segmentation** implementation. **SAM is not required or implemented in the current scripts.** The model detects grape clusters, not individual berries, and its counts are not validated yield estimates.
+This guide installs the **YOLO11n-seg grape-cluster segmentation** pipeline. The repository's other pipeline, SAM 2.1, installs separately with its own environment: see [INSTALL.md](INSTALL.md); [README.md](README.md) describes both. The model detects grape clusters, not individual berries, and its counts are not validated yield estimates.
 
 > **Compatibility:** Python 3.11 is required for the setup below. CPU execution is the default demo route; a GPU is not required. macOS and Windows commands are provided, but those operating systems have not been tested in this verification environment.
 
 ## 1. Prerequisites
 
-- Git and [Git LFS](https://git-lfs.com/)
+- Git
 - Python **3.11**
-- Internet access to install packages and retrieve Git LFS files
+- Internet access to install packages
 - A terminal (macOS) or PowerShell (Windows)
 - NVIDIA CUDA GPU optional; CPU inference is supported but slower
 
-Run `git --version`, `git lfs version`, and `python3.11 --version` (Mac) or `py -3.11 --version` (Windows) to verify installation. If missing, install Git, Git LFS, and Python 3.11 first.
+Run `git --version` and `python3.11 --version` (Mac) or `py -3.11 --version` (Windows) to verify installation. If missing, install Git and Python 3.11 first.
 
 ## 2. Clone the repository
 
 In Terminal or PowerShell:
 
 ```bash
-git lfs install
-git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false clone --depth 1 --branch Moe https://github.com/moehocbaidi/Capstone-MSU_Fruit.git
+git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit
-git lfs pull --include="external/wgisd/data/*" --exclude=""
 ```
 
-**Before final submission:** If the team merges the working code into the default branch, remove `--branch Moe` from this command.
-
-The clone command skips automatic Git LFS downloads. The following pull downloads only WGISD dataset assets, avoiding large generated video outputs. The repository itself is still large; allow several gigabytes of free space and time for download. Run all remaining commands from `Capstone-MSU_Fruit`. Use a fresh virtual environment.
+The repository includes the WGISD dataset, the converted labels and the trained checkpoint (about 2 GB), so allow time for the download. It does not need Git LFS: the large result videos are kept on the `Moe` branch only. If you already cloned the repository for the SAM 2.1 install, use that copy. Run all remaining commands from `Capstone-MSU_Fruit`. Use a fresh virtual environment.
 
 ## 3. Install Python dependencies
 
@@ -105,7 +101,7 @@ Windows:
 
 The project uses the public [WGISD dataset](https://github.com/thsant/wgisd). The preparation script expects `external/wgisd/train_masked.txt`, `external/wgisd/test_masked.txt`, and matching image (`.jpg`) and mask (`.npz`) files under `external/wgisd/data/`.
 
-The WGISD source data is included in the checked branch, with one mask file downloaded through Git LFS. If those files are missing after the clone and LFS download, obtain the public dataset from the link above and place its files in `external/wgisd/` with the expected structure. **Do not use private partner data for the public demo.**
+The WGISD source data is included in the repository. If those files are missing after the clone, obtain the public dataset from the link above and place its files in `external/wgisd/` with the expected structure. **Do not use private partner data for the public demo.**
 
 From the repository root:
 
@@ -123,7 +119,7 @@ Windows:
 .\.venv\Scripts\python.exe preview_labels.py --split val --limit 8
 ```
 
-**Do not skip this step:** the committed `grape.yaml` contains a Windows path from another computer. `prepare_wgisd.py` regenerates `grape.yaml` with paths for **your computer**, and creates `data/wgisd_seg/images/{train,val,test}/` and matching label folders. Dataset conversion can take several minutes and may print no progress until a split finishes. Label preview images should appear in `outputs/label_preview/`. Open those images to confirm polygons overlay grape clusters.
+**This step is optional:** the converted dataset (`data/wgisd_seg/images/{train,val,test}/` with matching label folders) and `grape.yaml` are committed, and `grape.yaml` uses paths relative to the repository, so it works on any computer. Run `prepare_wgisd.py` only to rebuild the labels from the source masks; it rewrites `grape.yaml` the same way. A different OpenCV version may trace a few outlines slightly differently, so `git status` can show small changes under `data/wgisd_seg/labels` afterwards; `git checkout -- data/wgisd_seg` restores the committed labels. Dataset conversion can take several minutes and may print no progress until a split finishes. Label preview images should appear in `outputs/label_preview/`. Open those images to confirm polygons overlay grape clusters.
 
 ## 5. Optional: run a training installation test
 
@@ -153,7 +149,7 @@ The team's documented trained checkpoint is:
 runs/yolo11_wgisd2/weights/best.pt
 ```
 
-Check that this file exists after cloning/LFS download. If it does not, use a locally trained checkpoint from `runs/.../weights/best.pt`; a one-epoch checkpoint is suitable only for an installation smoke test, not for reporting final accuracy.
+Check that this file exists after cloning. If it does not, use a locally trained checkpoint from `runs/.../weights/best.pt`; a one-epoch checkpoint is suitable only for an installation smoke test, not for reporting final accuracy.
 
 ### Evaluate the existing model on the public test split
 
@@ -196,9 +192,8 @@ Windows:
 | Problem | Suggested fix |
 | --- | --- |
 | `python3.11` or `py -3.11` not found | Install Python 3.11 and reopen the terminal. |
-| Missing Git LFS assets | Run `git lfs pull`; check repository permissions/quota. |
-| `grape.yaml` has an incorrect absolute path | Run `prepare_wgisd.py` again from the repository root. |
-| Missing `best.pt` | Check the actual run folder and Git LFS downloads; update the model path. |
+| `grape.yaml` was edited to an absolute path | Run `prepare_wgisd.py` again from the repository root; it writes relative paths. |
+| Missing `best.pt` | Check the actual run folder; update the model path. |
 | Out of memory | Reduce `--batch` for training or `--imgsz` for inference. |
 | CUDA not available | Use CPU or install the platform-compatible PyTorch build. |
 | macOS dependency errors | Record the error and update/test a Mac-compatible dependency setup before submission. |
@@ -207,11 +202,13 @@ Windows:
 
 Checked against the public `Moe` branch at commit `b5a70a66d69bc3883cf09eea4105189de664b830` on October 17, 2026. The trained `runs/yolo11_wgisd2/weights/best.pt` checkpoint is included directly in Git. The dataset-only Git LFS pull succeeded.
 
+On October 18, 2026 the YOLO11 files were merged into `main`, with the result videos left on the `Moe` branch and the one dataset file that was in Git LFS stored directly, so `main` needs no Git LFS. The evaluation command above was re-run from `main` on Linux (CPU) with the same test scores.
+
 A fresh Linux CPU environment using Python 3.11.17, PyTorch 2.2.2, torchvision 0.17.2 and the repository requirements passed dependency compatibility checks, both existing smoke tests, full dataset preparation (94 training / 16 validation / 27 test images), eight label previews, evaluation on all 27 test images, and the five-frame public-image video test. The optional training command initialized and processed its first batch; a complete epoch was not verified. Windows and macOS still require a separate clean-machine test. Observed test mAP50 was 0.8103 for boxes and 0.8192 for masks. These are execution checks on the included checkpoint and split, not an independent audit of training provenance or yield accuracy.
 
 ## 9. Sharing and reproducibility
 
-- Use **relative paths** within the repository; do not commit personal absolute paths in `grape.yaml`.
+- Use **relative paths** within the repository; `grape.yaml` is committed with paths relative to the repository, so do not replace them with personal absolute paths.
 - Do not commit confidential partner data, raw private videos, or other NDA/IP-protected assets.
 - Review WGISD, pretrained model, and project license terms before redistribution.
 - Keep `.venv/`, local footage, and other machine-specific files out of Git.

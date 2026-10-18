@@ -4,7 +4,7 @@ A **CMSE 495 — Experiential Learning in Data Science** project at **Michigan S
 
 This repository develops a computer-vision workflow for detecting and segmenting fruit in field imagery and video. The current implementation focuses on **grape-cluster instance segmentation** with **YOLO11n-seg**, using the [WGISD (Wine Grape Instance Segmentation Dataset)](https://github.com/thsant/wgisd) for training and evaluation. Video inference supports optional object tracking, visual overlays, and per-frame CSV diagnostics.
 
-The broader capstone aims to investigate scalable yield estimation and transfer to other fruits (including blueberries, apples, and peaches) and capture devices. **Those broader goals are not yet validated by the current grape-only implementation.** Segment Anything Model (SAM) is a potential direction, not a dependency of the scripts in this repository.
+The broader capstone aims to investigate scalable yield estimation and transfer to other fruits (including blueberries, apples, and peaches) and capture devices. **Those broader goals are not yet validated by the current grape-only implementation.** The repository also holds a separate SAM 2.1 pipeline (`sam2_pipeline/`, `INSTALL.md`, `demo.ipynb`; see `README.md`). It is not a dependency of the scripts described here.
 
 ## Features
 
@@ -30,39 +30,35 @@ Capstone-MSU_Fruit/
 ├── video.py                  # Annotated video inference and optional tracking
 ├── extract_dji_frames.py    # Sample DJI frames for manual labeling
 ├── requirements.txt         # Python dependencies
-├── grape.yaml                # Generated dataset configuration (machine-specific)
+├── grape.yaml                # Dataset configuration (paths relative to the repository)
 ├── external/wgisd/           # WGISD source data
 ├── data/wgisd_seg/           # Converted images and segmentation labels
 ├── runs/                     # Training checkpoints, plots, evaluation artifacts
 ├── outputs/                  # Annotated results, CSVs, label previews
 ├── tests/                    # Project smoke test(s)
-└── videos/                   # Local source videos; NOT committed to GitHub
+├── videos/                   # Local source videos; NOT committed to GitHub
+└── sam2_pipeline/, INSTALL.md, demo.ipynb   # The SAM 2.1 pipeline (separate environment; see README.md)
 ```
 
-**Repository storage:** The `Moe` branch includes datasets, model checkpoints, and generated outputs, with some large files stored using Git LFS. The `videos/` and `.venv/` directories are intentionally excluded. Check your Git LFS storage/download allowance before cloning or pulling large assets.
+**Repository storage:** `main` includes the WGISD dataset, the converted labels, model checkpoints and label previews (about 1.7 GB). The annotated result videos (9.5 GB in Git LFS) are kept on the `Moe` branch only, so `main` needs no Git LFS. The `videos/` and `.venv/` directories are intentionally excluded.
 
 ## 1. Clone and set up the environment
 
 ### Prerequisites
 
 - Python **3.11** (the version used for the documented Windows run).
-- Git and [Git LFS](https://git-lfs.com/).
+- Git. [Git LFS](https://git-lfs.com/) is only needed to fetch the result videos from the `Moe` branch.
 - A CUDA-capable NVIDIA GPU is recommended for training; CPU execution is also supported, but slower.
 - Windows PowerShell for the commands below. Adjust activation and path separators on macOS/Linux.
 
-### Clone the `Moe` branch
+### Clone the repository
 
 ```powershell
-git lfs install
-git clone --branch Moe https://github.com/moehocbaidi/Capstone-MSU_Fruit.git
+git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit
 ```
 
-Git LFS will fetch the large objects referenced by the checkout (subject to your repository access and LFS allowance). If a checkout was performed without LFS content, run:
-
-```powershell
-git lfs pull
-```
+If you already cloned the repository for the SAM 2.1 install (`INSTALL.md`), use that copy. The YOLO11 environment below is separate from the conda environment in `./envs`.
 
 ### Create a virtual environment (Windows)
 
@@ -92,7 +88,7 @@ The project uses Ultralytics `8.3.70` with the **YOLO11n-seg** checkpoint. The U
 
 The preprocessing script expects the WGISD data in `external/wgisd/`, including `train_masked.txt`, `test_masked.txt`, and the corresponding `.jpg` and `.npz` files under `external/wgisd/data/`.
 
-Even if you cloned the prepared data, **run this command once on your own machine**:
+The converted labels and `grape.yaml` are committed, and `grape.yaml` uses paths relative to the repository, so this step is **optional**. Run it to rebuild the labels from the source masks (the conversion takes a few minutes):
 
 ```powershell
 .\.venv\Scripts\python.exe prepare_wgisd.py
@@ -106,7 +102,7 @@ data/wgisd_seg/labels/{train,val,test}/
 grape.yaml
 ```
 
-**Why regenerate `grape.yaml`?** The committed version may contain an absolute path from the original Windows training computer. Running `prepare_wgisd.py` updates the dataset path to your own machine and rebuilds labels from the source masks. The conversion uses the WGISD masked train/test lists, then splits part of training data into validation data with seed 42 and a default validation fraction of 0.15.
+**What it does:** `prepare_wgisd.py` rebuilds the labels from the source masks and rewrites `grape.yaml`. A different OpenCV version may trace a few outlines slightly differently, so `git status` can show small changes under `data/wgisd_seg/labels` afterwards; `git checkout -- data/wgisd_seg` restores the committed labels. The conversion uses the WGISD masked train/test lists, then splits part of training data into validation data with seed 42 and a default validation fraction of 0.15.
 
 In the documented run, this produced **94 training, 16 validation, and 27 test images** with usable segmentation masks. Results can differ if the underlying dataset or conversion settings change.
 
@@ -281,6 +277,8 @@ Frames are written to `data/dji_to_label/<video_stem>/`. This script only extrac
 
 ## 7. Large result videos stored in Git LFS
 
+These videos are kept on the `Moe` branch only (`git lfs install`, then `git clone --branch Moe …`); `main` does not carry them, so a normal clone never downloads them.
+
 Some generated MP4 files exceeded the single-file limit of the project's Git LFS storage configuration and were split into binary chunks such as:
 
 ```text
@@ -319,7 +317,7 @@ Run `python reassemble.py`. Make sure there is enough disk space for the reconst
 | `Missing trained model` | Use the actual `weights/best.pt` path in your local `runs/` directory; numbered run directories may differ. |
 | Only 300 frames processed | Specify `--max-frames 0`. |
 | `tracked_now` / IDs remain zero | You may be in `--mode detect`; tracking requires `--mode track`, and tracks are not always assigned. |
-| Missing MP4 after clone | Download Git LFS objects (`git lfs pull`), and reassemble `.partNNN` chunks if applicable. |
+| Missing MP4 after clone | The result videos are only on the `Moe` branch: clone it with Git LFS installed (`git lfs pull` fetches them), and reassemble `.partNNN` chunks if applicable. |
 | Inference video contains false positives or missed clusters | Validate on footage from your camera; consider annotating real-video frames for fine-tuning. WGISD validation scores do not guarantee field-video accuracy. |
 
 ## Dataset and acknowledgments
