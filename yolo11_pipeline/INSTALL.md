@@ -29,6 +29,8 @@ The repository includes the WGISD dataset, the converted labels and the trained 
 
 ## 3. Install Python dependencies
 
+**Allow time for the downloads.** The largest are PyTorch (60 MB on an Apple Silicon Mac, about 200 MB on Windows and Linux) and OpenCV, the `cv2` module (`opencv-python`: 33 MB on a Mac, 38 MB on Windows, 62 MB on Linux). pip shows a progress bar for each; on a slow connection OpenCV alone can take several minutes, so let it finish. If pip stops with `ReadTimeoutError`, run the same command again with `--timeout 120` added; downloads that already finished come from pip's cache.
+
 ### macOS (Terminal; CPU / Apple Silicon)
 
 ```bash
@@ -65,7 +67,7 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip check
 ```
 
-Use the CPU setup above for the course demo. Install a different CUDA build only in a separate environment if GPU training is needed. Pinning PyTorch avoids changes in checkpoint-loading behavior in newer releases.
+The CPU setup above is all the demo needs. Install a different CUDA build only in a separate environment if GPU training is needed. Pinning PyTorch avoids changes in checkpoint-loading behavior in newer releases.
 
 **Check dependencies:**
 
@@ -141,7 +143,7 @@ Windows:
 
 ## 6. Demo: visualize grape-cluster segmentation
 
-The existing scripts support evaluation on public WGISD test images and annotated inference on video. For the course demo, use **public WGISD data** and an existing trained checkpoint; do not require private footage or a full 50-epoch training run.
+The existing scripts support evaluation on public WGISD test images and annotated inference on video. The demo below uses **public WGISD data** and the trained checkpoint in the repository, so it needs no private footage and no 50-epoch training run.
 
 The team's documented trained checkpoint is:
 
@@ -196,7 +198,8 @@ Windows:
 | Missing `best.pt` | Check the actual run folder; update the model path. |
 | Out of memory | Reduce `--batch` for training or `--imgsz` for inference. |
 | CUDA not available | Use CPU or install the platform-compatible PyTorch build. |
-| macOS dependency errors | Record the error and update/test a Mac-compatible dependency setup before submission. |
+| pip stops with `ReadTimeoutError` | Run the same command again with `--timeout 120` added; downloads that already finished come from pip's cache. |
+| macOS dependency errors | Install the PyTorch build that the [PyTorch site](https://pytorch.org/get-started/locally/) gives for your Mac, then rerun `python -m pip install -r requirements.txt` (see Section 3). |
 
 ## 8. Verification notes
 
@@ -212,7 +215,5 @@ A fresh Linux CPU environment using Python 3.11.17, PyTorch 2.2.2, torchvision 0
 - Do not commit confidential partner data, raw private videos, or other NDA/IP-protected assets.
 - Review WGISD, pretrained model, and project license terms before redistribution.
 - Keep `.venv/`, local footage, and other machine-specific files out of Git.
-- Have at least one other teammate clone and follow this guide on a clean machine, ideally a different OS. Record any corrections in this file.
-- Ensure the final README links to `INSTALL.md`.
 
 For advanced options (full training, tracking, DJI frame extraction, and processing many videos), see [README.md](README.md) in this folder.

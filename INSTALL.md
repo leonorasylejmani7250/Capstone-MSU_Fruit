@@ -37,7 +37,15 @@ conda activate ./envs
 - from conda-forge: Python 3.12, Jupyter, git, ffmpeg;
 - from pip: PyTorch and the packages Meta's SAM 2 code and our pipeline use.
 
-It takes 5–15 minutes. The environment lives in `./envs` inside the repository (listed in `.gitignore`, so it is never committed).
+It takes 5–15 minutes, most of it downloading. The environment lives in `./envs` inside the repository (listed in `.gitignore`, so it is never committed).
+
+**The pip step can look stuck while it downloads.** The largest downloads are PyTorch (about 125 MB on a Mac or Windows; about 4 GB on Linux, where it brings its GPU libraries) and OpenCV, the `cv2` module (45–60 MB). While pip works, conda shows only a spinning `Installing pip dependencies: \ | / -` line, with no progress bar and no file names; pip's messages appear once it finishes. On a slow connection the spinner can turn for 20 minutes or more. Leave it running: stopping it leaves a half-built `./envs`.
+
+**On macOS 11 or 12, use this command instead** (your version is under Apple menu ▸ About This Mac). OpenCV's ready-made Mac builds need macOS 13 or newer. On older macOS, pip compiles OpenCV from source instead, which can take half an hour or more and needs a C++ compiler. This command makes pip install the newest OpenCV that has a ready-made build for your Mac (4.10):
+
+```bash
+PIP_ONLY_BINARY=opencv-python-headless conda env create --prefix ./envs --file environment.yml
+```
 
 **Clean up** whenever you like:
 ```bash
@@ -85,6 +93,35 @@ Jupyter opens in your browser. Open `demo.ipynb` and choose **Run ▸ Run All Ce
 4. scores the fine-tuned model on the same clip;
 5. shows the true outlines next to what each model drew.
 
+### Where the results are
+
+**In the notebook**, under each cell as it finishes:
+
+| Step | What appears |
+|---|---|
+| 2 | A table of the four clips (three for training, one held out for scoring), and four frames of the held-out clip with its true labels, one colour per grape cluster. |
+| 3 | The results table, with one row: pretrained SAM 2.1. **J&F** is the main score, from 0 to 100 (higher is better). |
+| 4 | The training loss over the 20 steps. It jumps around; that is expected. |
+| 5 | The results table again, with a second row for the fine-tuned model. On a CPU both rows land near 92–93: 20 training steps on three clips are not meant to beat pretrained SAM 2.1, and a point either way is noise. |
+| 6 | The main picture: the true outlines (top row), pretrained SAM 2.1 (middle row) and fine-tuned SAM 2.1 (bottom row) on four frames of the held-out clip. |
+
+The plots are only in the notebook. To keep them, choose **File ▸ Save and Export Notebook As ▸ HTML**.
+
+**On disk**, in `data/demo_project/` (Step 1 prints its full path):
+
+| Path | What it holds |
+|---|---|
+| `results/leaderboard_val.csv` | The results table: one row per model, with J&F, J, F and seconds per frame. Steps 3 and 5 print this path. |
+| `results/leaderboard_val_details.csv` | The same scores for each grape cluster. |
+| `predictions/<model>/demo_CDY_2019_t0000000/` | What each model drew: one colour-coded mask per frame (`00000.png` to `00011.png`; black is background). |
+| `models/sam2.1_tiny_demo_run.pt` | The fine-tuned SAM 2.1 tiny model (150 MB). |
+| `runs/demo_run/` | The training run: its settings, its log (`console.log`), TensorBoard files and Meta's trainer checkpoints. |
+| `dataset/`, `videos/` | The sample clips: frames (`dataset/JPEGImages/`), true labels (`dataset/Annotations/`) and short videos. |
+
+**In Google Colab** the folder is `/content/Capstone-MSU_Fruit/data/demo_project/`. Click the folder icon in the left sidebar to browse it, and right-click a file ▸ *Download* to keep it: Colab deletes the folder when the session ends.
+
+To run the demo again from scratch, delete `data/demo_project/`.
+
 ## 7. Beyond the demo: the full pipeline on our videos
 
 | Where | How | When |
@@ -100,7 +137,8 @@ Jupyter opens in your browser. Open `demo.ipynb` and choose **Run ▸ Run All Ce
 | Problem | Fix |
 |---|---|
 | `conda: command not found` | Windows: open the *Miniforge Prompt*. macOS / Linux: run `~/miniforge3/bin/conda init "$(basename "$SHELL")"` once (use `~/anaconda3` or `~/miniconda3` if that is where conda lives), then open a new terminal. |
-| `conda env create` fails on the pip step | Re-run `conda activate ./envs && pip install -r sam2_pipeline/requirements.txt`, then `pip install torch torchvision`. |
+| On a Mac, `Installing pip dependencies` spins for more than 30 minutes | Pip is probably compiling OpenCV from source, which happens on macOS 11 or 12. Press Ctrl+C, run `rm -rf ./envs`, then use the `PIP_ONLY_BINARY=…` command from section 3. |
+| `conda env create` fails on the pip step (for example `ReadTimeoutError` on a slow connection) | Re-run the pip step yourself, where you can watch each download: `conda activate ./envs && pip install --timeout 120 -r sam2_pipeline/requirements.txt`, then `pip install torch torchvision`. Downloads that already finished come from pip's cache. |
 | `test_install.py` cannot download | The first run needs internet access to github.com and dl.fbaipublicfiles.com (it falls back to a GitHub copy of the weights). |
 | `Start Jupyter from the repository folder` | Jupyter was started elsewhere. Run `jupyter notebook` from `Capstone-MSU_Fruit`. |
 | Anything else on Windows | Use WSL (Ubuntu), or the Colab link at the top. |

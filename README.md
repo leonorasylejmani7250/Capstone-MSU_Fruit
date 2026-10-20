@@ -26,7 +26,7 @@ python tests/test_install.py
 jupyter notebook
 ```
 
-The test ends with `INSTALL OK`. In Jupyter, open `demo.ipynb` and choose *Run ▸ Run All Cells*. It takes 5–10 minutes on a laptop CPU.
+`conda env create` takes 5–15 minutes, mostly downloading PyTorch and OpenCV (`cv2`). Conda shows only a spinner meanwhile, so leave it running (on macOS 11 or 12, see [INSTALL.md section 3](INSTALL.md#3-install-the-software) first). The test ends with `INSTALL OK`. In Jupyter, open `demo.ipynb` and choose *Run ▸ Run All Cells*. It takes 5–10 minutes on a laptop CPU. The results appear under the cells and are saved in `data/demo_project/` ([what is where](INSTALL.md#where-the-results-are)).
 
 No install: open [demo.ipynb in Google Colab](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/demo.ipynb).
 

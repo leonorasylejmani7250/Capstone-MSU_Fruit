@@ -76,6 +76,8 @@ py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
+These downloads are large, PyTorch and OpenCV (`cv2`) especially, and can take a while on a slow connection. If one stops with `ReadTimeoutError`, run the same command again with `--timeout 120` added ([INSTALL.md](INSTALL.md#3-install-python-dependencies) has the sizes).
+
 **CPU-only setup:** Install an appropriate CPU build of PyTorch for your platform, then install `requirements.txt`. See the [official PyTorch installation selector](https://pytorch.org/get-started/locally/) for platform-specific instructions.
 
 Check whether PyTorch detects your GPU:
