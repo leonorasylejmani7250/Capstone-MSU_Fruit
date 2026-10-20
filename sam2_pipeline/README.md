@@ -145,7 +145,7 @@ On a CPU-only Linux machine (Python 3.13, PyTorch 2.14, SAM 2 code at commit `2b
 - the imports, where box → SAM 2.1 masks matched the true WGISD masks;
 - metrics, which agree exactly with Meta's SA-V/DAVIS evaluator on 965 object-frames;
 - the install test and Meta's trainer under the package versions Colab ships today (PyTorch 2.11, NumPy 2.1, ipywidgets 7);
-- `demo.ipynb` at the repository root, run as a grader would.
+- `demo.ipynb` at the repository root, from a fresh clone.
 
 **Not tested:** anything on a GPU, Colab itself, and the HPCC itself (`setup_env.sh`, `run.sb`, OnDemand). These scripts follow ICER's documentation as of October 2026. The SAM 3.1 adapter was not run either. Run the Colab demo once, and on the HPCC start with a 30-minute smoke test before a long job: `sbatch --time=00:30:00 hpcc/run.sb --size tiny train --run smoke --steps 20`.
 
