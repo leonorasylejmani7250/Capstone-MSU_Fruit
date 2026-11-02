@@ -1,47 +1,47 @@
 # Scalable Fruit Yield Estimation Using Video-Based Computer Vision
 
-This repository contains our work for **CMSE 495 — Experiential Learning in Data Science** at Michigan State University.
+Our work for **CMSE 495 — Experiential Learning in Data Science** at Michigan State University, with our community partner **National Grape** and MSU AgBioResearch.
 
-The project focuses on developing a low-cost and scalable computer vision pipeline for estimating fruit yield from GoPro and mobile phone video. The system will use models such as **YOLO** and **Segment Anything Model (SAM)** to detect, segment, and count fruit in agricultural environments.
-
-The project will initially focus on fruit detection and counting, with the goal of evaluating performance across different fruit types such as grapes, blueberries, apples, and peaches.
+The project builds a low-cost, scalable computer-vision pipeline that estimates fruit yield from GoPro, phone and drone video of vineyards: find every grape cluster, outline it, follow it through the video, and count. We compare three model families on the same held-out clips with the same rules, starting with grapes and aiming to test other fruit (blueberries, apples, peaches) later.
 
 ## Start here
 
-There are two pipelines, one built on SAM 2.1 and one on YOLO11. They are separate: each has its own guide and its own Python environment. Follow the guide for the one you want.
+Three pipelines, three folders. Each one is self-contained: its own install guide, its own Python environment, and a `model/` folder with the one model it ships. They share one `data/` folder.
 
-| Pipeline | What it does | Guide |
-|---|---|---|
-| **SAM 2.1** | Label grape clusters in our videos with SAM 2.1's help, fine-tune SAM 2.1, score it and any other model on the same held-out clips, and run it on new video. Runs on a laptop, in Google Colab and on the MSU HPCC. | [INSTALL.md](INSTALL.md) to install it and run its demo, then [sam2_pipeline/README.md](sam2_pipeline/README.md) for everything else. |
-| **YOLO11** | Train YOLO11n-seg on the public WGISD grape dataset, evaluate it on WGISD's test images, and run detection and tracking on video. | [yolo11_pipeline/INSTALL.md](yolo11_pipeline/INSTALL.md) to install it and run its demo (macOS, Linux and Windows), then [yolo11_pipeline/README.md](yolo11_pipeline/README.md) for training, tracking and the other options (its commands are written for Windows PowerShell). |
-
-## Quick start: the SAM 2.1 demo
-
-**Full steps: [INSTALL.md](INSTALL.md).** In short:
-
-```bash
-git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit
-conda env create --prefix ./envs --file environment.yml && conda activate ./envs
-python tests/test_install.py
-jupyter notebook
-```
-
-`conda env create` takes 5–15 minutes, mostly downloading PyTorch and OpenCV (`cv2`). Conda shows only a spinner meanwhile, so leave it running (on macOS 11 or 12, see [INSTALL.md section 3](INSTALL.md#3-install-the-software) first). The test ends with `INSTALL OK`. In Jupyter, open `demo.ipynb` and choose *Run ▸ Run All Cells*. It takes 5–10 minutes on a laptop CPU. The results appear under the cells and are saved in `data/demo_project/` ([what is where](INSTALL.md#where-the-results-are)).
-
-No install: open [demo.ipynb in Google Colab](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/demo.ipynb).
+| Pipeline | What it does | Runs on | Start with |
+|---|---|---|---|
+| **SAM 2.1** — [`sam2_pipeline/`](sam2_pipeline/) | Label grape clusters in our videos with SAM 2.1's help (one box per cluster, SAM draws and follows the mask), fine-tune SAM 2.1 on those labels, and **score every model on the same held-out clips**. The leaderboard that compares all three pipelines lives here. | Laptop (CPU), Google Colab, MSU HPCC | [`sam2_pipeline/INSTALL.md`](sam2_pipeline/INSTALL.md): install, then a 10-minute end-to-end demo on public grapes. |
+| **SAM 3.1** — [`sam3_pipeline/`](sam3_pipeline/) | Meta's newest Segment Anything, driven by a **text prompt** ("grape cluster"): no boxes, no training. Writes its masks where the leaderboard scores them, and runs on video. | NVIDIA GPU only (Colab, HPCC); gated weights | [`sam3_pipeline/README.md`](sam3_pipeline/README.md). Written, not yet run. |
+| **YOLO26** — [`yolo26_pipeline/`](yolo26_pipeline/) | Train **YOLO26n-seg** on the public WGISD grape dataset, evaluate it, count clusters, and run it on video with optional tracking. Fast enough for whole videos. | Laptop (CPU), any GPU | [`yolo26_pipeline/INSTALL.md`](yolo26_pipeline/INSTALL.md): install, then the demo on public images and a short video. |
 
 ## What is in this repository
 
-| Path | What it is |
-|---|---|
-| `demo.ipynb` | Short end-to-end demo on public sample grapes: score pretrained SAM 2.1, fine-tune it, score again, compare. |
-| `INSTALL.md`, `environment.yml` | Install instructions and the conda environment for the SAM 2.1 pipeline. |
-| `tests/test_install.py` | One-minute check that the SAM 2.1 install works. |
-| `sam2_pipeline/` | The SAM 2.1 pipeline: upload video, label grape clusters, fine-tune SAM 2.1, score any model, run on new video. Runs in Google Colab and on the MSU HPCC. Start with [`sam2_pipeline/README.md`](sam2_pipeline/README.md). |
-| `data/demo_project/`, `data/msu_fruit_project/` | Local SAM 2.1 data and results, not in git. The demo writes to `data/demo_project/`, our videos go in `data/msu_fruit_project/videos/`. |
-| `yolo11_pipeline/` | The YOLO11 pipeline, all in one folder. Start with [`yolo11_pipeline/INSTALL.md`](yolo11_pipeline/INSTALL.md) (install and demo) and [`yolo11_pipeline/README.md`](yolo11_pipeline/README.md) (training, evaluation, detection and tracking on video). Inside: the scripts (`prepare_wgisd.py`, `train.py`, `evaluate.py`, `video.py`, `preview_labels.py`, `extract_dji_frames.py`, `test_yolo.py`), `grape.yaml` and `requirements.txt`, the public WGISD dataset (`external/wgisd/`) with its converted YOLO labels (`data/wgisd_seg/`), the trained checkpoints and training logs (`runs/`, best model `runs/yolo11_wgisd2/weights/best.pt`), per-frame detection CSVs and label previews (`outputs/`), and its tests (`tests/test_smoke.py`: `python -m unittest discover -s tests -v`, run inside the folder). The annotated result videos (9.5 GB, Git LFS) are kept on the `Moe` branch only. |
+```
+Capstone-MSU_Fruit/
+├── README.md               this file
+├── LICENSE.txt
+├── data/                   everything the pipelines read and write (data/README.md)
+│   ├── wgisd/              public WGISD grape dataset (in git)
+│   ├── wgisd_yolo/         WGISD as YOLO labels (in git)
+│   ├── results/            scores, counts, curves from every pipeline (small files in git)
+│   ├── videos/             the partner's video (not in git: team drive)
+│   └── dataset/, predictions/, models/, runs/, demo/   our labelled clips, each model's masks, training runs (not in git)
+├── sam2_pipeline/          code, docs, environment and model/ of the SAM 2.1 pipeline
+├── sam3_pipeline/          code, docs and model/ of the SAM 3.1 pipeline
+└── yolo26_pipeline/        code, docs, environment and model/ of the YOLO26 pipeline
+```
 
-## Main Goals
+Three rules keep it simple: **code lives in `<pipeline>/`**; **everything the code reads or produces lives in `data/`**; **`<pipeline>/model/` holds the one model that pipeline ships** (training runs go to `data/runs/`, and the winner is copied into `model/` with a note in `model/README.md` on how it was trained and how it scored). [`data/README.md`](data/README.md) lists every folder, what is in git, and where the partner's video comes from.
+
+The annotated result videos of the October YOLO11 runs (9.5 GB, Git LFS) are only on the `Moe` branch of the original repository; `main` needs no Git LFS.
+
+## Where things stand
+
+- **YOLO26n-seg**, trained on WGISD, ships in `yolo26_pipeline/model/best.pt` (scores in [`yolo26_pipeline/model/README.md`](yolo26_pipeline/model/README.md)). The October YOLO11n-seg run it replaces is kept as a baseline in `data/results/yolo11/` (test mAP@0.50: box 0.810, mask 0.819).
+- **SAM 2.1** fine-tuning and the leaderboard are built and tested on public sample clips; the first real fine-tuning run waits for labelled Riesling clips (HPCC).
+- **SAM 3.1** is written against Meta's documented API and waits for a GPU run with the gated weights.
+
+## Main goals
 
 - Preprocess image and video data
 - Detect fruit and fruit clusters
@@ -51,38 +51,14 @@ No install: open [demo.ipynb in Google Colab](https://colab.research.google.com/
 - Compare performance across fruit types and camera systems
 - Create visualizations of the results
 
-## Tools
-
-- Python
-- YOLO
-- Segment Anything Model (SAM)
-- Computer vision and image-processing libraries
-
 ## Data
 
-The project uses image and video data collected from vineyards and orchards, including GoPro and mobile phone footage.
+Image and video data collected from vineyards and orchards, including GoPro, phone and DJI drone footage, supplied by National Grape. Public data: the Embrapa WGISD grape dataset (CC BY-NC 4.0).
+
+## Tools
+
+Python · PyTorch · Segment Anything (SAM 2.1, SAM 3.1) · Ultralytics YOLO (YOLO26, YOLOE) · OpenCV · Jupyter / Google Colab · MSU HPCC
 
 ## Course
 
-**CMSE 495 — Experiential Learning in Data Science**  
-Michigan State University
-
-## YOLO11 Implementation
-
-This project implements YOLO11n-seg for grape cluster detection and instance segmentation using WGISD. Everything below lives in [`yolo11_pipeline/`](yolo11_pipeline/); run its commands from that folder.
-
-### Features
-- Dataset preparation and label visualization
-- YOLO11n-seg training and evaluation
-- Video detection with bounding boxes, masks and confidence scores
-- Optional ByteTrack tracking
-- Video and CSV output
-
-### Training
-prepare_wgisd.py converts the WGISD masks into YOLO labels (they are already committed, so this is optional).
-Command: python train.py --epochs 50 --imgsz 512 --batch 2
-
-### Video Inference
-Run video.py with --video, --model, --mode detect and --max-frames 0.
-
-The WGISD dataset, the converted labels and the trained weights are committed in `yolo11_pipeline/`; source videos and new outputs stay local (see `.gitignore`).
+**CMSE 495 — Experiential Learning in Data Science**, Michigan State University. Team MSU FRUIT.

@@ -1,78 +1,60 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*.egg-info/
+build/
+dist/
 
-# Virtual environments
+# Python environments: sam2_pipeline/envs (conda), yolo26_pipeline/.venv, sam3_pipeline/.venv
+envs/
 .venv/
 venv/
 env/
 
-# Python package/build files
-build/
-dist/
-*.egg-info/
-
-# Jupyter Notebook
+# Jupyter, editors, operating systems
 .ipynb_checkpoints/
-
-# IDE / Editor
 .vscode/
 .idea/
-
-# Operating System
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Environment / Secrets
+# Secrets
 .env
 .env.*
 *.key
 
-# Project Data
-# note: Large datasets should not be committed to GitHub
-data/raw/
-data/processed/
-datasets/
+# data/: everything the pipelines read and write (data/README.md). In git: the public WGISD dataset
+# (data/wgisd, data/wgisd_yolo) and small results (data/results). Not in git: the partner's videos, our
+# labelled clips, predictions, training runs, fine-tuned SAM 2.1 weights and the demo's output.
+data/videos/
+data/dataset/
+data/predictions/
+data/models/
+data/runs/
+data/demo/
+data/frames_to_label/
+data/results/yolo26/count_test/
+data/results/label_preview/
+*.cache
 
-# Raw video files
-videos/
+# Model weights. Each pipeline ships its model in <pipeline>/model/: YOLO26's best.pt is small and
+# committed; SAM 2.1 weights are too big for GitHub and come from a GitHub Release instead
+# (sam2_pipeline/model/README.md). Every other .pt is a download or a training artifact.
+*.pt
+*.pth
+*.ckpt
+*.onnx
+!yolo26_pipeline/model/best.pt
+!data/results/yolo11/best.pt
+
+# Video files, wherever they are made
 *.mp4
 *.mov
 *.avi
 *.mkv
 
-# Model Weights / Checkpoints
-weights/
-checkpoints/
-models/
-*.pt
-*.pth
-*.ckpt
-*.onnx
-
-# YOLO / Training Outputs
-runs/
-outputs/
-results/
-
-# Temporary Files / Logs
+# Logs and temporary files (fruit-<job>.out: HPCC job logs in sam2_pipeline/)
 *.log
 *.tmp
-*.temp
-.cache/
-
-# SAM 2.1 pipeline (sam2_pipeline/, demo.ipynb): conda env from INSTALL.md, local project folders, job logs
-envs/
-data/demo_project/
-data/msu_fruit_project/
-sam2_pipeline/*.out
-
-# Additional cache rule from Moe
-*.cache
-
-# test_yolo.py outputs
-test_predictions/
-yolo_test_results.csv
+*.out
