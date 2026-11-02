@@ -23,7 +23,7 @@ Capstone-MSU_Fruit/
 ├── data/                   everything the pipelines read and write (data/README.md)
 │   ├── wgisd/              public WGISD grape dataset (in git)
 │   ├── wgisd_yolo/         WGISD as YOLO labels (in git)
-│   ├── results/            scores, counts, curves from every pipeline (small files in git)
+│   ├── results/            what the scripts write: leaderboards, counts, annotated videos (only yolo11/ in git)
 │   ├── videos/             the partner's video (not in git: team drive)
 │   └── dataset/, predictions/, models/, runs/, demo/   our labelled clips, each model's masks, training runs (not in git)
 ├── sam2_pipeline/          code, docs, environment and model/ of the SAM 2.1 pipeline

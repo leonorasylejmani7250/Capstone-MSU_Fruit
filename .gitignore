@@ -25,8 +25,10 @@ desktop.ini
 *.key
 
 # data/: everything the pipelines read and write (data/README.md). In git: the public WGISD dataset
-# (data/wgisd, data/wgisd_yolo) and small results (data/results). Not in git: the partner's videos, our
-# labelled clips, predictions, training runs, fine-tuned SAM 2.1 weights and the demo's output.
+# (data/wgisd, data/wgisd_yolo) and the archived October YOLO11 run (data/results/yolo11). Not in git:
+# the partner's videos, our labelled clips, predictions, training runs, fine-tuned SAM 2.1 weights,
+# the demo's output, and the results the scripts write (data/results/*). To keep a result for the
+# report, copy its numbers into a README or add the file with `git add -f`.
 data/videos/
 data/dataset/
 data/predictions/
@@ -34,8 +36,8 @@ data/models/
 data/runs/
 data/demo/
 data/frames_to_label/
-data/results/yolo26/count_test/
-data/results/label_preview/
+data/results/*
+!data/results/yolo11/
 *.cache
 
 # Model weights. Each pipeline ships its model in <pipeline>/model/: YOLO26's best.pt is small and
