@@ -1,4 +1,7 @@
-"""Convert the WGISD grape dataset (external/wgisd) into YOLO segmentation labels under data/wgisd_seg and write grape.yaml."""
+"""Convert the public WGISD grape dataset (data/wgisd) into YOLO segmentation labels (data/wgisd_yolo) and write grape.yaml.
+
+The converted dataset is committed, so this only needs running to rebuild it from the source masks.
+"""
 from __future__ import annotations
 
 import argparse
@@ -10,12 +13,13 @@ import cv2
 import numpy as np
 import yaml
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
 
 
 def read_names(path: Path) -> list[str]:
     if not path.is_file():
-        raise FileNotFoundError(f"Missing {path}. Check that WGISD has been moved to external/wgisd")
+        raise FileNotFoundError(f"Missing {path}. The WGISD dataset should be in data/wgisd")
     names = [Path(line.split()[0].replace('\\', '/')).stem
              for raw in path.read_text(encoding='utf-8').splitlines()
              if (line := raw.strip()) and not line.startswith('#')]
@@ -89,20 +93,24 @@ def convert(source: Path, dest: Path, val_fraction: float, seed: int) -> dict:
 
 
 def main():
-    p = argparse.ArgumentParser()
-    p.add_argument('--source', type=Path, default=ROOT / 'external' / 'wgisd')
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument('--source', type=Path, default=DATA / 'wgisd', help='the WGISD dataset (default: data/wgisd)')
     p.add_argument('--val-fraction', type=float, default=0.15)
     p.add_argument('--seed', type=int, default=42)
     args = p.parse_args()
     if not 0 < args.val_fraction < 0.5:
         p.error('--val-fraction must be between 0 and 0.5')
-    output = ROOT / 'data' / 'wgisd_seg'
+    output = DATA / 'wgisd_yolo'
     convert(args.source.resolve(), output, args.val_fraction, args.seed)
-    # Paths relative to grape.yaml itself (no 'path:' key), so the file works on every computer.
-    cfg = {'train': 'data/wgisd_seg/images/train', 'val': 'data/wgisd_seg/images/val',
-           'test': 'data/wgisd_seg/images/test', 'names': {0: 'grape_cluster'}}
-    (ROOT / 'grape.yaml').write_text(yaml.safe_dump(cfg, sort_keys=False), encoding='utf-8')
+    # Paths relative to grape.yaml itself, so the file works on every computer.
+    header = ('# Dataset for train.py and evaluate.py: the public WGISD grape dataset as YOLO segmentation labels.\n'
+              '# Paths are relative to this file. No `path:` key: Ultralytics resolves a relative `path:` against its own\n'
+              '# datasets folder, not against this file. prepare_wgisd.py rewrites this file.\n')
+    cfg = {'train': '../data/wgisd_yolo/images/train', 'val': '../data/wgisd_yolo/images/val',
+           'test': '../data/wgisd_yolo/images/test', 'names': {0: 'grape_cluster'}}
+    (ROOT / 'grape.yaml').write_text(header + yaml.safe_dump(cfg, sort_keys=False), encoding='utf-8')
     print('Created:', ROOT / 'grape.yaml')
+
 
 if __name__ == '__main__':
     main()

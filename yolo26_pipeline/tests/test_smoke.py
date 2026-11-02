@@ -1,8 +1,7 @@
-"""Lightweight, no-GPU smoke tests for conversion and rendering.
-Run: python -m unittest discover -s tests -v
+"""Lightweight, no-GPU smoke tests for the WGISD conversion and the video rendering.
+Run from yolo26_pipeline/:  python -m unittest discover -s tests -v
 """
 from __future__ import annotations
-import importlib
 import sys
 import tempfile
 import types
@@ -12,7 +11,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# Stub model import when Ultralytics is not installed in the test environment.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))      # the scripts live one folder up
+
+# Stub the model import when Ultralytics is not installed in the test environment.
 if 'ultralytics' not in sys.modules:
     try:
         import ultralytics

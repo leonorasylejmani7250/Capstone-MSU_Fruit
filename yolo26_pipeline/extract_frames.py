@@ -1,11 +1,15 @@
-"""Save still frames from a DJI video every few seconds, into data/dji_to_label, for labelling or testing."""
+"""Save still frames from a video every few seconds into data/frames_to_label/<video name>/, for labelling or testing."""
 import argparse
 from pathlib import Path
+
 import cv2
-ROOT = Path(__file__).resolve().parent
+
+ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--video', type=Path, required=True)
     p.add_argument('--every-sec', type=float, default=5)
     p.add_argument('--max-images', type=int, default=60)
@@ -18,7 +22,7 @@ def main():
     fps = cap.get(cv2.CAP_PROP_FPS)
     if fps <= 0:
         p.error('Video has invalid FPS')
-    output = ROOT / 'data' / 'dji_to_label' / args.video.stem
+    output = DATA / 'frames_to_label' / args.video.stem
     output.mkdir(parents=True, exist_ok=True)
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     step = max(1, round(args.every_sec * fps))
@@ -34,7 +38,8 @@ def main():
         n += 1
     cap.release()
     print(f'Extracted {n} images to {output}')
-    print('Label grape CLUSTERS manually; keep separate labeled test images from the same video session.')
+    print('Label grape CLUSTERS, not berries; keep some labelled images of the same video aside for testing.')
+
 
 if __name__ == '__main__':
     main()

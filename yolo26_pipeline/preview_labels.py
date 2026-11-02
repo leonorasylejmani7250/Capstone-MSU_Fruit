@@ -1,25 +1,29 @@
-"""Draw the converted WGISD labels on a few images of one split and save them to outputs/label_preview for checking."""
+"""Draw the converted WGISD labels (data/wgisd_yolo) on a few images of one split and save them to data/results/label_preview/ for checking."""
 import argparse
 from pathlib import Path
+
 import cv2
 import numpy as np
-ROOT = Path(__file__).resolve().parent
+
+ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--split', default='val', choices=['train', 'val', 'test'])
     p.add_argument('--limit', type=int, default=8)
     args = p.parse_args()
-    imgs = ROOT / 'data' / 'wgisd_seg' / 'images' / args.split
-    labels = ROOT / 'data' / 'wgisd_seg' / 'labels' / args.split
-    out = ROOT / 'outputs' / 'label_preview'
+    imgs = DATA / 'wgisd_yolo' / 'images' / args.split
+    labels = DATA / 'wgisd_yolo' / 'labels' / args.split
+    out = DATA / 'results' / 'label_preview'
     out.mkdir(parents=True, exist_ok=True)
     found = 0
     for image_path in sorted(imgs.glob('*.jpg')):
         frame = cv2.imread(str(image_path))
         if frame is None:
             continue
-        h,w = frame.shape[:2]
+        h, w = frame.shape[:2]
         text = (labels / (image_path.stem + '.txt')).read_text().splitlines()
         for line in text:
             arr = [float(x) for x in line.split()[1:]]
@@ -32,6 +36,7 @@ def main():
         if found >= args.limit:
             break
     print(f'Saved {found} label preview images in: {out}')
+
 
 if __name__ == '__main__':
     main()

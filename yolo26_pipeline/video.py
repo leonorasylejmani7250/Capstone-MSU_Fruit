@@ -1,4 +1,7 @@
-"""Run a trained YOLO11 checkpoint on a video: an annotated output video (detection or ByteTrack tracking) plus a per-frame CSV."""
+"""Run the YOLO26 model (default: model/best.pt) on a video: an annotated video plus a per-frame CSV, in data/results/yolo26/.
+
+--mode detect draws every cluster the model finds in each frame; --mode track adds ByteTrack IDs across frames.
+"""
 from __future__ import annotations
 
 import argparse
@@ -10,7 +13,9 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+MODEL = ROOT / 'model' / 'best.pt'           # the model this pipeline ships
 
 
 def color_for_id(identifier: int) -> tuple[int, int, int]:
@@ -92,10 +97,11 @@ def render(frame: np.ndarray, result, seen_ids: set[int], conf_threshold: float,
 
 
 def main():
-    p = argparse.ArgumentParser(description='Segment grape clusters in video')
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--video', type=Path, required=True)
-    p.add_argument('--model', type=Path, required=True)
-    p.add_argument('--output', type=Path, default=ROOT / 'outputs' / 'grapes.mp4')
+    p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
+    p.add_argument('--output', type=Path, default=None,
+                   help='annotated video (default: data/results/yolo26/<video name>_<mode>.mp4)')
     p.add_argument('--mode', choices=['detect', 'track'], default='detect')
     p.add_argument('--conf', type=float, default=0.30)
     p.add_argument('--imgsz', type=int, default=768)
@@ -108,9 +114,11 @@ def main():
     if not args.video.is_file():
         p.error(f'Missing video: {args.video}')
     if not args.model.is_file():
-        p.error(f'Missing trained model: {args.model}')
+        p.error(f'Missing weights: {args.model} (train.py makes them; model/README.md says what goes in model/)')
     if args.start_sec < 0 or args.max_frames < 0:
         p.error('start-sec and max-frames must be nonnegative')
+    if args.output is None:
+        args.output = DATA / 'results' / 'yolo26' / f'{args.video.stem}_{args.mode}.mp4'
     args.output.parent.mkdir(parents=True, exist_ok=True)
     model = YOLO(str(args.model))
     cap = cv2.VideoCapture(str(args.video))
