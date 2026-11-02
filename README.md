@@ -37,7 +37,7 @@ The annotated result videos of the October YOLO11 runs (9.5 GB, Git LFS) are onl
 
 ## Where things stand
 
-- **YOLO26n-seg**, trained on WGISD, ships in `yolo26_pipeline/model/best.pt` (scores in [`yolo26_pipeline/model/README.md`](yolo26_pipeline/model/README.md)). The October YOLO11n-seg run it replaces is kept as a baseline in `data/results/yolo11/` (test mAP@0.50: box 0.810, mask 0.819).
+- **YOLO26n-seg**, trained on WGISD on 2 November 2026, ships in `yolo26_pipeline/model/best.pt`: test mAP@0.50 box 0.826, mask 0.822 ([`yolo26_pipeline/model/README.md`](yolo26_pipeline/model/README.md)). The October YOLO11n-seg run it replaces is kept as a baseline in `data/results/yolo11/` (box 0.810, mask 0.819); on WGISD the two are close.
 - **SAM 2.1** fine-tuning and the leaderboard are built and tested on public sample clips; the first real fine-tuning run waits for labelled Riesling clips (HPCC).
 - **SAM 3.1** is written against Meta's documented API and waits for a GPU run with the gated weights.
 

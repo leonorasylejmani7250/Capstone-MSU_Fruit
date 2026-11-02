@@ -25,6 +25,7 @@ models:
     type: ultralytics          # any Ultralytics weights: YOLO you trained, or YOLOE with a text prompt
     weights: yolo26_pipeline/model/best.pt
     conf: 0.25
+    imgsz: 512                 # the size it was trained at; at the default 1280 it misses most clusters
 
   - name: YOLOE-26m 'grape cluster'
     type: ultralytics
@@ -41,12 +42,13 @@ models:
   # - name: YOLO26n-seg · ours → SAM 2.1 fine-tuned
   #   type: detect_then_sam2
   #   checkpoint: sam2_pipeline/model/sam2.1_base_plus_grapes_v1.pt
-  #   detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25}
+  #   detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25, imgsz: 512}
 
   # - name: YOLO11n-seg · October baseline
   #   type: ultralytics
   #   weights: data/results/yolo11/best.pt
   #   conf: 0.25
+  #   imgsz: 512
 
   # - name: SAM 2.1 large · pretrained · box
   #   type: sam2

@@ -50,7 +50,7 @@ python train.py --epochs 50 --imgsz 512 --batch 2
 | `--name` | `wgisd` | Run name: output goes to `../data/runs/yolo26/wgisd/` (a number is added if it exists) |
 | `--device` | `auto` | `auto`, `cpu`, or a CUDA device such as `0` |
 
-The run folder holds `weights/best.pt` and `last.pt`, `results.csv` and `results.png` (losses and mAP per epoch), the PR and F1 curves, and the confusion matrix. The October YOLO11 run took 12 minutes on a 4 GB NVIDIA GPU; the YOLO26 run in `model/` took CPU_TRAIN_TIME on a 2-core CPU. A one-epoch run (`--epochs 1 --name smoke`) checks the install in under two minutes on a CPU.
+The run folder holds `weights/best.pt` and `last.pt`, `results.csv` and `results.png` (losses and mAP per epoch), the PR and F1 curves, and the confusion matrix. The October YOLO11 run took 12 minutes on a 4 GB NVIDIA GPU; the YOLO26 run in `model/` took 80 minutes on a 2-core CPU. A one-epoch run (`--epochs 1 --name smoke`) checks the install in under two minutes on a CPU.
 
 **When a run is the one to use, copy its weights into `model/`** and update `model/README.md`: `cp ../data/runs/yolo26/wgisd/weights/best.pt model/best.pt`. Every other script uses `model/best.pt` by default.
 
@@ -112,7 +112,7 @@ Saves still frames to `../data/frames_to_label/row3/`. Label grape *clusters*, k
 
 ## 6. What was tested
 
-On a 2-core Linux CPU with Python 3.12, PyTorch 2.14.1 and Ultralytics 8.4.198 (November 2026, this layout, from a fresh clone): the unit tests, `prepare_wgisd.py`, `preview_labels.py`, a one-epoch `train.py` and the 50-epoch run that made `model/best.pt`, `evaluate.py`, `count_test.py`, and `video.py` on the five-frame public demo video from INSTALL.md. The October YOLO11 run (`../data/results/yolo11/`) was trained on Windows with a 4 GB NVIDIA GPU, Python 3.11 and Ultralytics 8.3.70, and evaluated again on Linux. macOS and Windows have not been run with this layout yet.
+On a 2-core Linux CPU with Python 3.12, PyTorch 2.14.1 and Ultralytics 8.4.198 (November 2026, this layout): the unit tests, `prepare_wgisd.py`, `preview_labels.py`, a one-epoch `train.py` and the 50-epoch run that made `model/best.pt`, `evaluate.py`, `count_test.py` (with a confidence sweep), `video.py` in both modes on the five-frame public demo video from INSTALL.md, and the model's entry in the SAM 2.1 leaderboard. The unit tests and the install check were also run from a fresh clone. The October YOLO11 run (`../data/results/yolo11/`) was trained on Windows with a 4 GB NVIDIA GPU, Python 3.11 and Ultralytics 8.3.70, and evaluated again on Linux. macOS and Windows have not been run with this layout yet.
 
 ## 7. If something goes wrong
 
