@@ -1,6 +1,6 @@
 """Check that the install works, in about a minute.
 
-Usage, from the repository folder with the environment active:
+Usage, from the sam2_pipeline folder with the environment active:
     python tests/test_install.py
 
 It imports every package the pipeline needs, fetches Meta's SAM 2 code and the SAM 2.1 tiny weights on
@@ -8,7 +8,7 @@ the first run (about 160 MB, cached in ~/.fruit_sam2), then runs SAM 2.1 on a sm
 bright blob drifting across three frames, given as one box. It passes if SAM 2.1 outlines and follows
 the blob, and if the scoring code gives a perfect score to a perfect prediction. Prints INSTALL OK.
 
-It is a plain script, not a unittest module, so `python -m unittest discover -s tests` (the YOLO11
+It is a plain script, not a unittest module, so `python -m unittest discover -s tests` (the YOLO26
 pipeline's test command) imports it without running it.
 """
 import sys
@@ -16,11 +16,11 @@ import tempfile
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+PIPELINE = Path(__file__).resolve().parents[1]       # sam2_pipeline/
 
 
 def main():
-    sys.path.insert(0, str(REPO / "sam2_pipeline"))
+    sys.path.insert(0, str(PIPELINE))
     t0 = time.time()
     print("1/4 importing packages and fetching the SAM 2 code (first run only) ...", flush=True)
     import cv2

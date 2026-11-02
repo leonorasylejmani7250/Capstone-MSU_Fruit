@@ -5,7 +5,7 @@ Sources (edit these):  cells/        the pipeline notebook, one file per cell
 Generated (do not edit by hand):
   sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb   the full notebook (Colab / Jupyter / OnDemand)
   sam2_pipeline/fruit_sam2.py                             the notebook's tool cells as one module (fruit.py, HPCC jobs)
-  demo.ipynb                                              the quick demo at the repository root
+  sam2_pipeline/demo.ipynb                                the quick demo
 
 Inside the repository, run from anywhere:   python sam2_pipeline/source/build.py
 """
@@ -105,5 +105,5 @@ if __name__ == "__main__":
         shutil.rmtree(REPO, ignore_errors=True)          # start clean, so removed files do not linger
         assemble_dev_tree()
     notebook(CELLS, PIPE / "notebooks" / "MSU_FRUIT_SAM2_pipeline.ipynb")
-    notebook(DEMO_CELLS, REPO / "demo.ipynb", colab_gpu=False)
+    notebook(DEMO_CELLS, PIPE / "demo.ipynb", colab_gpu=False)
     module(PIPE / "fruit_sam2.py")

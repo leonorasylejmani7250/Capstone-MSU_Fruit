@@ -101,7 +101,8 @@ def _safe(name):
 
 def use_project(root):
     """Point every tool at one project folder: videos/, dataset/ (frames + labels), predictions/,
-    models/, results/, runs/. The notebook and the HPCC command line both go through here."""
+    models/, results/, runs/. In the team repository that folder is data/. The notebook and the
+    command line both go through here."""
     global ROOT, VIDEOS, DATA, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS, _META, PROMPTS
     ROOT = Path(root).expanduser().resolve()
     VIDEOS, DATA      = ROOT / "videos", ROOT / "dataset"
@@ -115,6 +116,21 @@ def use_project(root):
 
 CKPT_DIR = Path(os.environ.get("FRUIT_CHECKPOINTS") or BASE / "checkpoints")
 CKPT_DIR.mkdir(parents=True, exist_ok=True)
+
+def _repo_dir():
+    """The team repository (the folder that holds sam2_pipeline/ and data/), when this code runs from inside it.
+    None in a standalone notebook, e.g. the pipeline notebook opened in Colab from the Open-in-Colab badge."""
+    starts = [Path(globals()["__file__"]).resolve().parent] if "__file__" in globals() else []
+    starts.append(Path.cwd())
+    for start in starts:
+        for d in (start, *start.parents):
+            if (d / "sam2_pipeline" / "fruit.py").exists():
+                return d
+    return None
+
+REPO_DIR = _repo_dir()
+# The fine-tuned SAM 2.1 the team ships: sam2_pipeline/model/ (see its README). Scored and used by default.
+MODEL_DIR = REPO_DIR / "sam2_pipeline" / "model" if REPO_DIR else None
 
 if not globals().get("_DEFER_PROJECT"):           # the command-line module picks its folder later
     _project = _safe(PROJECT_NAME) or "fruit_sam2"
@@ -441,18 +457,21 @@ def make_demo_clips(names=None, frames=12, fps=6, hw=(640, 960)):
     """Turn WGISD photos into short panning clips with exact labels, through the same code path as real videos
     (written as .mp4 into videos/, cut by cut_clips). Gives every step something to run on before you have
     labelled anything. Returns the clip names; existing demo clips are kept."""
-    raw = BASE / "demo_download"; raw.mkdir(parents=True, exist_ok=True)
+    local = REPO_DIR / "data" / "wgisd" / "data" if REPO_DIR else None     # the copy of WGISD in the repository
+    raw = BASE / "demo_download"; raw.mkdir(parents=True, exist_ok=True)  # otherwise: fetched once from GitHub
     made = []
     for name in names or DEMO_IMAGES:
         clip_name = f"demo_{name}_t0000000"
         if (ANN / clip_name).exists():
             made.append(clip_name); continue
+        files = {}
         for ext in ("jpg", "npz"):
-            f = raw / f"{name}.{ext}"
+            f = local / f"{name}.{ext}" if local and (local / f"{name}.{ext}").exists() else raw / f"{name}.{ext}"
             if not f.exists():
                 torch.hub.download_url_to_file(_WGISD + f.name, str(f), progress=False)
-        img = np.asarray(Image.open(raw / f"{name}.jpg").convert("RGB"))
-        masks = np.load(raw / f"{name}.npz")["arr_0"]                        # [H, W, N], one layer per cluster
+            files[ext] = f
+        img = np.asarray(Image.open(files["jpg"]).convert("RGB"))
+        masks = np.load(files["npz"])["arr_0"]                               # [H, W, N], one layer per cluster
         ids = np.zeros(img.shape[:2], np.uint16)
         for k in np.argsort(-masks.reshape(-1, masks.shape[2]).sum(0)):      # large first, small ones on top
             ids[masks[..., k] > 0] = k + 1
@@ -1398,22 +1417,23 @@ class FromFolder(Model):
         return lab
 
 class SAM3Text(Model):
-    """SAM 3.1 (or SAM 3) with a text prompt, through Meta's own `sam3` package. Needs that package installed
-    and Hugging Face access to the gated weights. NOT run while this pipeline was tested. See Appendix B."""
+    """SAM 3.1 (or SAM 3) with a text prompt, through Meta's `sam3` package. Needs that package installed and
+    the gated Hugging Face weights (sam3_pipeline/README.md). NOT run while this pipeline was tested: the
+    sam3_pipeline folder runs SAM 3.1 in its own environment and writes predictions/sam3_text/ instead."""
     tracks = True
-    def __init__(self, text=None, version="sam3.1", max_num_objects=64, **builder_args):
+    def __init__(self, text=None, version="sam3.1", max_num_objects=64, checkpoint=None, **builder_args):
         self.text, self._p = text or OBJECT_NAME, None
-        self.args = dict(version=version, **builder_args)
-        if version == "sam3.1":
-            self.args["max_num_objects"] = max_num_objects      # Meta's default of 16 is too few for a vine row
+        self.version, self.max_num_objects, self.checkpoint, self.builder_args = version, max_num_objects, checkpoint, builder_args
     def prepare(self):
         if self._p is None:
             import sam3.model_builder as mb
-            if hasattr(mb, "build_sam3_predictor"):              # March 2026 and later: SAM 3 and SAM 3.1
-                self._p = mb.build_sam3_predictor(**self.args)
-            else:                                                # original SAM 3 release
-                self._p = mb.build_sam3_video_predictor(**{k: v for k, v in self.args.items()
-                                                            if k not in ("version", "max_num_objects")})
+            args = dict(self.builder_args)
+            if self.checkpoint:
+                args["checkpoint_path"] = str(self.checkpoint)
+            if self.version == "sam3.1":          # SAM 3.1 (March 2026): Object Multiplex, many objects per clip
+                self._p = mb.build_sam3_multiplex_video_predictor(max_num_objects=self.max_num_objects, **args)
+            else:                                  # the original SAM 3 (November 2025)
+                self._p = mb.build_sam3_video_predictor(**args)
     def predict(self, clip, prompts=None):
         self.prepare()
         T = len(clip); H, W = clip.hw
@@ -1421,7 +1441,8 @@ class SAM3Text(Model):
         sid = self._p.handle_request(dict(type="start_session", resource_path=str(clip.dir)))["session_id"]
         try:
             self._p.handle_request(dict(type="add_prompt", session_id=sid, frame_index=0, text=self.text))
-            for resp in self._p.handle_stream_request(dict(type="propagate_in_video", session_id=sid)):
+            for resp in self._p.handle_stream_request(dict(type="propagate_in_video", session_id=sid,
+                                                           propagation_direction="forward")):
                 o = resp["outputs"]
                 for k, m in zip(np.asarray(o["out_obj_ids"]).tolist(), np.asarray(o["out_binary_masks"])):
                     m = np.asarray(m, bool)
@@ -1434,9 +1455,14 @@ class SAM3Text(Model):
 
 # ---- describing models in plain data (used by the HPCC jobs and the lineup files) ------------------------
 def _project_path(p):
-    """A path written in a lineup file: absolute, ~/…, or relative to the project folder."""
+    """A path written in a lineup file: absolute, ~/…, or relative to the project folder; if nothing is there,
+    relative to the team repository (so `yolo26_pipeline/model/best.pt` works from any project folder)."""
     p = Path(os.path.expandvars(str(p))).expanduser()
-    return p if p.is_absolute() else ROOT / p
+    if p.is_absolute():
+        return p
+    if not (ROOT / p).exists() and REPO_DIR and (REPO_DIR / p).exists():
+        return REPO_DIR / p
+    return ROOT / p
 
 def build_model(spec):
     """Make a model from a plain dict, e.g. one entry of a lineup YAML file:
@@ -1444,7 +1470,7 @@ def build_model(spec):
       {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster}      YOLO / YOLOE (automatic)
       {type: detect_then_sam2, detector: {...}, checkpoint: models/x.pt}       a detector finds, SAM 2.1 follows
       {type: folder, path: predictions/sam3_text, tracks: true}                masks written by any other program
-      {type: sam3, text: grape cluster}                                        SAM 3.1 (untested, gated weights)
+      {type: sam3, text: grape cluster}                                        SAM 3.1 in this environment (untested, gated weights)
       {type: python, class: my_models.py:MyModel, args: {...}}                 your own Model subclass"""
     spec = dict(spec); kind = spec.pop("type").lower()
     ckpt = spec.pop("checkpoint", None)
@@ -1477,9 +1503,23 @@ def build_model(spec):
         return getattr(mod, cls_name)(**args)
     raise ValueError(f"unknown model type '{kind}' (sam2, ultralytics, detect_then_sam2, folder, sam3, python)")
 
+def _needed_files(model):
+    """The local files a lineup model reads (a bare Ultralytics name such as yoloe-26m-seg.pt is a download, not a file)."""
+    files = []
+    if isinstance(model, UltralyticsModel) and "/" in model.weights:
+        files.append(model.weights)
+    if isinstance(model, DetectThenSAM2):
+        files += _needed_files(model.detector)
+    if getattr(model, "ckpt", None):
+        files.append(model.ckpt)
+    if isinstance(model, FromFolder):
+        files.append(model.folder)
+    return [str(f) for f in files]
+
 def load_lineup(path):
     """Read a lineup YAML file → {name: Model}. See configs/lineup.yaml for a commented example.
-    A `python` model's file may be given relative to the lineup file itself."""
+    A `python` model's file may be given relative to the lineup file itself. An entry whose weights or
+    folder are not on this computer is skipped with a note, so the rest of the lineup still runs."""
     import yaml
     path = Path(path).expanduser()
     entries = yaml.safe_load(path.read_text())["models"] or []
@@ -1493,7 +1533,12 @@ def load_lineup(path):
             if not Path(f).expanduser().is_absolute() and (path.parent / f).exists():
                 e["class"] = f"{(path.parent / f).resolve()}:{cls}"
         name = e.pop("name")                 # (popped before build_model sees the entry)
-        out[name] = build_model(e)
+        model = build_model(e)
+        missing = [f for f in _needed_files(model) if not Path(f).exists()]
+        if missing:
+            print(f"skipping '{name}': {missing[0]} is not here")
+            continue
+        out[name] = model
     return out
 
 # ---- run + score ------------------------------------------------------------------------------------

@@ -16,8 +16,10 @@ computer with the environment from hpcc/setup_env.sh. It runs the same code as t
 
 Labelling needs a screen: open notebooks/MSU_FRUIT_SAM2_pipeline.ipynb in Colab or in OnDemand Jupyter.
 Options for every command (--project, --size) can go before or after the command name:
-  python fruit.py --project data/msu_fruit_project --size tiny status
---project defaults to $PROJECT_DIR (hpcc/config.sh sets it); --size to $SAM2_SIZE, else base_plus.
+  python fruit.py --project ../data/demo --size tiny status
+--project defaults to $PROJECT_DIR (hpcc/config.sh sets it), else to the repository's data/ folder;
+--size to $SAM2_SIZE, else base_plus. Fine-tuned weights in model/ (the ones the team ships) and in the
+project's models/ folder are scored automatically by `evaluate`, and `video` uses the newest in model/.
 """
 import argparse
 import os
@@ -25,7 +27,9 @@ import sys
 import time
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent                              # sam2_pipeline/
+DEFAULT_PROJECT = HERE.parent / "data"                                # the repository's shared data folder
+MODEL_DIR = HERE / "model"                                            # the fine-tuned SAM 2.1 the team ships
 CALLER = Path(os.environ.get("FRUIT_CALLER_DIR") or os.getcwd())     # hpcc/run.sb runs from the weights folder
 os.environ.setdefault("MPLBACKEND", "Agg")
 
@@ -39,7 +43,7 @@ def here(p):
 def load(args):
     """Import the pipeline module and point it at the project folder."""
     if not args.project:
-        sys.exit("No project folder: pass --project DIR or set PROJECT_DIR (hpcc/config.sh does).")
+        args.project = str(DEFAULT_PROJECT)
     sys.path.insert(0, str(HERE))
     import pandas as pd
     pd.set_option("display.width", 220); pd.set_option("display.max_columns", 30)
@@ -62,8 +66,10 @@ def cmd_status(F, a):
         print(vids.to_string(index=False))
     print("\nclips:")
     F.dataset_report(show_examples=False)
+    shipped = sorted(MODEL_DIR.glob("*.pt"))
+    print(f"\nthe team's fine-tuned SAM 2.1, in sam2_pipeline/model/: {', '.join(m.name for m in shipped) or 'none yet'}")
     models = sorted(F.WEIGHTS.glob("*.pt"))
-    print(f"\nfine-tuned weights in models/: {', '.join(m.name for m in models) or 'none yet'}")
+    print(f"fine-tuned weights in the project's models/: {', '.join(m.name for m in models) or 'none yet'}")
     for f in sorted(F.RESULTS.glob("leaderboard_*.csv")):
         if f.name.endswith("_details.csv"):
             continue
@@ -117,17 +123,24 @@ def cmd_train(F, a):
     F.plot_training(a.run)
     print(f"weights: {out}  ({(time.time() - t0) / 60:.1f} min)")
     print("next: python fruit.py evaluate   (fine-tuned weights in models/ are scored automatically)")
+    print(f"to ship these weights: copy them to {MODEL_DIR} and update model/README.md")
 
 
 def _finetuned_rows(F, size_filter=None):
+    """Every fine-tuned SAM 2.1: the shipped ones in sam2_pipeline/model/ and the project's own in models/."""
     rows = {}
-    for ck in sorted(F.WEIGHTS.glob("sam2.1_*.pt")):
+    seen = set()
+    for where, ck in [("shipped", c) for c in sorted(MODEL_DIR.glob("sam2.1_*.pt"))] + \
+                     [("", c) for c in sorted(F.WEIGHTS.glob("sam2.1_*.pt"))]:
+        if ck.name in seen:
+            continue
+        seen.add(ck.name)
         info = F.checkpoint_info(ck)
         size = info.get("size", "?")
         if size_filter and size != size_filter:
             continue
         for prompt, label in (("box", "box"), ("point", "click")):
-            rows[f"SAM 2.1 {size} · fine-tuned ({ck.stem.split(size + '_', 1)[-1]}) · {label}"] = \
+            rows[f"SAM 2.1 {size} · fine-tuned ({ck.stem.split(size + '_', 1)[-1]}{', ' + where if where else ''}) · {label}"] = \
                 F.SAM2Prompted(ckpt=ck, prompt=prompt)
     return rows
 
@@ -157,7 +170,11 @@ def cmd_video(F, a):
         finder = F.UltralyticsModel(F._project_path(a.detector_weights_trained), conf=a.conf)
     else:
         finder = F.UltralyticsModel(a.detector, text=a.text or None, conf=a.conf)
-    ckpt = F._project_path(a.weights) if a.weights else None
+    if a.weights:
+        ckpt = F._project_path(a.weights)
+    else:                                               # default: the newest fine-tuned SAM 2.1 the team ships
+        shipped = sorted(MODEL_DIR.glob("sam2.1_*.pt"), key=lambda c: c.stat().st_mtime)
+        ckpt = shipped[-1] if shipped else None
     pipeline = F.DetectThenSAM2(finder, ckpt=ckpt)
     print("detector:", Path(finder.weights).name, "· SAM 2.1:", ckpt.name if ckpt else f"{F.SAM2_SIZE} pretrained")
     out, counts, tracks = F.run_on_video(pipeline, video, a.start, a.seconds, a.fps)
@@ -189,7 +206,7 @@ def main(argv=None):
     def common_options(parser, defaults=True):
         D = (lambda v: v) if defaults else (lambda v: argparse.SUPPRESS)
         parser.add_argument("--project", default=D(os.environ.get("PROJECT_DIR")),
-                            help="project folder (default: $PROJECT_DIR)")
+                            help="project folder (default: $PROJECT_DIR, else the repository's data/ folder)")
         parser.add_argument("--size", default=D(os.environ.get("SAM2_SIZE", "base_plus")),
                             choices=["tiny", "small", "base_plus", "large"])
         parser.add_argument("--object-name", default=D(os.environ.get("OBJECT_NAME", "grape cluster")))
@@ -252,7 +269,8 @@ def main(argv=None):
     s.add_argument("--start", type=float, default=0)
     s.add_argument("--seconds", type=float, default=10)
     s.add_argument("--fps", type=float, default=6)
-    s.add_argument("--weights", default=None, help="fine-tuned SAM 2.1 weights (default: pretrained)")
+    s.add_argument("--weights", default=None,
+                   help="fine-tuned SAM 2.1 weights (default: the newest in model/, else pretrained)")
     s.add_argument("--detector", default="yoloe-26m-seg.pt")
     s.add_argument("--text", default="grape cluster")
     s.add_argument("--conf", type=float, default=0.2)

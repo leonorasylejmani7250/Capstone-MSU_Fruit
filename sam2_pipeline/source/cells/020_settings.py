@@ -13,6 +13,7 @@ PROJECT_DIR   = ""                #@param {type:"string"}
 #@markdown `SAVE_TO_DRIVE` keeps videos, labels and trained weights in *My Drive / PROJECT_NAME* so a
 #@markdown Colab disconnect does not erase your labelling. The demo never touches Drive.
 #@markdown
-#@markdown `PROJECT_DIR`: leave empty in Colab. On the MSU HPCC (OnDemand Jupyter) put the same folder
-#@markdown as `PROJECT_DIR` in `hpcc/config.sh`, e.g. `~/msu_fruit_project`, so the notebook and the
-#@markdown batch jobs share one project.
+#@markdown `PROJECT_DIR`: leave empty in Colab. In the team repository the project folder is its `data/`
+#@markdown folder: on a laptop set `PROJECT_DIR = "../../data"` (from `sam2_pipeline/notebooks/`); on the
+#@markdown MSU HPCC (OnDemand Jupyter) `"~/Capstone-MSU_Fruit/data"`, the same folder `hpcc/config.sh`
+#@markdown gives the batch jobs, so the notebook and the jobs share one project.

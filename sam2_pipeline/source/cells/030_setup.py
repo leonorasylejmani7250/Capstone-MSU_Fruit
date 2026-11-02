@@ -77,7 +77,8 @@ def _safe(name):
 
 def use_project(root):
     """Point every tool at one project folder: videos/, dataset/ (frames + labels), predictions/,
-    models/, results/, runs/. The notebook and the HPCC command line both go through here."""
+    models/, results/, runs/. In the team repository that folder is data/. The notebook and the
+    command line both go through here."""
     global ROOT, VIDEOS, DATA, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS, _META, PROMPTS
     ROOT = Path(root).expanduser().resolve()
     VIDEOS, DATA      = ROOT / "videos", ROOT / "dataset"
@@ -91,6 +92,21 @@ def use_project(root):
 
 CKPT_DIR = Path(os.environ.get("FRUIT_CHECKPOINTS") or BASE / "checkpoints")
 CKPT_DIR.mkdir(parents=True, exist_ok=True)
+
+def _repo_dir():
+    """The team repository (the folder that holds sam2_pipeline/ and data/), when this code runs from inside it.
+    None in a standalone notebook, e.g. the pipeline notebook opened in Colab from the Open-in-Colab badge."""
+    starts = [Path(globals()["__file__"]).resolve().parent] if "__file__" in globals() else []
+    starts.append(Path.cwd())
+    for start in starts:
+        for d in (start, *start.parents):
+            if (d / "sam2_pipeline" / "fruit.py").exists():
+                return d
+    return None
+
+REPO_DIR = _repo_dir()
+# The fine-tuned SAM 2.1 the team ships: sam2_pipeline/model/ (see its README). Scored and used by default.
+MODEL_DIR = REPO_DIR / "sam2_pipeline" / "model" if REPO_DIR else None
 
 if not globals().get("_DEFER_PROJECT"):           # the command-line module picks its folder later
     _project = _safe(PROJECT_NAME) or "fruit_sam2"

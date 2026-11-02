@@ -1,11 +1,12 @@
 # Conda environment for the SAM 2.1 pipeline and demo.ipynb (a CPU is enough for the demo).
+# From this folder (sam2_pipeline/):
 #
 #   conda env create --prefix ./envs --file environment.yml
 #   conda activate ./envs
 #
 # Kept minimal on purpose: Python, Jupyter and the packages the code imports. PyTorch comes from pip
 # (CPU build on macOS/Windows; the Linux build also runs on NVIDIA GPUs). The MSU HPCC uses its own
-# setup script instead (sam2_pipeline/hpcc/setup_env.sh), which installs a CUDA build.
+# setup script instead (hpcc/setup_env.sh), which installs a CUDA build.
 name: msu_fruit
 channels:
   - conda-forge

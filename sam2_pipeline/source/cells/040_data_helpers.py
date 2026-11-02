@@ -300,18 +300,21 @@ def make_demo_clips(names=None, frames=12, fps=6, hw=(640, 960)):
     """Turn WGISD photos into short panning clips with exact labels, through the same code path as real videos
     (written as .mp4 into videos/, cut by cut_clips). Gives every step something to run on before you have
     labelled anything. Returns the clip names; existing demo clips are kept."""
-    raw = BASE / "demo_download"; raw.mkdir(parents=True, exist_ok=True)
+    local = REPO_DIR / "data" / "wgisd" / "data" if REPO_DIR else None     # the copy of WGISD in the repository
+    raw = BASE / "demo_download"; raw.mkdir(parents=True, exist_ok=True)  # otherwise: fetched once from GitHub
     made = []
     for name in names or DEMO_IMAGES:
         clip_name = f"demo_{name}_t0000000"
         if (ANN / clip_name).exists():
             made.append(clip_name); continue
+        files = {}
         for ext in ("jpg", "npz"):
-            f = raw / f"{name}.{ext}"
+            f = local / f"{name}.{ext}" if local and (local / f"{name}.{ext}").exists() else raw / f"{name}.{ext}"
             if not f.exists():
                 torch.hub.download_url_to_file(_WGISD + f.name, str(f), progress=False)
-        img = np.asarray(Image.open(raw / f"{name}.jpg").convert("RGB"))
-        masks = np.load(raw / f"{name}.npz")["arr_0"]                        # [H, W, N], one layer per cluster
+            files[ext] = f
+        img = np.asarray(Image.open(files["jpg"]).convert("RGB"))
+        masks = np.load(files["npz"])["arr_0"]                               # [H, W, N], one layer per cluster
         ids = np.zeros(img.shape[:2], np.uint16)
         for k in np.argsort(-masks.reshape(-1, masks.shape[2]).sum(0)):      # large first, small ones on top
             ids[masks[..., k] > 0] = k + 1
