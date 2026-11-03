@@ -17,6 +17,8 @@
 
 For comparison, the October **YOLO11n-seg** run (Ultralytics 8.3.70, same data and settings, Windows GPU), kept in `../../data/results/yolo11/`: test box mAP@0.50 0.810, mask 0.819; count test MAE 2.59, 451 predicted vs 407.
 
+With SAM 2.1 behind it (`../../sam2_pipeline/count_test.ipynb`: YOLO26 boxes → pretrained SAM 2.1 tiny masks), the same 27 photos count MAE 2.59, 375 predicted vs 407: SAM 2.1 merges overlapping boxes, so it under-counts where YOLO26 alone over-counts.
+
 So on WGISD the two are close: YOLO26 is a little better at finding and outlining clusters (mAP), YOLO11 a little better at counting at the default confidence. The count test depends strongly on `--conf`: YOLO26 is best at 0.35 (MAE 2.48, 384 predicted), YOLO11 at 0.30 (MAE 1.93, 415 predicted), so set the confidence per model before comparing counts. On the SAM 2.1 pipeline's demo clip (a held-out WGISD photo as a 12-frame pan) both score F1 ≈ 56 at IoU 0.5, YOLO26 finding 9 of 11 clusters as tracks and YOLO11 7; there, both must run at `imgsz: 512`, the size they were trained at, or they miss most clusters.
 
 These are scores on WGISD photos (five varieties, Brazilian vineyards, 2017–2018), not on our partner's video. The number that matters for the project is the leaderboard on our own labelled clips, from `python ../sam2_pipeline/fruit.py evaluate`.

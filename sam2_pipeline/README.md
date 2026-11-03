@@ -15,9 +15,10 @@ videos ──▶ short clips ──▶ labels ──▶ score the starting model
 | `INSTALL.md`, `environment.yml` | Install guide and the conda environment (laptop). |
 | `demo.ipynb` | Short end-to-end demo: score pretrained SAM 2.1, fine-tune it, score again, compare. |
 | `tests/test_install.py` | One-minute check that the install works. |
+| `count_test.ipynb` | Count test on the 27 WGISD test photos: detector (our YOLO26) → SAM 2.1 counts against hand counts, with overlays. The SAM 2.1 counterpart of `yolo26_pipeline/count_test.py`. |
 | `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` | The whole pipeline as a notebook with forms: upload videos, label, train, compare. Colab, or Jupyter on the HPCC. |
 | `fruit_sam2.py` | The notebook's tool cells as one Python module (generated, do not edit by hand). |
-| `source/` | Where the notebooks and the module come from: `cells/` and `demo_cells/` (one file per notebook cell) and `build.py`. Edit a cell, run `python source/build.py`, commit the regenerated files. |
+| `source/` | Where the notebooks and the module come from: `cells/`, `demo_cells/` and `count_test_cells/` (one file per notebook cell) and `build.py`. Edit a cell, run `python source/build.py`, commit the regenerated files. |
 | `fruit.py` | Command line around it, for batch jobs: `status`, `clips`, `import-coco`, `import-yolo`, `train`, `evaluate`, `video`, … |
 | `hpcc/` | `setup_env.sh` (one-time setup), `run.sb` (any command as a GPU job), `activate.sh`, `config.sh` (paths). |
 | `configs/lineup.yaml` | Which models `evaluate` scores: pretrained SAM 2.1, our YOLO26, YOLOE, … Add any model here. |
@@ -94,7 +95,7 @@ sbatch hpcc/run.sb evaluate
 sbatch hpcc/run.sb video videos/row3.mp4 --start 60 --seconds 60 --weights models/sam2.1_base_plus_grapes_v1.pt
 ```
 
-The first job fine-tunes SAM 2.1 and writes `data/models/sam2.1_base_plus_grapes_v1.pt`; the second writes the leaderboard to `data/results/leaderboard_val.csv`; the third runs the fine-tuned model on one minute of a video. `squeue --me` shows whether a job is running, and `tail -f fruit-<jobid>.out` follows its log. When a fine-tuned model is the one the team wants to use, it goes to `model/` ([model/README.md](model/README.md) says how); `video` then uses it by default.
+The first job fine-tunes SAM 2.1 and writes `data/models/sam2.1_base_plus_grapes_v1.pt`; the second writes the leaderboard to `data/results/leaderboard_val.csv`; the third runs the fine-tuned model on one minute of a video. `sbatch hpcc/run.sb train-detector --base ../yolo26_pipeline/model/best.pt` fine-tunes our YOLO26 on the same labels. The repository's [`hpcc/run_all.sh`](../hpcc/README.md) submits all of these, plus SAM 3.1, as one chain. `squeue --me` shows whether a job is running, and `tail -f fruit-<jobid>.out` follows its log. When a fine-tuned model is the one the team wants to use, it goes to `model/` ([model/README.md](model/README.md) says how); `video` then uses it by default.
 
 `run.sb` asks for one A100 for 4 hours. Change it per job, e.g. `sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate`. The GPU types are v100/v100s (32 GB), a100 (40 or 80 GB), l40s (48 GB) and h200 (141 GB). Any of them works: training sizes itself to the card. It freezes the image backbone below 38 GB, trains in float16 on V100s and bfloat16 on the newer cards, and steps down frames per sample if memory runs out. Keep jobs at 4 hours or less so they can also use buy-in nodes. A run that hits the time limit resumes when you submit the same command again, on the same GPU type (a different type changes the training settings, so the run starts over).
 
@@ -125,7 +126,7 @@ Every model writes masks to `data/predictions/<model>/` in the label format, and
 - **Prompted** (SAM 2.1, pretrained or fine-tuned): the model is shown each cluster once, by a box or a click, and must follow it. Headline **J&F** (mask overlap + outline accuracy, 0–100), plus *IoU on prompt frame*.
 - **Automatic** (YOLO26, YOLOE, detector → SAM 2.1, SAM 3.1, anything else): the model gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error per frame, and tracks found vs true.
 
-`python fruit.py evaluate` scores everything in `configs/lineup.yaml` plus every fine-tuned SAM 2.1 in `model/` and in `data/models/`. The lineup already lists our YOLO26 (`yolo26_pipeline/model/best.pt`); an entry whose file is not on this computer is skipped with a note. To add a model, add an entry under `models:`, indented like the ones already there. Paths are relative to the project folder, and a path that is not there is tried relative to the repository.
+`python fruit.py evaluate` scores everything in `configs/lineup.yaml` plus every fine-tuned model automatically: SAM 2.1 weights in `model/` and in `data/models/`, and the YOLO-seg detectors that `train-detector` wrote to `data/runs/`. `python fruit.py train-detector --base ../yolo26_pipeline/model/best.pt` continues our WGISD-trained YOLO26 on the labelled clips, so the detector and SAM 2.1 both learn from the same labels. The lineup already lists our YOLO26 (`yolo26_pipeline/model/best.pt`); an entry whose file is not on this computer is skipped with a note. To add a model, add an entry under `models:`, indented like the ones already there. Paths are relative to the project folder, and a path that is not there is tried relative to the repository.
 
 ```yaml
 models:

@@ -4,11 +4,12 @@
 #   prompted  (type sam2): shown each grape cluster once (a box or a click), must follow it through the clip
 #   automatic (everything else): gets only pixels, must find every cluster itself
 #
-# Fine-tuned SAM 2.1 weights are added automatically (box and click rows): the ones the team ships in
-# sam2_pipeline/model/ and any in the project's models/ folder. They do not need to be listed here.
-# Paths are relative to the project folder (data/); a path that is not there is tried relative to the
-# repository, which is how `yolo26_pipeline/model/best.pt` works. To leave a model out, comment it out
-# or add `skip: true`.
+# Fine-tuned models are added automatically and do not need to be listed here: SAM 2.1 weights in
+# sam2_pipeline/model/ (shipped) and in the project's models/ (box and click rows), and the YOLO-seg detectors
+# that `train-detector` wrote to the project's runs/. Paths are relative to the project folder (data/); a path
+# that is not there is tried relative to the repository, which is how `yolo26_pipeline/model/best.pt` works.
+# An entry whose files are not on this computer is skipped with a note. To leave a model out, comment it
+# out or add `skip: true`.
 
 models:
   - name: SAM 2.1 base_plus · pretrained · box
@@ -38,6 +39,11 @@ models:
     size: base_plus
     detector: {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster, conf: 0.2}
 
+  - name: SAM 3.1 · text 'grape cluster'         # masks written by sam3_pipeline/run_sam3.py clips; skipped until they exist
+    type: folder
+    path: predictions/sam3_text
+    tracks: true
+
   # ---- more you can switch on --------------------------------------------------------------------------
   # - name: YOLO26n-seg · ours → SAM 2.1 fine-tuned
   #   type: detect_then_sam2
@@ -54,11 +60,6 @@ models:
   #   type: sam2
   #   size: large
   #   prompt: box
-
-  # - name: SAM 3.1 · text 'grape cluster'       # masks written by sam3_pipeline/run_sam3.py
-  #   type: folder
-  #   path: predictions/sam3_text
-  #   tracks: true
 
   # - name: my own model                          # any Python class with predict(clip, prompts) → id masks
   #   type: python

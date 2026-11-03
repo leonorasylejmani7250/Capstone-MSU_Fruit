@@ -28,7 +28,8 @@ Capstone-MSU_Fruit/
 │   └── dataset/, predictions/, models/, runs/, demo/   our labelled clips, each model's masks, training runs (not in git)
 ├── sam2_pipeline/          code, docs, environment and model/ of the SAM 2.1 pipeline
 ├── sam3_pipeline/          code, docs and model/ of the SAM 3.1 pipeline
-└── yolo26_pipeline/        code, docs, environment and model/ of the YOLO26 pipeline
+├── yolo26_pipeline/        code, docs, environment and model/ of the YOLO26 pipeline
+└── hpcc/                   run_all.sh: fine-tune every model on our clips and score them all, as HPCC batch jobs
 ```
 
 Three rules keep it simple: **code lives in `<pipeline>/`**; **everything the code reads or produces lives in `data/`**; **`<pipeline>/model/` holds the one model that pipeline ships** (training runs go to `data/runs/`, and the winner is copied into `model/` with a note in `model/README.md` on how it was trained and how it scored). [`data/README.md`](data/README.md) lists every folder, what is in git, and where the partner's video comes from.
@@ -40,6 +41,7 @@ The annotated result videos of the October YOLO11 runs (9.5 GB, Git LFS) are onl
 - **YOLO26n-seg**, trained on WGISD on 2 November 2026, ships in `yolo26_pipeline/model/best.pt`: test mAP@0.50 box 0.826, mask 0.822 ([`yolo26_pipeline/model/README.md`](yolo26_pipeline/model/README.md)). The October YOLO11n-seg run it replaces is kept as a baseline in `data/results/yolo11/` (box 0.810, mask 0.819); on WGISD the two are close.
 - **SAM 2.1** fine-tuning and the leaderboard are built and tested on public sample clips; the first real fine-tuning run waits for labelled Riesling clips (HPCC).
 - **SAM 3.1** is written against Meta's documented API and waits for a GPU run with the gated weights.
+- **On the HPCC**, [`hpcc/run_all.sh`](hpcc/README.md) fine-tunes SAM 2.1 and YOLO26 on our labelled clips, runs SAM 3.1 on them and scores everything on the same held-out clips, as a chain of batch jobs.
 
 ## Main goals
 

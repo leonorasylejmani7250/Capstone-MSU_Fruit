@@ -1,0 +1,33 @@
+#!/bin/bash --login
+# Run any script of this folder as a GPU batch job on the MSU HPCC (modelled on sam2_pipeline/hpcc/run.sb; not yet
+# run on the HPCC). Submit from the yolo26_pipeline folder:
+#     cd ~/Capstone-MSU_Fruit/yolo26_pipeline
+#     sbatch hpcc/run.sb train.py --epochs 50 --imgsz 512 --batch 16          train YOLO26n-seg on WGISD (minutes on a GPU)
+#     sbatch hpcc/run.sb evaluate.py                                           box and mask mAP on the WGISD test split
+#     sbatch hpcc/run.sb video.py --video ../data/videos/row3.mp4 --max-frames 0
+# Everything after `run.sb` is run as `python <script> <args>`. Log: yolo26-<job id>.out in this folder.
+# Status: squeue --me   Cancel: scancel <job id>   Bigger GPU: sbatch --gpus=a100:1 hpcc/run.sb ...
+#
+#SBATCH --job-name=yolo26
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --gpus=v100:1
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --output=%x-%j.out
+set -eo pipefail
+CODE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
+if [ ! -f "$CODE_DIR/train.py" ]; then
+    echo "Submit from the yolo26_pipeline folder: cd ~/Capstone-MSU_Fruit/yolo26_pipeline && sbatch hpcc/run.sb ..." >&2
+    exit 1
+fi
+ENV_DIR="${ENV_DIR:-$HOME/envs/fruit_yolo26}"
+module purge
+module load Miniforge3
+eval "$(conda shell.bash hook)"
+conda activate "$ENV_DIR"
+echo "job $SLURM_JOB_ID on $(hostname) · $(date)"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
+cd "$CODE_DIR"
+echo "command: python $*"
+python "$@"

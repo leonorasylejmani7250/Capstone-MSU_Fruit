@@ -10,7 +10,7 @@ computer with the environment from hpcc/setup_env.sh. It runs the same code as t
   python fruit.py train --run grapes_v1 --steps 3000                 fine-tune SAM 2.1 (Meta's trainer)
   python fruit.py evaluate --lineup configs/lineup.yaml              score every model on the val clips
   python fruit.py video videos/row3.mp4 --seconds 30 --weights models/sam2.1_base_plus_grapes_v1.pt
-  python fruit.py train-detector                                     YOLO-seg on the same labels
+  python fruit.py train-detector --base yolo26_pipeline/model/best.pt   fine-tune our YOLO26 on the same labels
   python fruit.py approve --all-drafts                               accept drafted labels unchecked
   python fruit.py export-yolo                                        labels out as a YOLO dataset
 
@@ -18,8 +18,9 @@ Labelling needs a screen: open notebooks/MSU_FRUIT_SAM2_pipeline.ipynb in Colab 
 Options for every command (--project, --size) can go before or after the command name:
   python fruit.py --project ../data/demo --size tiny status
 --project defaults to $PROJECT_DIR (hpcc/config.sh sets it), else to the repository's data/ folder;
---size to $SAM2_SIZE, else base_plus. Fine-tuned weights in model/ (the ones the team ships) and in the
-project's models/ folder are scored automatically by `evaluate`, and `video` uses the newest in model/.
+--size to $SAM2_SIZE, else base_plus. `evaluate` scores the lineup plus every fine-tuned model automatically:
+SAM 2.1 weights in model/ (the ones the team ships) and in the project's models/, and the detectors that
+train-detector wrote to the project's runs/. `video` uses the newest SAM 2.1 weights in model/.
 """
 import argparse
 import os
@@ -145,10 +146,19 @@ def _finetuned_rows(F, size_filter=None):
     return rows
 
 
+def _detector_rows(F):
+    """Every YOLO-seg detector trained on the project's labels (train-detector): runs/<name>/weights/best.pt."""
+    rows = {}
+    for best in sorted(F.RUNS.glob("*/weights/best.pt")):
+        rows[f"YOLO-seg · fine-tuned ({best.parents[1].name})"] = F.UltralyticsModel(best, conf=0.25)
+    return rows
+
+
 def cmd_evaluate(F, a):
     models = F.load_lineup(here(a.lineup)) if a.lineup else {}
     if a.finetuned:
         models.update(_finetuned_rows(F))
+        models.update(_detector_rows(F))
     if not models:
         sys.exit("Nothing to score: give --lineup FILE and/or train a model first.")
     print("scoring:", *models, sep="\n  · ")
@@ -182,8 +192,14 @@ def cmd_video(F, a):
 
 
 def cmd_train_detector(F, a):
-    best = F.train_detector(a.base, a.epochs, a.imgsz, a.name)
+    base = a.base
+    if "/" in base or here(base).exists():          # a file (ours, or a project / repository path), not a bare name to download
+        for candidate in (here(base), F._project_path(base)):
+            if candidate.exists():
+                base = str(candidate); break
+    best = F.train_detector(base, a.epochs, a.imgsz, a.name)
     print("detector weights:", best)
+    print("next: python fruit.py evaluate   (detectors in the project's runs/ are scored automatically)")
 
 
 def cmd_approve(F, a):
@@ -260,7 +276,7 @@ def main(argv=None):
     s = sub.add_parser("evaluate", help="score models on the labelled val clips")
     s.add_argument("--lineup", default=str(HERE / "configs" / "lineup.yaml"), help="YAML list of models ('' for none)")
     s.add_argument("--no-finetuned", dest="finetuned", action="store_false",
-                   help="do not add every fine-tuned model in models/ automatically")
+                   help="do not add the fine-tuned models (SAM 2.1 in model/ and models/, detectors in runs/) automatically")
     s.add_argument("--split", default="val")
     s.add_argument("--compare", type=int, default=1, help="side-by-side videos for this many clips")
 
@@ -277,7 +293,8 @@ def main(argv=None):
     s.add_argument("--detector-weights-trained", default=None, help="your own YOLO weights instead of YOLOE")
 
     s = sub.add_parser("train-detector", help="train a YOLO-seg detector on the same labels")
-    s.add_argument("--base", default="yolo26n-seg.pt")
+    s.add_argument("--base", default="yolo26n-seg.pt",
+                   help="starting weights: a bare Ultralytics name, or a file such as yolo26_pipeline/model/best.pt")
     s.add_argument("--epochs", type=int, default=100)
     s.add_argument("--imgsz", type=int, default=1280)
     s.add_argument("--name", default="yolo_detector")

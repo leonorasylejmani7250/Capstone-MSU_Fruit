@@ -35,6 +35,8 @@ data/predictions/
 data/models/
 data/runs/
 data/demo/
+data/count_test/
+data/yolo_dataset/
 data/frames_to_label/
 data/results/*
 !data/results/yolo11/

@@ -20,6 +20,7 @@ data/wgisd ──▶ prepare_wgisd.py ──▶ data/wgisd_yolo ──▶ train.
 | `video.py` | Annotated video and per-frame counts, with or without ByteTrack tracking (`../data/results/yolo26/`). |
 | `extract_frames.py` | Still frames from a video, every few seconds, for labelling (`../data/frames_to_label/`). |
 | `tests/test_smoke.py` | No-GPU unit tests of the conversion and the rendering. |
+| `hpcc/` | `setup_env.sh` (one-time environment on the MSU HPCC) and `run.sb` (any script here as a GPU batch job). |
 | `model/` | The model this pipeline ships, `best.pt`, with a README on how it was trained and how it scored. |
 
 > **The model detects grape clusters, not berries.** `visible_now` counts detections in one frame. Tracker ids are not verified unique clusters and no count here is a yield estimate: repeated views, missed detections and id switches all add error.
@@ -46,11 +47,14 @@ python train.py --epochs 50 --imgsz 512 --batch 2
 | `--epochs` | `50` | Maximum number of training epochs (early stopping after 20 without improvement) |
 | `--imgsz` | `512` | Training image size |
 | `--batch` | `2` | Batch size; raise it on a GPU with more than 4 GB |
-| `--model` | `yolo26n-seg.pt` | Base weights; Ultralytics downloads them on first use (`yolo26s-seg.pt` is the next size up) |
+| `--data` | `grape.yaml` | Dataset YAML; `../data/yolo_dataset/data.yaml` for our own labels (section 5) |
+| `--model` | `yolo26n-seg.pt` | Starting weights: a bare Ultralytics name (downloaded; `yolo26s-seg.pt` is the next size up) or a file such as `model/best.pt` |
 | `--name` | `wgisd` | Run name: output goes to `../data/runs/yolo26/wgisd/` (a number is added if it exists) |
 | `--device` | `auto` | `auto`, `cpu`, or a CUDA device such as `0` |
 
 The run folder holds `weights/best.pt` and `last.pt`, `results.csv` and `results.png` (losses and mAP per epoch), the PR and F1 curves, and the confusion matrix. The October YOLO11 run took 12 minutes on a 4 GB NVIDIA GPU; the YOLO26 run in `model/` took 80 minutes on a 2-core CPU. A one-epoch run (`--epochs 1 --name smoke`) checks the install in under two minutes on a CPU.
+
+**On the MSU HPCC** (a V100 trains the 50 epochs in minutes): once, on a development node, `cd ~/Capstone-MSU_Fruit/yolo26_pipeline && bash hpcc/setup_env.sh`; then `sbatch hpcc/run.sb train.py --epochs 50 --imgsz 512 --batch 16`. `squeue --me` shows the job, `yolo26-<jobid>.out` is its log, and the run lands in `../data/runs/yolo26/` like a local one. `sbatch hpcc/run.sb evaluate.py` and `sbatch hpcc/run.sb video.py …` work the same way. (The HPCC scripts follow ICER's documentation and the SAM 2.1 pipeline's scripts, but have not been run on the HPCC yet.)
 
 **When a run is the one to use, copy its weights into `model/`** and update `model/README.md`: `cp ../data/runs/yolo26/wgisd/weights/best.pt model/best.pt`. Every other script uses `model/best.pt` by default.
 
@@ -108,7 +112,13 @@ for v in ../data/videos/*.mp4; do python video.py --video "$v" --max-frames 0; d
 python extract_frames.py --video ../data/videos/row3.mp4 --every-sec 5 --max-images 60
 ```
 
-Saves still frames to `../data/frames_to_label/row3/`. Label grape *clusters*, keep some labelled frames of the same session aside for testing, and fine-tune with `train.py --model model/best.pt` on a dataset YAML that points at them. The SAM 2.1 pipeline's labeller (`../sam2_pipeline`) is the faster way to label clips, and `python ../sam2_pipeline/fruit.py export-yolo` writes its labels as a YOLO dataset.
+Saves still frames to `../data/frames_to_label/row3/`. Label grape *clusters*, and keep some labelled frames of the same session aside for testing. The SAM 2.1 pipeline's labeller (`../sam2_pipeline`) is the faster way to label clips, and `python ../sam2_pipeline/fruit.py export-yolo` writes its labels as a YOLO dataset in `../data/yolo_dataset/`. Fine-tune the shipped model on them:
+
+```bash
+python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard
+```
+
+The same thing as one batch job on the HPCC, scored automatically by the leaderboard afterwards: `python ../sam2_pipeline/fruit.py train-detector --base ../yolo26_pipeline/model/best.pt` (`../hpcc/README.md`).
 
 ## 6. What was tested
 

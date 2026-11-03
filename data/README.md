@@ -11,8 +11,10 @@ One folder for all three pipelines (`sam2_pipeline/`, `sam3_pipeline/`, `yolo26_
 | `dataset/` | Our labelled clips, written by the SAM 2.1 labeller: `JPEGImages/<clip>/` frames, `Annotations/<clip>/` masks (pixel value = cluster number), `clips.json` (train/val split, source video, draft/done). Every model is scored on the `val` clips here. Back it up to the team drive; it is the team's own labelling work. | no |
 | `predictions/<model>/` | What each model drew on the clips, in the same format as `dataset/Annotations/`. `sam3_pipeline/run_sam3.py` writes `predictions/sam3_text/`; the SAM 2.1 leaderboard reads any folder here. | no |
 | `models/` | Fine-tuned SAM 2.1 weights from training runs, with a `.json` recipe each. The one the team ships is copied to `sam2_pipeline/model/`. | no |
-| `runs/` | Training logs and checkpoints: `runs/yolo26/<name>/` from `yolo26_pipeline/train.py`, `runs/<run>/` from SAM 2.1 fine-tuning. | no |
+| `runs/` | Training logs and checkpoints: `runs/yolo26/<name>/` from `yolo26_pipeline/train.py`, `runs/<run>/` from SAM 2.1 fine-tuning, `runs/<name>/weights/best.pt` from `fruit.py train-detector` (scored automatically by the leaderboard). | no |
+| `yolo_dataset/` | Our labelled clips exported as a YOLO dataset (`fruit.py export-yolo`, also made by `train-detector`), for `yolo26_pipeline/train.py --data`. | no |
 | `demo/` | What `sam2_pipeline/demo.ipynb` makes. Delete it to run the demo from scratch. | no |
+| `count_test/` | What `sam2_pipeline/count_test.ipynb` makes: one-frame clips of the 27 WGISD test photos, the count table and metrics, overlay images. | no |
 | `frames_to_label/` | Still frames cut from videos by `yolo26_pipeline/extract_frames.py`, for labelling. | no |
 
 `.gitignore` at the repository root keeps the "no" folders out of git. The annotated result videos of the October YOLO11 runs (9.5 GB) are only on the `Moe` branch of the old repository, in Git LFS.
@@ -20,6 +22,15 @@ One folder for all three pipelines (`sam2_pipeline/`, `sam3_pipeline/`, `yolo26_
 ## Getting the partner's video
 
 Download it from the team's shared drive into `data/videos/` (any number of files; `.mp4`, `.mov`, `.avi`, `.mkv`). Never commit it. On the MSU HPCC the same folder is `~/Capstone-MSU_Fruit/data/videos/`; `sam2_pipeline/README.md` lists the ways to get files there (OnDemand upload, Globus, rsync).
+
+**Data that arrives on the HPCC by itself** (a SharePoint or OneDrive folder synced with rclone, a research space): leave it where it lands and link it in, so nothing is copied twice and new files show up as they arrive:
+
+```bash
+cd ~/Capstone-MSU_Fruit
+ln -s /path/to/the/synced/videos data/videos
+```
+
+The SAM 2.1 pipeline reads `data/videos/` through the link (`fruit.py clips` cuts clips from every video there), and `yolo26_pipeline/video.py --video` and `sam3_pipeline/run_sam3.py video` take any path. If the synced folder holds labels as well (COCO or YOLO exports), import them with `fruit.py import-coco` / `import-yolo`. Alternatively, point `PROJECT_DIR` in `sam2_pipeline/hpcc/config.sh` at a project folder inside the synced space.
 
 ## Licences
 
