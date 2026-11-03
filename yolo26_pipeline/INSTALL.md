@@ -69,7 +69,7 @@ python prepare_wgisd.py
 python preview_labels.py --split val --limit 8
 ```
 
-The preview writes eight images to `../data/results/label_preview/`; the yellow outlines should sit on the grape clusters.
+The preview writes eight images to `../data/results/yolo26/label_preview/`; the yellow outlines should sit on the grape clusters.
 
 ## 6. Run the demo
 

@@ -122,6 +122,8 @@ The plots are only in the notebook. To keep them, choose **File ▸ Save and Exp
 
 To run the demo again from scratch, delete `../data/demo/`.
 
+**A second check, on real photos:** `count_test.ipynb` in this folder runs our YOLO26 → SAM 2.1 on the 27 WGISD test photos and compares the counts with hand counts (a few minutes on a CPU; results in `../data/count_test/results/`). Open it in the same Jupyter and *Run ▸ Run All Cells*.
+
 ## 7. Beyond the demo: the full pipeline on our videos
 
 | Where | How | When |

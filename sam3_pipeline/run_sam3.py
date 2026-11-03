@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -20,7 +21,8 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parent       # sam3_pipeline/
-DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+# The project folder: the repository's data/ unless $PROJECT_DIR (sam2_pipeline/hpcc/config.sh) or --data says otherwise.
+DATA = Path(os.environ.get('PROJECT_DIR') or ROOT.parent / 'data').expanduser()
 MODEL_DIR = ROOT / 'model'                   # where the downloaded SAM 3.1 checkpoint lives (model/README.md)
 PALETTE = [(100, 210, 85), (215, 145, 68), (180, 85, 200), (76, 185, 230), (215, 110, 165), (96, 200, 175)]
 
@@ -156,6 +158,8 @@ def main():
                    help='local weights, e.g. model/sam3.1_multiplex.pt (default: the package downloads them)')
     p.add_argument('--max-objects', type=int, default=64, help='SAM 3.1 object capacity; 16 is too few for a vine row')
     p.add_argument('--prob', type=float, default=0.5, help='output probability threshold')
+    p.add_argument('--data', type=Path, default=None,
+                   help='the project folder with dataset/ and videos/ (default: $PROJECT_DIR, else the repository\'s data/)')
     sub = p.add_subparsers(dest='cmd', required=True)
     s = sub.add_parser('clips', help='masks for the labelled clips → data/predictions/')
     s.add_argument('--split', default='val', choices=['val', 'train'])
@@ -166,6 +170,9 @@ def main():
     s.add_argument('--seconds', type=float, default=10)
     s.add_argument('--fps', type=float, default=6, help='frames per second to run (lower is faster)')
     args = p.parse_args()
+    global DATA
+    if args.data:
+        DATA = args.data.expanduser().resolve()
     if args.checkpoint is None:
         local = sorted(MODEL_DIR.glob('*.pt'))
         if local:

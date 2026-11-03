@@ -34,7 +34,7 @@ data/dataset/Annotations/    labels: <clip>/00000.png …  (pixel value = cluste
 data/dataset/clips.json      split (train/val), source video and status (draft/done) of every clip
 data/predictions/<model>/    what each model drew, same format as the labels
 data/models/                 fine-tuned SAM 2.1 weights from training runs (+ a .json recipe for each)
-data/results/                leaderboards (CSV), comparison videos, overlay videos and counts
+data/results/                leaderboards (CSV) and comparison videos; sam2/ holds the overlay videos and counts of `video` runs
 data/runs/                   training logs and resumable checkpoints
 ```
 
@@ -153,7 +153,7 @@ On a CPU-only Linux machine (Python 3.13, PyTorch 2.14, SAM 2 code at commit `2b
 - the imports, where box → SAM 2.1 masks matched the true WGISD masks;
 - metrics, which agree exactly with Meta's SA-V/DAVIS evaluator on 965 object-frames;
 - the install test and Meta's trainer under the package versions Colab ships today (PyTorch 2.11, NumPy 2.1, ipywidgets 7);
-- this layout (November 2026): `demo.ipynb` end to end with nbconvert (8.5 minutes on the CPU, J&F 92.7 pretrained / 92.6 fine-tuned), `tests/test_install.py`, `fruit.py status` with the default project, and `fruit.py evaluate` on the demo project with pretrained SAM 2.1, the fine-tuned demo weights, our YOLO26 and the YOLO11 baseline in one lineup (the YOLO rows need `imgsz: 512`, the size they were trained at); the install test and `source/build.py` also from a fresh clone.
+- this layout (November 2026): `demo.ipynb` end to end with nbconvert (8.5 minutes on the CPU, J&F 92.7 pretrained / 92.6 fine-tuned); `count_test.ipynb` end to end (27 of 27 photos); `tests/test_install.py`; `fruit.py status` with the default project; `fruit.py evaluate` on the demo project with pretrained SAM 2.1, the fine-tuned demo weights, our YOLO26 and the YOLO11 baseline in one lineup (the YOLO rows need `imgsz: 512`, the size they were trained at); `fruit.py train-detector --base ../yolo26_pipeline/model/best.pt` for one epoch, and the automatic scoring of its result; the install test and `source/build.py` also from a fresh clone.
 
 On macOS (Apple Silicon): the conda environment, the install test and `demo.ipynb` (October 2026, before the folders were reorganised).
 

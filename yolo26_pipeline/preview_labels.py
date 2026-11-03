@@ -1,4 +1,4 @@
-"""Draw the converted WGISD labels (data/wgisd_yolo) on a few images of one split and save them to data/results/label_preview/ for checking."""
+"""Draw the converted WGISD labels (data/wgisd_yolo) on a few images of one split and save them to data/results/yolo26/label_preview/ for checking."""
 import argparse
 from pathlib import Path
 
@@ -16,7 +16,7 @@ def main():
     args = p.parse_args()
     imgs = DATA / 'wgisd_yolo' / 'images' / args.split
     labels = DATA / 'wgisd_yolo' / 'labels' / args.split
-    out = DATA / 'results' / 'label_preview'
+    out = DATA / 'results' / 'yolo26' / 'label_preview'
     out.mkdir(parents=True, exist_ok=True)
     found = 0
     for image_path in sorted(imgs.glob('*.jpg')):

@@ -13,7 +13,7 @@ data/wgisd ──▶ prepare_wgisd.py ──▶ data/wgisd_yolo ──▶ train.
 | `INSTALL.md`, `requirements.txt` | Install guide and the Python packages. |
 | `grape.yaml` | The dataset for training and evaluation: `../data/wgisd_yolo`. |
 | `prepare_wgisd.py` | Converts WGISD's masks into YOLO polygon labels (`../data/wgisd_yolo`; already done and committed). |
-| `preview_labels.py` | Draws the labels on a few images, to check them (`../data/results/label_preview/`). |
+| `preview_labels.py` | Draws the labels on a few images, to check them (`../data/results/yolo26/label_preview/`). |
 | `train.py` | Trains YOLO26n-seg; runs go to `../data/runs/yolo26/<name>/`. |
 | `evaluate.py` | Box and mask mAP on the held-out WGISD test split. |
 | `count_test.py` | Cluster counts vs hand counts on the 27 test images (`../data/results/yolo26/count_test*`). |
@@ -34,7 +34,7 @@ python prepare_wgisd.py
 python preview_labels.py --split val --limit 8
 ```
 
-A different OpenCV version may trace a few outlines slightly differently, so `git status` can show small changes under `data/wgisd_yolo/labels` afterwards; `git checkout -- ../data/wgisd_yolo` restores the committed labels. The preview images in `../data/results/label_preview/` should show yellow outlines on the grape clusters.
+A different OpenCV version may trace a few outlines slightly differently, so `git status` can show small changes under `data/wgisd_yolo/labels` afterwards; `git checkout -- ../data/wgisd_yolo` restores the committed labels. The preview images in `../data/results/yolo26/label_preview/` should show yellow outlines on the grape clusters.
 
 ## 2. Train
 
@@ -55,6 +55,15 @@ python train.py --epochs 50 --imgsz 512 --batch 2
 The run folder holds `weights/best.pt` and `last.pt`, `results.csv` and `results.png` (losses and mAP per epoch), the PR and F1 curves, and the confusion matrix. The October YOLO11 run took 12 minutes on a 4 GB NVIDIA GPU; the YOLO26 run in `model/` took 80 minutes on a 2-core CPU. A one-epoch run (`--epochs 1 --name smoke`) checks the install in under two minutes on a CPU.
 
 **On the MSU HPCC** (a V100 trains the 50 epochs in minutes): once, on a development node, `cd ~/Capstone-MSU_Fruit/yolo26_pipeline && bash hpcc/setup_env.sh`; then `sbatch hpcc/run.sb train.py --epochs 50 --imgsz 512 --batch 16`. `squeue --me` shows the job, `yolo26-<jobid>.out` is its log, and the run lands in `../data/runs/yolo26/` like a local one. `sbatch hpcc/run.sb evaluate.py` and `sbatch hpcc/run.sb video.py …` work the same way. (The HPCC scripts follow ICER's documentation and the SAM 2.1 pipeline's scripts, but have not been run on the HPCC yet.)
+
+**Training for accuracy.** The shipped model was trained on a CPU with the smallest settings that finish there (`yolo26n`, 512 px, batch 2). WGISD photos are 2048 px wide and many clusters are small, so on a GPU the first things to try are a larger input size, a larger model and more epochs, then compare on the test split with `evaluate.py` and on our own clips with the leaderboard:
+
+```bash
+sbatch hpcc/run.sb train.py --model yolo26s-seg.pt --imgsz 1024 --batch 8 --epochs 150 --name wgisd_s1024
+sbatch hpcc/run.sb evaluate.py --model ../data/runs/yolo26/wgisd_s1024/weights/best.pt --imgsz 1024
+```
+
+Evaluate at the size you trained at, and keep `imgsz` consistent wherever the model is used (`video.py --imgsz`, the `imgsz:` of its lineup entry in `../sam2_pipeline/configs/lineup.yaml`). What matters more than any of this for the project is training on our own vineyard footage: section 5. None of these larger settings has been run yet; the numbers in `model/README.md` are the baseline to beat.
 
 **When a run is the one to use, copy its weights into `model/`** and update `model/README.md`: `cp ../data/runs/yolo26/wgisd/weights/best.pt model/best.pt`. Every other script uses `model/best.pt` by default.
 

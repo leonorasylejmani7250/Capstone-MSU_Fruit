@@ -92,7 +92,8 @@ def run_on_video(model, video, start_s=0, seconds=10, fps=6, max_side=1280, chun
             if stop >= n: break
             start = stop - 1
 
-    out = write_video(overlays(), RESULTS / f"overlay_{_safe(video.stem)}_{int(start_s)}s.mp4", fps=info["fps"] / stride)
+    (RESULTS / "sam2").mkdir(parents=True, exist_ok=True)           # the SAM 2.1 pipeline's own video runs
+    out = write_video(overlays(), RESULTS / "sam2" / f"overlay_{_safe(video.stem)}_{int(start_s)}s.mp4", fps=info["fps"] / stride)
     counts = pd.DataFrame(per_frame)
     tr = pd.DataFrame(list(tracks.values()), columns=["object", "first_frame", "last_frame", "frames"])
     tr = tr[tr["frames"] >= min_track_frames].reset_index(drop=True)

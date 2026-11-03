@@ -32,7 +32,9 @@ Capstone-MSU_Fruit/
 └── hpcc/                   run_all.sh: fine-tune every model on our clips and score them all, as HPCC batch jobs
 ```
 
-Three rules keep it simple: **code lives in `<pipeline>/`**; **everything the code reads or produces lives in `data/`**; **`<pipeline>/model/` holds the one model that pipeline ships** (training runs go to `data/runs/`, and the winner is copied into `model/` with a note in `model/README.md` on how it was trained and how it scored). [`data/README.md`](data/README.md) lists every folder, what is in git, and where the partner's video comes from.
+Three rules keep it simple: **code lives in `<pipeline>/`**; **everything the code reads or produces lives in `data/`**; **`<pipeline>/model/` holds the one model that pipeline ships** (training runs go to `data/runs/`, and the winner is copied into `model/` with a note in `model/README.md` on how it was trained and how it scored).
+
+**Where to find things:** inputs in `data/videos/` (partner video) and `data/dataset/` (our labelled clips); every result in `data/results/` (the leaderboard of all models at the top, `sam2/`, `sam3/`, `yolo26/` for each pipeline's own runs); trained weights in `data/models/` and `data/runs/`, the shipped ones in `<pipeline>/model/`. [`data/README.md`](data/README.md) has the full command-by-command table of what is written where, what is in git, and where the partner's video comes from.
 
 The annotated result videos of the October YOLO11 runs (9.5 GB, Git LFS) are only on the `Moe` branch of the original repository; `main` needs no Git LFS.
 

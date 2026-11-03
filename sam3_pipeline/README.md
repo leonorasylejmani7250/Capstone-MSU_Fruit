@@ -20,7 +20,7 @@ data/videos/<file>                ──▶ run_sam3.py video ──▶ data/res
 
 - **A computer with an NVIDIA GPU** (CUDA 12.6 or newer): Google Colab (T4 is enough to try), the MSU HPCC, or a lab machine. SAM 3.1 does not run on a CPU or on a Mac.
 - **Python 3.12 or newer, PyTorch 2.7 or newer** (Meta's requirements).
-- **Access to the weights.** They are gated on Hugging Face: request access to [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) (and [facebook/sam3](https://huggingface.co/facebook/sam3) for the original SAM 3) with your Hugging Face account, wait for the approval email, then log in once on the computer that will run it: `hf auth login` (`pip install -U huggingface_hub` gives you the `hf` command). The weights download on the first run, into Hugging Face's cache; `model/README.md` says how to keep a copy in `model/` instead.
+- **Access to the weights.** They are gated on Hugging Face: request access to [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) (and [facebook/sam3](https://huggingface.co/facebook/sam3) for the original SAM 3) with your Hugging Face account, wait for the approval email, then log in once on the computer that will run it: `hf auth login` (`pip install -U huggingface_hub` gives you the `hf` command; on an older install it is `huggingface-cli login`). The weights download on the first run, into Hugging Face's cache; `model/README.md` says how to keep a copy in `model/` instead.
 - **Labelled clips in `data/dataset/`** for the `clips` job, from the SAM 2.1 labeller (`../sam2_pipeline/README.md`, section 1 or 2). The `video` job needs only a video in `data/videos/`.
 
 ## 2. Install
@@ -58,7 +58,7 @@ python run_sam3.py clips
 cd ../sam2_pipeline && python fruit.py evaluate
 ```
 
-The second command scores `data/predictions/sam3_text/` next to every other model, on the *automatic* leaderboard (F1 at IoU 0.5, precision, recall, count error, tracks found vs true). The lineup entry is already in `../sam2_pipeline/configs/lineup.yaml` (`SAM 3.1 · text 'grape cluster'`, type `folder`); uncomment it, or leave it: an entry whose folder does not exist is skipped automatically, so it only counts once the masks are there.
+The second command scores `data/predictions/sam3_text/` next to every other model, on the *automatic* leaderboard (F1 at IoU 0.5, precision, recall, count error, tracks found vs true). The lineup entry is already active in `../sam2_pipeline/configs/lineup.yaml` (`SAM 3.1 · text 'grape cluster'`, type `folder`); an entry whose folder does not exist is skipped with a note, so it counts as soon as the masks are there. On the HPCC, `hpcc/run_all.sh` at the repository root runs this job together with the SAM 2.1 and YOLO26 fine-tuning and the leaderboard.
 
 **Run it on a video** (30 seconds, 6 frames per second):
 
@@ -68,7 +68,7 @@ python run_sam3.py video ../data/videos/row3.mp4 --start 60 --seconds 30
 
 Output: `data/results/sam3/row3_sam3.mp4` (masks drawn on the frames) and `row3_sam3.csv` (clusters visible per frame, distinct ids seen so far). Ids seen is not a verified cluster count, and a cluster count is not a yield estimate.
 
-**Options for both jobs:** `--text "green grapes"` (one concept phrase per prompt; on the team's sample clip wording changed YOLOE's confidence a lot, so try a few), `--prob 0.4` (output threshold), `--max-objects 128` (SAM 3.1's object capacity; Meta's default 16 is too few for a vine row), `--version sam3` (the original SAM 3), `--checkpoint model/sam3.1_multiplex.pt` (local weights; the default is the newest `.pt` in `model/`, else the package's download).
+**Options for both jobs:** `--data <folder>` (the project folder, default `../data`, or `$PROJECT_DIR` as the HPCC jobs set it), `--text "green grapes"` (one concept phrase per prompt; on the team's sample clip wording changed YOLOE's confidence a lot, so try a few), `--prob 0.4` (output threshold), `--max-objects 128` (SAM 3.1's object capacity; Meta's default 16 is too few for a vine row), `--version sam3` (the original SAM 3), `--checkpoint model/sam3.1_multiplex.pt` (local weights; the default is the newest `.pt` in `model/`, else the package's download).
 
 ## 4. How it fits with the other pipelines
 
