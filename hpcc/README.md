@@ -48,7 +48,7 @@ cd ~/Capstone-MSU_Fruit/sam2_pipeline
 sbatch hpcc/run.sb train --run grapes_v2 --steps 5000
 sbatch hpcc/run.sb train-detector --base ../yolo26_pipeline/model/best.pt --epochs 100 --name yolo26_grapes_v2
 sbatch hpcc/run.sb evaluate
-sbatch hpcc/run.sb video videos/row3.mp4 --seconds 60
+sbatch hpcc/run.sb video videos/row3.mp4 --seconds 60 --detector-weights-trained runs/yolo26_grapes_v2/weights/best.pt
 cd ~/Capstone-MSU_Fruit/sam3_pipeline
 sbatch hpcc/run.sb clips
 cd ~/Capstone-MSU_Fruit/yolo26_pipeline

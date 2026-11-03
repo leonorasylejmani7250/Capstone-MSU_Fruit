@@ -10,6 +10,7 @@ computer with the environment from hpcc/setup_env.sh. It runs the same code as t
   python fruit.py train --run grapes_v1 --steps 3000                 fine-tune SAM 2.1 (Meta's trainer)
   python fruit.py evaluate --lineup configs/lineup.yaml              score every model on the val clips
   python fruit.py video videos/row3.mp4 --seconds 30 --weights models/sam2.1_base_plus_grapes_v1.pt
+  python fruit.py video videos/row3.mp4 --detector-weights-trained yolo26_pipeline/model/best.pt --detector-imgsz 512
   python fruit.py train-detector --base yolo26_pipeline/model/best.pt   fine-tune our YOLO26 on the same labels
   python fruit.py approve --all-drafts                               accept drafted labels unchecked
   python fruit.py export-yolo                                        labels out as a YOLO dataset
@@ -177,9 +178,11 @@ def cmd_video(F, a):
     if not video.exists():
         sys.exit(f"cannot find {a.video}")
     if a.detector_weights_trained:
-        finder = F.UltralyticsModel(F._project_path(a.detector_weights_trained), conf=a.conf)
+        w = a.detector_weights_trained
+        w = here(w) if here(w).exists() else F._project_path(w)        # ours: a project or repository path
+        finder = F.UltralyticsModel(w, conf=a.conf, imgsz=a.detector_imgsz)
     else:
-        finder = F.UltralyticsModel(a.detector, text=a.text or None, conf=a.conf)
+        finder = F.UltralyticsModel(a.detector, text=a.text or None, conf=a.conf, imgsz=a.detector_imgsz)
     if a.weights:
         ckpt = F._project_path(a.weights)
     else:                                               # default: the newest fine-tuned SAM 2.1 the team ships
@@ -290,7 +293,10 @@ def main(argv=None):
     s.add_argument("--detector", default="yoloe-26m-seg.pt")
     s.add_argument("--text", default="grape cluster")
     s.add_argument("--conf", type=float, default=0.2)
-    s.add_argument("--detector-weights-trained", default=None, help="your own YOLO weights instead of YOLOE")
+    s.add_argument("--detector-weights-trained", default=None,
+                   help="your own YOLO weights instead of YOLOE, e.g. yolo26_pipeline/model/best.pt or runs/<name>/weights/best.pt")
+    s.add_argument("--detector-imgsz", type=int, default=1280,
+                   help="the detector's input size: the size it was trained at (512 for the shipped WGISD model)")
 
     s = sub.add_parser("train-detector", help="train a YOLO-seg detector on the same labels")
     s.add_argument("--base", default="yolo26n-seg.pt",
