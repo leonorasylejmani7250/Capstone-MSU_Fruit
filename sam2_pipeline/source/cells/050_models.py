@@ -211,7 +211,7 @@ def build_model(spec):
     if kind == "folder":
         return FromFolder(_project_path(spec["path"]), tracks=bool(spec.get("tracks", False)))
     if kind == "sam3":
-        return SAM3Text(**spec)
+        return SAM3Text(checkpoint=ckpt, **spec)
     if kind == "python":
         target, args = spec.pop("class"), spec.pop("args", {}) or {}
         mod_name, cls_name = target.rsplit(":", 1)
@@ -237,6 +237,8 @@ def _needed_files(model):
         files += _needed_files(model.detector)
     if getattr(model, "ckpt", None):
         files.append(model.ckpt)
+    if getattr(model, "checkpoint", None):            # SAM3Text
+        files.append(model.checkpoint)
     if isinstance(model, FromFolder):
         files.append(model.folder)
     return [str(f) for f in files]

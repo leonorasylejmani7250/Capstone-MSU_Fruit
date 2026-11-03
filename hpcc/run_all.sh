@@ -28,6 +28,7 @@ SAM3="$REPO/sam3_pipeline"
 YOLO26_MODEL="$REPO/yolo26_pipeline/model/best.pt"
 
 source "$SAM2/hpcc/config.sh"
+unset ENV_DIR                       # the SAM 2.1 environment; the other pipelines' jobs pick their own
 echo "repository: $REPO"
 echo "project folder (labelled clips, results): $PROJECT_DIR"
 if [ ! -f "$PROJECT_DIR/dataset/clips.json" ]; then
@@ -50,7 +51,7 @@ J_YOLO=$(submit "$SAM2" --time=02:00:00 hpcc/run.sb train-detector --base "$YOLO
 echo "job $J_YOLO: fine-tune YOLO26 on the same labels ($EPOCHS epochs) → $PROJECT_DIR/runs/yolo26_$RUN/weights/best.pt"
 
 DEPS="$J_SAM2:$J_YOLO"
-if [ -x "${ENV_DIR_SAM3:-$HOME/envs/fruit_sam3}/bin/python" ]; then
+if [ -x "${SAM3_ENV_DIR:-$HOME/envs/fruit_sam3}/bin/python" ]; then
     J_SAM3=$(submit "$SAM3" hpcc/run.sb clips)
     echo "job $J_SAM3: SAM 3.1 masks for the val clips → $PROJECT_DIR/predictions/sam3_text"
     DEPS="$DEPS:$J_SAM3"

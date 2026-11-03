@@ -1,7 +1,7 @@
 """Compare the model's cluster counts with hand counts on the 27 WGISD test images (Michal's count test).
 
-Prints the per-image error and the mean absolute error, and saves the annotated images and a CSV to
-data/results/yolo26/count_test/. Default model: model/best.pt.
+Prints the per-image error and the mean absolute error; writes data/results/yolo26/count_test.csv and the
+annotated images to data/results/yolo26/count_test/. Default model: model/best.pt.
 """
 from __future__ import annotations
 

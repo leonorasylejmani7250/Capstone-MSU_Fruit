@@ -7,7 +7,7 @@ LEARNING_RATE = 5e-6          #@param {type:"number"}
 TRAIN_ENCODER = "auto"        #@param ["auto", "no", "yes"]
 #@markdown `TRAIN_ENCODER`: "no" freezes the image backbone and trains only the mask decoder and memory
 #@markdown (fits a 16 GB T4). "yes" trains everything (needs roughly 40 GB or more). "auto" picks by GPU size.
-#@markdown Long runs fit better in an HPCC batch job (`hpcc/train.sb`). Give it the same RUN_NAME and this cell
+#@markdown Long runs fit better in an HPCC batch job (`sbatch hpcc/run.sb train --run <RUN_NAME>`). Give it the same RUN_NAME and this cell
 #@markdown just picks up the finished weights from the project's `models` folder.
 
 if DEMO:

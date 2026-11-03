@@ -19,11 +19,11 @@ if [ ! -f "$CODE_DIR/run_sam3.py" ]; then
     echo "Submit from the sam3_pipeline folder: cd ~/Capstone-MSU_Fruit/sam3_pipeline && sbatch hpcc/run.sb ..." >&2
     exit 1
 fi
-ENV_DIR="${ENV_DIR:-$HOME/envs/fruit_sam3}"
+SAM3_ENV_DIR="${SAM3_ENV_DIR:-$HOME/envs/fruit_sam3}"     # its own name: ENV_DIR belongs to the SAM 2.1 scripts
 module purge
 module load Miniforge3
 eval "$(conda shell.bash hook)"
-conda activate "$ENV_DIR"
+conda activate "$SAM3_ENV_DIR"
 echo "job $SLURM_JOB_ID on $(hostname) · $(date)"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
 cd "$CODE_DIR"

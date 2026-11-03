@@ -184,7 +184,9 @@ def cmd_video(F, a):
     else:
         finder = F.UltralyticsModel(a.detector, text=a.text or None, conf=a.conf, imgsz=a.detector_imgsz)
     if a.weights:
-        ckpt = F._project_path(a.weights)
+        ckpt = here(a.weights) if here(a.weights).exists() else F._project_path(a.weights)
+        if not ckpt.exists():
+            sys.exit(f"cannot find the SAM 2.1 weights {a.weights} (looked in the current folder and the project)")
     else:                                               # default: the newest fine-tuned SAM 2.1 the team ships
         shipped = sorted(MODEL_DIR.glob("sam2.1_*.pt"), key=lambda c: c.stat().st_mtime)
         ckpt = shipped[-1] if shipped else None

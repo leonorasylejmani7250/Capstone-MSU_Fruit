@@ -41,7 +41,7 @@ hf auth login
 
 **Colab:** *Runtime ▸ Change runtime type ▸ T4 GPU*, then in a cell `!git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()` with your token. Copy your `data/dataset/` (from Drive, where the SAM 2.1 notebook keeps it) into the clone's `data/` before running.
 
-**MSU HPCC:** `bash hpcc/setup_env.sh` once on a development node (`ssh dev-amd20-v100`), then `hf auth login`, then `sbatch hpcc/run.sb clips`. The scripts mirror the SAM 2.1 ones in `../sam2_pipeline/hpcc/`.
+**MSU HPCC:** `bash hpcc/setup_env.sh` once on a development node (`ssh dev-amd20-v100`), then `~/envs/fruit_sam3/bin/hf auth login` (the environment is not active in your shell after the script), then `sbatch hpcc/run.sb clips`. The scripts mirror the SAM 2.1 ones in `../sam2_pipeline/hpcc/`.
 
 ## 3. Run
 

@@ -75,7 +75,7 @@ On the held-out WGISD test split (27 images that were never trained on):
 python evaluate.py
 ```
 
-It prints box and mask **mAP@0.50** and **mAP@0.50:0.95** and saves Ultralytics' plots to `../data/runs/yolo26/eval_test/`. `--model <weights>` scores another checkpoint, `--split val` the validation split. These are scores on WGISD photos, not on vineyard video; the leaderboard in `../sam2_pipeline` scores this model on our own labelled clips next to SAM 2.1 and SAM 3.1 (`python ../sam2_pipeline/fruit.py evaluate`).
+It prints box and mask **mAP@0.50** and **mAP@0.50:0.95** and saves Ultralytics' plots to `../data/runs/yolo26/eval_test/`. `--model <weights>` scores another checkpoint, `--split val` the validation split. These are scores on WGISD photos, not on vineyard video; the leaderboard in `../sam2_pipeline` scores this model on our own labelled clips next to SAM 2.1 and SAM 3.1 (from `sam2_pipeline/`, in its own environment: `python fruit.py evaluate`).
 
 **Count test** (Michal's): the model's cluster count against hand counts on the same 27 images:
 
@@ -121,13 +121,13 @@ for v in ../data/videos/*.mp4; do python video.py --video "$v" --max-frames 0; d
 python extract_frames.py --video ../data/videos/row3.mp4 --every-sec 5 --max-images 60
 ```
 
-Saves still frames to `../data/frames_to_label/row3/`. Label grape *clusters*, and keep some labelled frames of the same session aside for testing. The SAM 2.1 pipeline's labeller (`../sam2_pipeline`) is the faster way to label clips, and `python ../sam2_pipeline/fruit.py export-yolo` writes its labels as a YOLO dataset in `../data/yolo_dataset/`. Fine-tune the shipped model on them:
+Saves still frames to `../data/frames_to_label/row3/`. Label grape *clusters*, and keep some labelled frames of the same session aside for testing. The SAM 2.1 pipeline's labeller (`../sam2_pipeline`) is the faster way to label clips, and its `python fruit.py export-yolo` (run from `sam2_pipeline/`, in its own environment) writes the labels as a YOLO dataset in `../data/yolo_dataset/`. Fine-tune the shipped model on them:
 
 ```bash
 python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard
 ```
 
-The same thing as one batch job on the HPCC, scored automatically by the leaderboard afterwards: `python ../sam2_pipeline/fruit.py train-detector --base ../yolo26_pipeline/model/best.pt` (`../hpcc/README.md`).
+The same thing as one batch job on the HPCC, scored automatically by the leaderboard afterwards: `fruit.py train-detector --base ../yolo26_pipeline/model/best.pt` in the SAM 2.1 pipeline (`../hpcc/README.md`).
 
 ## 6. What was tested
 

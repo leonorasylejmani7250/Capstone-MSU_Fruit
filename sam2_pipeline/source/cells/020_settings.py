@@ -16,4 +16,5 @@ PROJECT_DIR   = ""                #@param {type:"string"}
 #@markdown `PROJECT_DIR`: leave empty in Colab. In the team repository the project folder is its `data/`
 #@markdown folder: on a laptop set `PROJECT_DIR = "../../data"` (from `sam2_pipeline/notebooks/`); on the
 #@markdown MSU HPCC (OnDemand Jupyter) `"~/Capstone-MSU_Fruit/data"`, the same folder `hpcc/config.sh`
-#@markdown gives the batch jobs, so the notebook and the jobs share one project.
+#@markdown gives the batch jobs, so the notebook and the jobs share one project. With `DEMO` on, the demo
+#@markdown uses `<PROJECT_DIR>/msu_fruit_sam2_demo` instead (git ignores it), never the real project.

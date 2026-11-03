@@ -135,8 +135,8 @@ MODEL_DIR = REPO_DIR / "sam2_pipeline" / "model" if REPO_DIR else None
 if not globals().get("_DEFER_PROJECT"):           # the command-line module picks its folder later
     _project = _safe(PROJECT_NAME) or "fruit_sam2"
     _parent = Path(os.environ.get("FRUIT_PROJECTS") or ("/content" if IN_COLAB else Path.home()))
-    if DEMO:        # the demo always gets its own folder, never your real project
-        _root = (Path(PROJECT_DIR).expanduser().parent if PROJECT_DIR else _parent) / f"{_project}_demo"
+    if DEMO:        # the demo always gets its own folder, never your real project: <PROJECT_DIR>/<name>_demo, or ~/<name>_demo
+        _root = (Path(PROJECT_DIR).expanduser() if PROJECT_DIR else _parent) / f"{_project}_demo"
     elif PROJECT_DIR:
         _root = PROJECT_DIR
     elif IN_COLAB and SAVE_TO_DRIVE:
@@ -1486,7 +1486,7 @@ def build_model(spec):
     if kind == "folder":
         return FromFolder(_project_path(spec["path"]), tracks=bool(spec.get("tracks", False)))
     if kind == "sam3":
-        return SAM3Text(**spec)
+        return SAM3Text(checkpoint=ckpt, **spec)
     if kind == "python":
         target, args = spec.pop("class"), spec.pop("args", {}) or {}
         mod_name, cls_name = target.rsplit(":", 1)
@@ -1512,6 +1512,8 @@ def _needed_files(model):
         files += _needed_files(model.detector)
     if getattr(model, "ckpt", None):
         files.append(model.ckpt)
+    if getattr(model, "checkpoint", None):            # SAM3Text
+        files.append(model.checkpoint)
     if isinstance(model, FromFolder):
         files.append(model.folder)
     return [str(f) for f in files]

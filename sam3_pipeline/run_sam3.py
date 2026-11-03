@@ -3,7 +3,7 @@
 Two jobs:
   python run_sam3.py clips                     masks for the held-out val clips → data/predictions/sam3_text/<clip>/<frame>.png
                                                (then `python ../sam2_pipeline/fruit.py evaluate` scores them with every other model)
-  python run_sam3.py video data/videos/row3.mp4 --seconds 30      masks + an overlay video and per-frame counts → data/results/sam3/
+  python run_sam3.py video ../data/videos/row3.mp4 --seconds 30   an overlay video and per-frame counts → data/results/sam3/
 
 Needs Meta's `sam3` package, the gated SAM 3.1 weights and a CUDA GPU (README.md). Not run yet by the team.
 """
@@ -174,7 +174,7 @@ def main():
     if args.data:
         DATA = args.data.expanduser().resolve()
     if args.checkpoint is None:
-        local = sorted(MODEL_DIR.glob('*.pt'))
+        local = sorted(MODEL_DIR.glob('*.pt'), key=lambda f: f.stat().st_mtime)     # the newest
         if local:
             args.checkpoint = local[-1]
             print(f'using weights {args.checkpoint}')

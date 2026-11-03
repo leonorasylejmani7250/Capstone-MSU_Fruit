@@ -13,7 +13,7 @@ def count_metrics(pred, truth):
     }
 
 ok = df[df["status"] == "OK"]
-sam2_name = f"SAM 2.1 {FINETUNED.stem.split('_', 2)[-1] if FINETUNED else 'pretrained'}"
+sam2_name = f"SAM 2.1 fine-tuned ({FINETUNED.stem.split(F.SAM2_SIZE + '_', 1)[-1]})" if FINETUNED else "SAM 2.1 pretrained"
 metrics = pd.DataFrame({
     "YOLO26 boxes": count_metrics(ok["yolo"], ok["truth"]),
     f"YOLO26 → {sam2_name}": count_metrics(ok["sam2"], ok["truth"]),

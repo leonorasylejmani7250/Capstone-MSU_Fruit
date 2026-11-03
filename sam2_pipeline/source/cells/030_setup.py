@@ -111,8 +111,8 @@ MODEL_DIR = REPO_DIR / "sam2_pipeline" / "model" if REPO_DIR else None
 if not globals().get("_DEFER_PROJECT"):           # the command-line module picks its folder later
     _project = _safe(PROJECT_NAME) or "fruit_sam2"
     _parent = Path(os.environ.get("FRUIT_PROJECTS") or ("/content" if IN_COLAB else Path.home()))
-    if DEMO:        # the demo always gets its own folder, never your real project
-        _root = (Path(PROJECT_DIR).expanduser().parent if PROJECT_DIR else _parent) / f"{_project}_demo"
+    if DEMO:        # the demo always gets its own folder, never your real project: <PROJECT_DIR>/<name>_demo, or ~/<name>_demo
+        _root = (Path(PROJECT_DIR).expanduser() if PROJECT_DIR else _parent) / f"{_project}_demo"
     elif PROJECT_DIR:
         _root = PROJECT_DIR
     elif IN_COLAB and SAVE_TO_DRIVE:
