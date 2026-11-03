@@ -15,7 +15,6 @@ The repository's other pipelines install separately, each with its own environme
 - **Linux, macOS on Apple Silicon (M1–M4), or Windows**; no GPU needed.
   - **Intel Macs** cannot install a recent enough PyTorch; use the Colab link above.
   - **On Windows**, run the commands below in the *Miniforge Prompt* (or *Anaconda Prompt*). Meta recommends WSL (Ubuntu) for SAM 2 on Windows; if anything fails natively, use WSL or the Colab link.
-  - **Tested so far:** Linux and macOS (Apple Silicon). Windows is expected to work but has not been run yet.
 
 ## 2. Get the code
 
@@ -63,7 +62,7 @@ python tests/test_install.py
 ```
 
 It ends with `INSTALL OK` after about a minute. On the first run it downloads two things, both cached in `~/.fruit_sam2/`:
-- Meta's SAM 2 code, pinned to the version this pipeline was tested with;
+- Meta's SAM 2 code, pinned to one version;
 - the SAM 2.1 tiny weights (160 MB).
 
 It then checks that SAM 2.1 can outline and follow an object, and that the scoring code works.

@@ -23,7 +23,7 @@ def _missing(*mods):
     import importlib.util
     return [m for m in mods if importlib.util.find_spec(m) is None]
 
-# --- SAM 2 code, pinned to the exact commit this pipeline was tested with -------------------
+# --- SAM 2 code, pinned to one commit ------------------------------------------------------
 SAM2_COMMIT = "2b90b9f5ceec907a1c18123530e92e794ad901a4"   # facebookresearch/sam2, 2024-12-15 (latest)
 SAM2_REPO = Path(os.environ.get("FRUIT_SAM2_REPO") or BASE / "sam2_repo")
 if not (SAM2_REPO / "sam2" / "build_sam.py").exists():

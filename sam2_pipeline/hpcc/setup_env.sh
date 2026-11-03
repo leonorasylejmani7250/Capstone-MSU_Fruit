@@ -34,7 +34,7 @@ python -m pip install --upgrade pip
 python -m pip install "torch==2.14.*" "torchvision==0.29.*" --index-url https://download.pytorch.org/whl/cu126
 python -m pip install -r "$CODE_DIR/requirements.txt"
 
-# 3. Meta's SAM 2 code (inference + training), pinned to the commit the pipeline was tested with
+# 3. Meta's SAM 2 code (inference + training), pinned to one commit
 mkdir -p "$FRUIT_BASE/weights"
 if [ ! -f "$FRUIT_BASE/sam2_repo/sam2/build_sam.py" ]; then
     rm -rf "$FRUIT_BASE/sam2_repo"

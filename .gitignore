@@ -41,6 +41,9 @@ data/yolo_dataset/
 data/frames_to_label/
 data/results/*
 !data/results/yolo11/
+!data/results/yolo26/
+data/results/yolo26/*
+!data/results/yolo26/CodyKresta_1025/
 *.cache
 
 # Model weights. Each pipeline ships its model in <pipeline>/model/: YOLO26's best.pt is small and

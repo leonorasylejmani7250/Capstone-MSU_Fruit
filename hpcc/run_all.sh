@@ -17,7 +17,6 @@
 # Before running it: the environments exist (sam2_pipeline/hpcc/setup_env.sh, sam3_pipeline/hpcc/setup_env.sh,
 # `hf auth login`), and data/dataset holds labelled clips marked done (label in OnDemand Jupyter, or import labels
 # with fruit.py import-coco / import-yolo + approve). Nothing here needs a GPU on the node you run it from.
-# Not yet run on the HPCC: it follows the pipelines' job scripts, which have not been run there either.
 set -eo pipefail
 RUN="${1:-grapes_v1}"
 STEPS="${2:-3000}"

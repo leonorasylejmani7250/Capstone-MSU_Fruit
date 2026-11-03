@@ -7,7 +7,7 @@ The repository's other pipelines install separately, each with its own environme
 ## 1. What you need
 
 - **Git**: <https://git-scm.com/downloads>.
-- **Python 3.10 or newer** (3.12 is what was tested). `python3 --version` (macOS, Linux) or `py --version` (Windows) shows what you have; <https://www.python.org/downloads/> has installers.
+- **Python 3.10 or newer**. `python3 --version` (macOS, Linux) or `py --version` (Windows) shows what you have; <https://www.python.org/downloads/> has installers.
 - About **1 GB of disk** for the environment (about 5 GB on Linux, whose PyTorch build includes GPU libraries), plus about 2 GB for the repository (it includes the public WGISD grape dataset and its git history).
 - **Internet access** on the first run (PyTorch, the packages, and Ultralytics' font and base weights).
 - **macOS, Linux or Windows**; an NVIDIA GPU is optional (training is much faster with one).
@@ -79,7 +79,7 @@ The preview writes eight images to `../data/results/yolo26/label_preview/`; the 
 python evaluate.py
 ```
 
-It prints box and mask mAP@0.50 and mAP@0.50:0.95 (the numbers in [model/README.md](model/README.md)) and saves plots to `../data/runs/yolo26/eval_test/`. On the first run Ultralytics downloads its plotting font (1 MB).
+It prints box and mask mAP@0.50 and mAP@0.50:0.95 (the numbers in [model/README.md](model/README.md)) and saves plots to `../data/runs/yolo26/eval_test_model/`. On the first run Ultralytics downloads its plotting font (1 MB).
 
 **Count clusters on the same images, against hand counts** (about a minute):
 
@@ -109,13 +109,7 @@ python video.py --video ../data/videos/public_demo.mp4 --imgsz 512 --max-frames 
 
 ## 7. Beyond the demo
 
-[README.md](README.md) in this folder covers training (`train.py`), tracking (`video.py --mode track`), frames for labelling (`extract_frames.py`), and running every video in a folder. The same model is also scored on the team's own labelled clips, next to SAM 2.1 and SAM 3.1, by the leaderboard in `../sam2_pipeline`.
-
-**Every video in a folder (PowerShell):**
-
-```powershell
-Get-ChildItem ..\data\videos -File | Where-Object { $_.Extension -in '.mp4', '.mov', '.avi', '.mkv' } | ForEach-Object { python video.py --video $_.FullName --max-frames 0 }
-```
+[README.md](README.md) in this folder covers training (`train.py`), tracking (`video.py --mode track`), every video in a folder (`video.py --video-dir`), and frames for labelling (`extract_frames.py`). The same model is also scored on the team's own labelled clips, next to SAM 2.1 and SAM 3.1, by the leaderboard in `../sam2_pipeline`.
 
 ## 8. If something goes wrong
 
@@ -129,6 +123,3 @@ Get-ChildItem ..\data\videos -File | Where-Object { $_.Extension -in '.mp4', '.m
 | Ultralytics pauses on "Downloading Arial.ttf" | It is fetching its plotting font; on a slow connection give it a minute. |
 | Out of memory | Lower `--batch` for training or `--imgsz` for video. |
 
-## 9. What was tested
-
-This layout, from a fresh clone, on a 2-core Linux CPU with Python 3.12.16, PyTorch 2.14.1, Ultralytics 8.4.198 and OpenCV 5.0: sections 4, 5 and 6 as written, and the 50-epoch training run that made `model/best.pt`. The October YOLO11 pipeline (now archived under `../data/results/yolo11/`) was installed and run on Windows and Linux. macOS and Windows have not been run with this layout yet.

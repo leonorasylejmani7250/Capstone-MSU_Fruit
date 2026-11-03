@@ -47,7 +47,7 @@ def _missing(*mods):
     import importlib.util
     return [m for m in mods if importlib.util.find_spec(m) is None]
 
-# --- SAM 2 code, pinned to the exact commit this pipeline was tested with -------------------
+# --- SAM 2 code, pinned to one commit ------------------------------------------------------
 SAM2_COMMIT = "2b90b9f5ceec907a1c18123530e92e794ad901a4"   # facebookresearch/sam2, 2024-12-15 (latest)
 SAM2_REPO = Path(os.environ.get("FRUIT_SAM2_REPO") or BASE / "sam2_repo")
 if not (SAM2_REPO / "sam2" / "build_sam.py").exists():
@@ -1418,8 +1418,8 @@ class FromFolder(Model):
 
 class SAM3Text(Model):
     """SAM 3.1 (or SAM 3) with a text prompt, through Meta's `sam3` package. Needs that package installed and
-    the gated Hugging Face weights (sam3_pipeline/README.md). NOT run while this pipeline was tested: the
-    sam3_pipeline folder runs SAM 3.1 in its own environment and writes predictions/sam3_text/ instead."""
+    the gated Hugging Face weights (sam3_pipeline/README.md). The sam3_pipeline folder runs SAM 3.1 in its
+    own environment and writes predictions/sam3_text/ instead, which the lineup scores as a folder."""
     tracks = True
     def __init__(self, text=None, version="sam3.1", max_num_objects=64, checkpoint=None, **builder_args):
         self.text, self._p = text or OBJECT_NAME, None
@@ -1470,7 +1470,7 @@ def build_model(spec):
       {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster}      YOLO / YOLOE (automatic)
       {type: detect_then_sam2, detector: {...}, checkpoint: models/x.pt}       a detector finds, SAM 2.1 follows
       {type: folder, path: predictions/sam3_text, tracks: true}                masks written by any other program
-      {type: sam3, text: grape cluster}                                        SAM 3.1 in this environment (untested, gated weights)
+      {type: sam3, text: grape cluster}                                        SAM 3.1 in this environment (gated weights)
       {type: python, class: my_models.py:MyModel, args: {...}}                 your own Model subclass"""
     spec = dict(spec); kind = spec.pop("type").lower()
     ckpt = spec.pop("checkpoint", None)

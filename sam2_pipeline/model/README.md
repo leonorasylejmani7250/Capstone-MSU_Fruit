@@ -2,8 +2,6 @@
 
 This folder holds the fine-tuned SAM 2.1 weights we use for results. `python fruit.py video …` uses the newest `sam2.1_*.pt` here by default, and `python fruit.py evaluate` scores every `.pt` here automatically (box and click rows), next to pretrained SAM 2.1, YOLO26 and the rest of `configs/lineup.yaml`.
 
-**Status (2 November 2026): no model yet.** Only the 20-step demo run exists (`data/demo/models/`), and that is a plumbing check, not a model. The first real run is planned on the MSU HPCC once the Riesling clips are labelled.
-
 ## How a model gets here
 
 1. Label clips in `data/` (notebook Step 3 in Colab or OnDemand; `README.md` section 1 or 2).

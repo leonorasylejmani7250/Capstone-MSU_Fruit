@@ -15,7 +15,7 @@
 | **Test (27 held-out images)** | **box mAP@0.50 0.826**, mAP@0.50:0.95 0.497 · **mask mAP@0.50 0.822**, mAP@0.50:0.95 0.481 (`python evaluate.py`) |
 | Count test (27 images, conf 0.25) | mean absolute error 3.56 clusters per image; 465 predicted vs 407 counted by hand (`python count_test.py`) |
 
-For comparison, the October **YOLO11n-seg** run (Ultralytics 8.3.70, same data and settings, Windows GPU), kept in `../../data/results/yolo11/`: test box mAP@0.50 0.810, mask 0.819; count test MAE 2.59, 451 predicted vs 407 (reproduced on 3 November 2026 with `python count_test.py --model ../data/results/yolo11/best.pt`).
+For comparison, the October **YOLO11n-seg** run (Ultralytics 8.3.70, same data and settings, Windows GPU), kept in `../../data/results/yolo11/`: test box mAP@0.50 0.810, mask 0.819; count test MAE 2.59, 451 predicted vs 407 (`python count_test.py --model ../data/results/yolo11/best.pt`).
 
 With SAM 2.1 behind it (`../../sam2_pipeline/count_test.ipynb`: YOLO26 boxes → pretrained SAM 2.1 tiny masks), the same 27 photos count MAE 2.59, 375 predicted vs 407: SAM 2.1 merges overlapping boxes, so it under-counts where YOLO26 alone over-counts.
 

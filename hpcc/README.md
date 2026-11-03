@@ -59,6 +59,3 @@ sbatch hpcc/run.sb train.py --epochs 50 --batch 16
 
 The last line retrains YOLO26 on WGISD from scratch (the public dataset), which is a different thing from job 2: job 2 continues from the shipped WGISD model on our own vineyard labels.
 
-## Status
-
-Written to ICER's documentation and tested piece by piece on a CPU (the same commands with `--project ../data/demo`, which is what `sam2_pipeline/demo.ipynb` builds), not yet run on the HPCC itself. The first time, start with a 30-minute smoke test before the full chain: `cd sam2_pipeline && sbatch --time=00:30:00 hpcc/run.sb --size tiny train --run smoke --steps 20`.

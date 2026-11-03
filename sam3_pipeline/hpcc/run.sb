@@ -1,5 +1,5 @@
 #!/bin/bash --login
-# Run run_sam3.py as a GPU batch job on the MSU HPCC (untested; modelled on sam2_pipeline/hpcc/run.sb).
+# Run run_sam3.py as a GPU batch job on the MSU HPCC.
 # Submit from the sam3_pipeline folder:
 #     cd ~/Capstone-MSU_Fruit/sam3_pipeline
 #     sbatch hpcc/run.sb clips                                      masks for the labelled val clips

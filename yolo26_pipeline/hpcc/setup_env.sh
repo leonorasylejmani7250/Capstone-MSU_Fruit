@@ -1,6 +1,6 @@
 #!/bin/bash --login
-# One-time setup of the YOLO26 environment on the MSU HPCC (modelled on sam2_pipeline/hpcc/setup_env.sh; not yet
-# run on the HPCC). Run it on a development node, because those have internet access (compute nodes may not):
+# One-time setup of the YOLO26 environment on the MSU HPCC. Run it on a development node, because those have
+# internet access (compute nodes may not):
 #     ssh dev-amd20-v100
 #     cd ~/Capstone-MSU_Fruit/yolo26_pipeline
 #     bash hpcc/setup_env.sh

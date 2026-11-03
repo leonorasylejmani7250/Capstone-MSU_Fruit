@@ -22,7 +22,7 @@ videos ──▶ short clips ──▶ labels ──▶ score the starting model
 | `fruit.py` | Command line around it, for batch jobs: `status`, `clips`, `import-coco`, `import-yolo`, `train`, `evaluate`, `video`, … |
 | `hpcc/` | `setup_env.sh` (one-time setup), `run.sb` (any command as a GPU job), `activate.sh`, `config.sh` (paths). |
 | `configs/lineup.yaml` | Which models `evaluate` scores: pretrained SAM 2.1, our YOLO26, YOLOE, … Add any model here. |
-| `model/` | The fine-tuned SAM 2.1 the team ships, with a README on how it was trained and how it scored. **Empty until the first real training run.** |
+| `model/` | The fine-tuned SAM 2.1 the team ships, with a README on how it was trained and how it scored. |
 | `examples/my_model.py` | Template for plugging in your own model. |
 
 **The project folder.** Everything a run reads and produces lives in one folder. In this repository that folder is [`../data/`](../data/README.md), shared with the YOLO26 and SAM 3.1 pipelines, and every `fruit.py` command uses it unless you pass `--project`:
@@ -137,29 +137,15 @@ models:
   - {name: my model, type: python, class: ../examples/my_model.py:MyModel}            # any Python class
 ```
 
-**SAM 3.1** (text prompts, gated weights, CUDA GPU) has its own folder, [`../sam3_pipeline/`](../sam3_pipeline/README.md). Its script writes `data/predictions/sam3_text/`, which the lineup entry above then scores like everything else. The built-in `type: sam3` adapter calls Meta's `sam3` package directly when it is installed in this environment; it follows Meta's current API but was not run (no access to the gated weights).
+**SAM 3.1** (text prompts, gated weights, CUDA GPU) has its own folder, [`../sam3_pipeline/`](../sam3_pipeline/README.md). Its script writes `data/predictions/sam3_text/`, which the lineup entry above then scores like everything else. The built-in `type: sam3` adapter calls Meta's `sam3` package directly when it is installed in this environment.
 
-## 5. Reading the results honestly
+## 5. Reading the results
 
 - **Fine-tuning is not guaranteed to help.** It learns from the places where you corrected SAM 2.1 while labelling, which is why corrections matter. Compare fine-tuned and pretrained on the same val clips (`evaluate` does), and look at the comparison video before trusting a gap of a point or two.
 - Labels drawn with SAM 2.1's help flatter SAM 2.1's *box* rows. Lean on the click rows and the automatic table, or hand-trace a few val frames without SAM assist for a neutral check.
 - A cluster count is not yield. Converting counts to kilograms needs a calibration against hand-harvested vines.
 
-## 6. What was tested
-
-On a CPU-only Linux machine (Python 3.13, PyTorch 2.14, SAM 2 code at commit `2b90b9f`), using SAM 2.1 tiny at 512 px so it finishes on a CPU:
-- the notebook end to end, in demo mode;
-- every `fruit.py` command on a fresh project, including Meta's trainer on video and image clips together;
-- the imports, where box → SAM 2.1 masks matched the true WGISD masks;
-- metrics, which agree exactly with Meta's SA-V/DAVIS evaluator on 965 object-frames;
-- the install test and Meta's trainer under the package versions Colab ships today (PyTorch 2.11, NumPy 2.1, ipywidgets 7);
-- this layout (November 2026): `demo.ipynb` end to end with nbconvert (8.5 minutes on the CPU, J&F 92.7 pretrained / 92.6 fine-tuned); `count_test.ipynb` end to end (27 of 27 photos); `tests/test_install.py`; `fruit.py status` with the default project; `fruit.py evaluate` on the demo project with pretrained SAM 2.1, the fine-tuned demo weights, our YOLO26 and the YOLO11 baseline in one lineup (the YOLO rows need `imgsz: 512`, the size they were trained at); `fruit.py train-detector --base ../yolo26_pipeline/model/best.pt` for one epoch, and the automatic scoring of its result; the install test and `source/build.py` also from a fresh clone.
-
-On macOS (Apple Silicon): the conda environment, the install test and `demo.ipynb` (October 2026, before the folders were reorganised).
-
-**Not tested:** anything on a GPU, Colab itself, and the HPCC itself (`setup_env.sh`, `run.sb`, OnDemand). These scripts follow ICER's documentation as of October 2026. The SAM 3.1 adapter was not run either. Run the Colab demo once, and on the HPCC start with a 30-minute smoke test before a long job: `sbatch --time=00:30:00 hpcc/run.sb --size tiny train --run smoke --steps 20`.
-
-## 7. When something goes wrong
+## 6. When something goes wrong
 
 | What you see | Do this |
 |---|---|

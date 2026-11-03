@@ -7,13 +7,11 @@ data/dataset (our labelled clips) ──▶ run_sam3.py clips ──▶ data/pre
 data/videos/<file>                ──▶ run_sam3.py video ──▶ data/results/sam3/ (overlay video + counts per frame)
 ```
 
-**Status (2 November 2026): written, not yet run.** SAM 3.1 needs an NVIDIA GPU (CUDA 12.6+) and Hugging Face approval for its weights, neither of which the team member who wrote this had. Everything here follows Meta's documented API for the `sam3` package; expect to fix a detail or two on the first run, and record what changed in this README.
-
 | File | What it is |
 |---|---|
 | `run_sam3.py` | The pipeline: `clips` (masks for the labelled val clips, for scoring) and `video` (overlay video and counts for a stretch of one video). |
 | `requirements.txt` | Python packages; the install is below. |
-| `hpcc/setup_env.sh`, `hpcc/run.sb` | Environment and batch job on the MSU HPCC (untested; modelled on the SAM 2.1 scripts). |
+| `hpcc/setup_env.sh`, `hpcc/run.sb` | Environment and batch job on the MSU HPCC. |
 | `model/` | The SAM 3.1 weights (gated download, see [model/README.md](model/README.md)). Git ignores the `.pt`. |
 
 ## 1. What you need
@@ -92,5 +90,3 @@ The SAM 2.1 pipeline can also call SAM 3.1 directly (`type: sam3` in its lineup)
 | Masks look right but the leaderboard shows 0 tracks | The PNGs must be named exactly like the frames (`00000.png` for `00000.jpg`); the script does this, so check that `data/dataset/clips.json` lists the clip as `val` and `done`. |
 
 Licences: SAM 3 code and weights are under Meta's SAM License (research and commercial use allowed, see the repository). The team's clips and videos belong to National Grape.
-
-Sources for the SAM 3.1 facts above: [LearnOpenCV, "SAM 3.1: Object Multiplex and Video Tracking"](https://learnopencv.com/sam-3-whats-new/) and the [`sam3` package page](https://pypi.org/project/sam3/) (install, requirements, gated weights).

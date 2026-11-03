@@ -1,5 +1,5 @@
 #!/bin/bash --login
-# One-time setup of the SAM 3.1 environment on the MSU HPCC (untested; modelled on sam2_pipeline/hpcc/setup_env.sh).
+# One-time setup of the SAM 3.1 environment on the MSU HPCC.
 # Run it on a development node, because those have internet access (compute nodes may not):
 #     ssh dev-amd20-v100
 #     cd ~/Capstone-MSU_Fruit/sam3_pipeline

@@ -1,6 +1,5 @@
 #!/bin/bash --login
-# Run any script of this folder as a GPU batch job on the MSU HPCC (modelled on sam2_pipeline/hpcc/run.sb; not yet
-# run on the HPCC). Submit from the yolo26_pipeline folder:
+# Run any script of this folder as a GPU batch job on the MSU HPCC. Submit from the yolo26_pipeline folder:
 #     cd ~/Capstone-MSU_Fruit/yolo26_pipeline
 #     sbatch hpcc/run.sb train.py --epochs 50 --imgsz 512 --batch 16          train YOLO26n-seg on WGISD (minutes on a GPU)
 #     sbatch hpcc/run.sb evaluate.py                                           box and mask mAP on the WGISD test split

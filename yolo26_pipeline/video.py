@@ -1,4 +1,4 @@
-"""Run the YOLO26 model (default: model/best.pt) on a video: an annotated video plus a per-frame CSV, in data/results/yolo26/.
+"""Run the YOLO26 model (default: model/best.pt) on a video, or on every video in a folder: an annotated video plus a per-frame CSV, in data/results/yolo26/.
 
 --mode detect draws every cluster the model finds in each frame; --mode track adds ByteTrack IDs across frames.
 """
@@ -96,34 +96,15 @@ def render(frame: np.ndarray, result, seen_ids: set[int], conf_threshold: float,
     return out, n, track_now
 
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument('--video', type=Path, required=True)
-    p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
-    p.add_argument('--output', type=Path, default=None,
-                   help='annotated video (default: data/results/yolo26/<video name>_<mode>.mp4)')
-    p.add_argument('--mode', choices=['detect', 'track'], default='detect')
-    p.add_argument('--conf', type=float, default=0.30)
-    p.add_argument('--imgsz', type=int, default=768)
-    p.add_argument('--max-frames', type=int, default=300, help='0 means entire video')
-    p.add_argument('--start-sec', type=float, default=0.)
-    p.add_argument('--tracker', default='bytetrack.yaml')
-    args = p.parse_args()
-    if not 0 < args.conf <= 1 or args.imgsz < 160:
-        p.error('Require confidence in (0,1] and imgsz >=160')
-    if not args.video.is_file():
-        p.error(f'Missing video: {args.video}')
-    if not args.model.is_file():
-        p.error(f'Missing weights: {args.model} (train.py makes them; model/README.md says what goes in model/)')
-    if args.start_sec < 0 or args.max_frames < 0:
-        p.error('start-sec and max-frames must be nonnegative')
-    if args.output is None:
-        args.output = DATA / 'results' / 'yolo26' / f'{args.video.stem}_{args.mode}.mp4'
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    model = YOLO(str(args.model))
-    cap = cv2.VideoCapture(str(args.video))
+VIDEO_EXTS = {'.mp4', '.mov', '.avi', '.mkv'}
+
+
+def process(video: Path, model, args, output: Path) -> None:
+    """One video → annotated video at `output` and a per-frame CSV next to it."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
-        raise RuntimeError(f'Cannot open video {args.video}')
+        raise RuntimeError(f'Cannot open video {video}')
     fps = cap.get(cv2.CAP_PROP_FPS)
     if fps <= 0:
         cap.release()
@@ -135,12 +116,12 @@ def main():
         raise RuntimeError('Video has invalid resolution')
     if args.start_sec:
         cap.set(cv2.CAP_PROP_POS_MSEC, args.start_sec * 1000)
-    writer = cv2.VideoWriter(str(args.output), cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+    writer = cv2.VideoWriter(str(output), cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
     if not writer.isOpened():
         cap.release()
-        raise RuntimeError(f'Unable to create {args.output}')
+        raise RuntimeError(f'Unable to create {output}')
     seen_ids: set[int] = set()
-    csv_path = args.output.with_suffix('.csv')
+    csv_path = output.with_suffix('.csv')
     processed = 0
     device = 0 if torch.cuda.is_available() else 'cpu'
     try:
@@ -166,9 +147,56 @@ def main():
     finally:
         writer.release()
         cap.release()
-    print(f'Saved {processed} frames: {args.output}')
-    print(f'Diagnostics CSV: {csv_path}')
+    print(f'Saved {processed} frames: {output}')
+    print(f'Per-frame CSV: {csv_path}')
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    src = p.add_mutually_exclusive_group(required=True)
+    src.add_argument('--video', type=Path, help='one video')
+    src.add_argument('--video-dir', type=Path, help='every video in a folder (.mp4, .mov, .avi, .mkv); done ones are skipped')
+    p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
+    p.add_argument('--output', type=Path, default=None,
+                   help='annotated video, or with --video-dir the output folder (default: data/results/yolo26/[<folder name>/]<video name>_<mode>.mp4)')
+    p.add_argument('--mode', choices=['detect', 'track'], default='detect')
+    p.add_argument('--conf', type=float, default=0.30)
+    p.add_argument('--imgsz', type=int, default=768)
+    p.add_argument('--max-frames', type=int, default=300, help='0 means the entire video (always 0 with --video-dir)')
+    p.add_argument('--start-sec', type=float, default=0.)
+    p.add_argument('--tracker', default='bytetrack.yaml')
+    p.add_argument('--overwrite', action='store_true', help='with --video-dir: redo videos that already have an output')
+    args = p.parse_args()
+    if not 0 < args.conf <= 1 or args.imgsz < 160:
+        p.error('Require confidence in (0,1] and imgsz >=160')
+    if not args.model.is_file():
+        p.error(f'Missing weights: {args.model} (train.py makes them; model/README.md says what goes in model/)')
+    if args.start_sec < 0 or args.max_frames < 0:
+        p.error('start-sec and max-frames must be nonnegative')
+    model = YOLO(str(args.model))
+
+    if args.video:
+        if not args.video.is_file():
+            p.error(f'Missing video: {args.video}')
+        output = args.output or DATA / 'results' / 'yolo26' / f'{args.video.stem}_{args.mode}.mp4'
+        process(args.video, model, args, output)
+    else:
+        if not args.video_dir.is_dir():
+            p.error(f'Missing folder: {args.video_dir}')
+        videos = sorted(f for f in args.video_dir.iterdir() if f.is_file() and f.suffix.lower() in VIDEO_EXTS)
+        if not videos:
+            p.error(f'No videos in {args.video_dir}')
+        out_dir = args.output or DATA / 'results' / 'yolo26' / args.video_dir.name
+        args.max_frames = 0
+        for i, video in enumerate(videos, 1):
+            output = out_dir / f'{video.stem}_{args.mode}.mp4'
+            if output.with_suffix('.csv').exists() and not args.overwrite:
+                print(f'[{i}/{len(videos)}] {video.name}: done already, skipping (--overwrite to redo)')
+                continue
+            print(f'[{i}/{len(videos)}] {video.name}')
+            process(video, model, args, output)
     print('Track IDs seen != verified unique clusters; no yield estimate is claimed.')
+
 
 if __name__ == '__main__':
     main()

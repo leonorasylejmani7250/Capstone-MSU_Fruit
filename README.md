@@ -36,15 +36,6 @@ Three rules keep it simple: **code lives in `<pipeline>/`**; **everything the co
 
 **Where to find things:** inputs in `data/videos/` (partner video) and `data/dataset/` (our labelled clips); every result in `data/results/` (the leaderboard of all models at the top, `sam2/`, `sam3/`, `yolo26/` for each pipeline's own runs); trained weights in `data/models/` and `data/runs/`, the shipped ones in `<pipeline>/model/`. [`data/README.md`](data/README.md) has the full command-by-command table of what is written where, what is in git, and where the partner's video comes from.
 
-The annotated result videos of the October YOLO11 runs (9.5 GB, Git LFS) are only on the `Moe` branch of the original repository; `main` needs no Git LFS.
-
-## Where things stand
-
-- **YOLO26n-seg**, trained on WGISD on 2 November 2026, ships in `yolo26_pipeline/model/best.pt`: test mAP@0.50 box 0.826, mask 0.822 ([`yolo26_pipeline/model/README.md`](yolo26_pipeline/model/README.md)). The October YOLO11n-seg run it replaces is kept as a baseline in `data/results/yolo11/` (box 0.810, mask 0.819); on WGISD the two are close.
-- **SAM 2.1** fine-tuning and the leaderboard are built and tested on public sample clips; the first real fine-tuning run waits for labelled Riesling clips (HPCC).
-- **SAM 3.1** is written against Meta's documented API and waits for a GPU run with the gated weights.
-- **On the HPCC**, [`hpcc/run_all.sh`](hpcc/README.md) fine-tunes SAM 2.1 and YOLO26 on our labelled clips, runs SAM 3.1 on them and scores everything on the same held-out clips, as a chain of batch jobs.
-
 ## Main goals
 
 - Preprocess image and video data
