@@ -66,3 +66,6 @@ data/results/yolo26/*
 *.log
 *.tmp
 *.out
+
+# Ultralytics downloads the YOLOE text encoder into the working folder
+mobileclip*.ts

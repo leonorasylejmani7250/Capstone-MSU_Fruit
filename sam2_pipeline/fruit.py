@@ -174,6 +174,8 @@ def cmd_evaluate(F, a):
     if not models:
         sys.exit("Nothing to score: give --lineup FILE and/or train a model first.")
     print("scoring:", *models, sep="\n  · ")
+    if a.fresh:
+        F.clear_leaderboard(a.split)
     F.benchmark(models, split=a.split)
     if a.compare:
         clips = F.get_clips(a.split, labelled=True)
@@ -294,6 +296,8 @@ def main(argv=None):
     s.add_argument("--no-finetuned", dest="finetuned", action="store_false",
                    help="do not add the fine-tuned models (SAM 2.1 in model/ and models/, detectors in runs/) automatically")
     s.add_argument("--split", default="val")
+    s.add_argument("--fresh", action="store_true",
+                   help="start the table over: drop the rows kept from earlier runs (renamed or removed models stay otherwise)")
     s.add_argument("--compare", type=int, default=1, help="side-by-side videos for this many clips")
 
     s = sub.add_parser("video", help="run detector → SAM 2.1 over a stretch of video")

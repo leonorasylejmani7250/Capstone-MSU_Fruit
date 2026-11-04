@@ -112,7 +112,7 @@ COCO or YOLO outlines are used as drawn. Box-only labels get a SAM 2.1 mask and 
 - **Prompted** (SAM 2.1): shown each cluster once by a box or a click, must follow it. Headline **J&F** (0–100).
 - **Automatic** (YOLO26, YOLO11, YOLOE, detector → SAM 2.1, SAM 3.1): gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error, tracks found vs true.
 
-Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<run>)`.
+Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<run>)`. The table keeps the rows of earlier runs on the same clips, so models can be scored one at a time; `--fresh` starts it over (after renaming or removing an entry).
 
 To add a model, add an entry under `models:` in `configs/lineup.yaml`. Paths are relative to the project folder, then to the repository; an entry whose file is missing is skipped.
 
