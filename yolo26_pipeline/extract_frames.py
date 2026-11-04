@@ -4,8 +4,9 @@ from pathlib import Path
 
 import cv2
 
-ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+ROOT = Path(__file__).resolve().parent       # this pipeline's folder
 DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+PIPELINE = ROOT.name.replace('_pipeline', '') # yolo26 or yolo11: names this pipeline's folders under data/runs and data/results
 
 
 def main():

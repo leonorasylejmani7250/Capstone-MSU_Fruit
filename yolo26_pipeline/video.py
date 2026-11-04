@@ -1,4 +1,4 @@
-"""Run the YOLO26 model (default: model/best.pt) on a video, or on every video in a folder: an annotated video plus a per-frame CSV, in data/results/yolo26/.
+"""Run this pipeline's YOLO model (default: model/best.pt) on a video, or on every video in a folder: an annotated video plus a per-frame CSV, in data/results/<pipeline>/.
 
 --mode detect draws every cluster the model finds in each frame; --mode track adds ByteTrack IDs across frames.
 """
@@ -13,8 +13,9 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
-ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+ROOT = Path(__file__).resolve().parent       # this pipeline's folder
 DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+PIPELINE = ROOT.name.replace('_pipeline', '') # yolo26 or yolo11: names this pipeline's folders under data/runs and data/results
 MODEL = ROOT / 'model' / 'best.pt'           # the model this pipeline ships
 
 
@@ -158,7 +159,7 @@ def main():
     src.add_argument('--video-dir', type=Path, help='every video in a folder (.mp4, .mov, .avi, .mkv); done ones are skipped')
     p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
     p.add_argument('--output', type=Path, default=None,
-                   help='annotated video, or with --video-dir the output folder (default: data/results/yolo26/[<folder name>/]<video name>_<mode>.mp4)')
+                   help='annotated video, or with --video-dir the output folder (default: data/results/<pipeline>/[<folder name>/]<video name>_<mode>.mp4)')
     p.add_argument('--mode', choices=['detect', 'track'], default='detect')
     p.add_argument('--conf', type=float, default=0.30)
     p.add_argument('--imgsz', type=int, default=768)
@@ -178,7 +179,7 @@ def main():
     if args.video:
         if not args.video.is_file():
             p.error(f'Missing video: {args.video}')
-        output = args.output or DATA / 'results' / 'yolo26' / f'{args.video.stem}_{args.mode}.mp4'
+        output = args.output or DATA / 'results' / PIPELINE / f'{args.video.stem}_{args.mode}.mp4'
         process(args.video, model, args, output)
     else:
         if not args.video_dir.is_dir():
@@ -186,7 +187,7 @@ def main():
         videos = sorted(f for f in args.video_dir.iterdir() if f.is_file() and f.suffix.lower() in VIDEO_EXTS)
         if not videos:
             p.error(f'No videos in {args.video_dir}')
-        out_dir = args.output or DATA / 'results' / 'yolo26' / args.video_dir.name
+        out_dir = args.output or DATA / 'results' / PIPELINE / args.video_dir.name
         args.max_frames = 0
         for i, video in enumerate(videos, 1):
             output = out_dir / f'{video.stem}_{args.mode}.mp4'

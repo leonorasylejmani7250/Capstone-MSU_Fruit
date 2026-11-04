@@ -1,6 +1,6 @@
 # data/ — everything the pipelines read and write
 
-One folder for all three pipelines. For the SAM 2.1 pipeline this folder is the project folder, so its commands need no `--project` inside the repository.
+One folder for all the pipelines. For the SAM 2.1 pipeline this folder is the project folder, so its commands need no `--project` inside the repository.
 
 ## Where the outputs are
 
@@ -10,33 +10,33 @@ Everything lands in `data/results/`: the leaderboard of all models at the top, o
 |---|---|
 | `sam2_pipeline`: `python fruit.py evaluate` | `results/leaderboard_val.csv` (one row per model), `results/leaderboard_val_details.csv` (per cluster), `results/compare_<clip>.mp4` and `.png` |
 | `sam2_pipeline`: `python fruit.py train --run <name>` | `models/sam2.1_<size>_<name>.pt` (+ `.json` recipe), log and curves in `runs/<name>/` |
-| `sam2_pipeline`: `python fruit.py train-detector --name <name>` | `runs/<name>/weights/best.pt`, `runs/<name>/results.csv`; the exported labels in `yolo_dataset/` |
+| `sam2_pipeline`: `python fruit.py train-detector --name <name>` | `runs/<name>/weights/best.pt`, `runs/<name>/recipe.json` (what it started from), `results.csv`; the exported labels in `yolo_dataset/` |
 | `sam2_pipeline`: `python fruit.py video <file>` | `results/sam2/overlay_<video>_<start>s.mp4`, `.counts.csv`, `.tracks.csv` |
 | `sam2_pipeline`: `demo.ipynb`, `count_test.ipynb` | `demo/results/`, `count_test/results/` |
 | `sam3_pipeline`: `python run_sam3.py clips` | `predictions/sam3_text/<clip>/*.png` (the leaderboard scores it) |
 | `sam3_pipeline`: `python run_sam3.py video <file>` | `results/sam3/<video>_sam3.mp4` and `.csv` |
-| `yolo26_pipeline`: `python train.py --name <name>` | `runs/yolo26/<name>/weights/best.pt`, `results.csv`, `results.png`, curves, confusion matrix |
-| `yolo26_pipeline`: `python evaluate.py` | printed mAP; plots in `runs/yolo26/eval_<split>_<model>/`; with several models, `results/yolo26/evaluate_<split>.csv` |
-| `yolo26_pipeline`: `python count_test.py` | `results/yolo26/count_test.csv` and the annotated photos in `results/yolo26/count_test/` |
-| `yolo26_pipeline`: `python video.py --video <file>` / `--video-dir <folder>` | `results/yolo26/<video>_detect.mp4` and `.csv` (a folder's videos under `results/yolo26/<folder>/`) |
-| `yolo26_pipeline`: `python preview_labels.py` / `extract_frames.py` | `results/yolo26/label_preview/` / `frames_to_label/<video>/` |
+| `yolo26_pipeline` / `yolo11_pipeline`: `python train.py --name <name>` | `runs/yolo26/<name>/` or `runs/yolo11/<name>/`: `weights/best.pt`, `results.csv`, `results.png`, curves, confusion matrix |
+| `yolo26_pipeline` / `yolo11_pipeline`: `python evaluate.py` | printed mAP; plots in `runs/<pipeline>/eval_<split>_<model>/`; with several models, `results/<pipeline>/evaluate_<split>.csv` |
+| `yolo26_pipeline` / `yolo11_pipeline`: `python count_test.py` | `results/<pipeline>/count_test.csv` and the annotated photos in `results/<pipeline>/count_test/` |
+| `yolo26_pipeline` / `yolo11_pipeline`: `python video.py --video <file>` / `--video-dir <folder>` | `results/<pipeline>/<video>_detect.mp4` and `.csv` (a folder's videos under `results/<pipeline>/<folder>/`) |
+| `yolo26_pipeline` / `yolo11_pipeline`: `python preview_labels.py` / `extract_frames.py` | `results/<pipeline>/label_preview/` / `frames_to_label/<video>/` |
 | `hpcc/run_all.sh` | the same places; job logs in `sam2_pipeline/fruit-<jobid>.out` and `sam3_pipeline/sam3-<jobid>.out` |
 
-The models the team ships are copied from here into `sam2_pipeline/model/` and `yolo26_pipeline/model/`.
+The models the team ships are copied from here into `sam2_pipeline/model/`, `yolo26_pipeline/model/` and `yolo11_pipeline/model/`.
 
 ## Folders
 
 | Folder | What it holds | In git |
 |---|---|---|
 | `wgisd/` | Public Embrapa WGISD grape dataset: 300 photos, hand-drawn cluster masks (CC BY-NC 4.0). | yes |
-| `wgisd_yolo/` | WGISD as YOLO labels: `images/` and `labels/`, split `train/` 94, `val/` 16, `test/` 27 (`yolo26_pipeline/prepare_wgisd.py`). | yes |
-| `results/` | Outputs (table above). In git: `yolo11/` (the October YOLO11 baseline: weights, curves, metrics, per-frame counts on the DJI videos) and `yolo26/CodyKresta_1025/` (YOLO26 per-frame counts on the same videos). | those two |
+| `wgisd_yolo/` | WGISD as YOLO labels: `images/` and `labels/`, split `train/` 94, `val/` 16, `test/` 27 (`prepare_wgisd.py` in either YOLO pipeline). | yes |
+| `results/` | Outputs (table above). In git: `yolo11/CodyKresta_1025/` and `yolo26/CodyKresta_1025/`, the per-frame counts of both YOLO models on the partner's DJI videos. | those two |
 | `videos/` | The partner's video. From the team drive; never committed. | no |
 | `dataset/` | Our labelled clips: `JPEGImages/<clip>/` frames, `Annotations/<clip>/` masks (pixel value = cluster number), `clips.json` (split, source video, draft/done). Back it up to the team drive. | no |
 | `predictions/<model>/` | What each model drew on the clips, same format as `Annotations/`. | no |
 | `models/` | Fine-tuned SAM 2.1 weights (+ `.json` recipe each). | no |
-| `runs/` | Training runs: `runs/yolo26/<name>/` (YOLO26 on WGISD), `runs/<name>/` (SAM 2.1 fine-tuning, and `train-detector`'s `weights/best.pt`). | no |
-| `yolo_dataset/` | Our labelled clips exported as a YOLO dataset (`fruit.py export-yolo`). | no |
+| `runs/` | Training runs: `runs/yolo26/<name>/` and `runs/yolo11/<name>/` (YOLO on WGISD), `runs/<name>/` (SAM 2.1 fine-tuning, and `train-detector`'s `weights/best.pt` + `recipe.json`). In git: `runs/yolo11/wgisd/`, the October YOLO11 training run (curves and metrics). | `yolo11/wgisd/` |
+| `yolo_dataset/` | Our labelled clips exported as a YOLO dataset (`fruit.py export-yolo`), what `train-detector` and `train.py --data` learn from. | no |
 | `demo/`, `count_test/` | What the two SAM 2.1 notebooks make. Delete to start over. | no |
 | `frames_to_label/` | Still frames from videos (`yolo26_pipeline/extract_frames.py`). | no |
 

@@ -64,16 +64,20 @@ Writes `data/results/sam3/row3_sam3.mp4` and `row3_sam3.csv` (clusters visible p
 
 Options: `--text "green grapes"` (one phrase per prompt), `--prob 0.4` (output threshold), `--max-objects 128` (object capacity; 16 is too few for a vine row), `--version sam3` (the original SAM 3), `--checkpoint <file>` (default: the newest `.pt` in `model/`, else the package's download), `--data <folder>` (project folder; default `../data` or `$PROJECT_DIR`).
 
-## 4. How it fits with the other pipelines
+## 4. Fine-tuning
 
-| | SAM 2.1 | SAM 3.1 | YOLO26 |
+This pipeline runs SAM 3.1 as released (zero-shot); nothing here trains it. Meta's `sam3` package ships training code for fine-tuning on an image dataset: `pip install -e ".[train]"` in the `sam3` repository, then `python sam3/train/train.py -c configs/roboflow_v100/roboflow_v100_full_ft_100_images.yaml` with the data in Roboflow 100-VL layout (`train/`, `valid/`, `test/` folders with COCO annotations). Our clips are not exported in that layout yet, so fine-tuning SAM 3 is a separate piece of work; the SAM 2.1 pipeline is where fine-tuning happens today.
+
+## 5. How it fits with the other pipelines
+
+| | SAM 2.1 | SAM 3.1 | YOLO26 / YOLO11 |
 |---|---|---|---|
 | Input | a box or click per cluster, or a detector's boxes | a text prompt | nothing |
 | Training | fine-tuned on our clips | none | trained on WGISD, fine-tuned on our clips |
 | Leaderboard | prompted (J&F); automatic behind a detector | automatic | automatic |
 | Runs on | laptop, Colab, HPCC | NVIDIA GPU | laptop, GPU |
 
-## 5. If something goes wrong
+## 6. If something goes wrong
 
 | What you see | Do this |
 |---|---|

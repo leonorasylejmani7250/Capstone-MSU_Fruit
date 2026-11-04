@@ -1858,7 +1858,11 @@ def train_detector(base="yolo26n-seg.pt", epochs=100, imgsz=1280, name="yolo_det
     model = ul.YOLO(base)
     model.train(data=str(data), epochs=int(epochs), imgsz=int(imgsz), project=str(RUNS),
                 name=name, exist_ok=True, device=0 if DEVICE == "cuda" else "cpu", workers=2, plots=False)
-    return Path(model.trainer.best)
+    best = Path(model.trainer.best)
+    (best.parents[1] / "recipe.json").write_text(json.dumps(dict(            # what this detector started from and learned on
+        base=str(base), epochs=int(epochs), imgsz=int(imgsz), every=int(every), data=str(data),
+        clips=[c.name for c in get_clips("train", labelled=True)]), indent=1))
+    return best
 
 # ====================================================================================================
 # from source/cells/054_use_tools.py

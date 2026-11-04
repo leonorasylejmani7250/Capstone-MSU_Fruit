@@ -24,12 +24,16 @@ desktop.ini
 .env.*
 *.key
 
-# data/ (data/README.md): in git only the WGISD dataset, its YOLO labels, and the two archived result folders
+# data/ (data/README.md): in git only the WGISD dataset, its YOLO labels, the YOLO11 training run, and the
+# per-frame counts of the YOLO11 and YOLO26 runs on the partner's DJI videos
 data/videos/
 data/dataset/
 data/predictions/
 data/models/
-data/runs/
+data/runs/*
+!data/runs/yolo11/
+data/runs/yolo11/*
+!data/runs/yolo11/wgisd/
 data/demo/
 data/*_demo/
 data/count_test/
@@ -37,18 +41,20 @@ data/yolo_dataset/
 data/frames_to_label/
 data/results/*
 !data/results/yolo11/
+data/results/yolo11/*
+!data/results/yolo11/CodyKresta_1025/
 !data/results/yolo26/
 data/results/yolo26/*
 !data/results/yolo26/CodyKresta_1025/
 *.cache
 
-# Model weights: only the two small committed models; SAM 2.1 weights go on a GitHub Release
+# Model weights: only the two small committed YOLO models; SAM 2.1 weights go on a GitHub Release
 *.pt
 *.pth
 *.ckpt
 *.onnx
 !yolo26_pipeline/model/best.pt
-!data/results/yolo11/best.pt
+!yolo11_pipeline/model/best.pt
 
 # Videos
 *.mp4

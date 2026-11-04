@@ -1,5 +1,5 @@
 """Lightweight, no-GPU smoke tests for the WGISD conversion and the video rendering.
-Run from yolo26_pipeline/:  python -m unittest discover -s tests -v
+Run from the pipeline folder:  python -m unittest discover -s tests -v
 """
 from __future__ import annotations
 import sys

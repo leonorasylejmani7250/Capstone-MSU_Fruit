@@ -142,16 +142,27 @@ def _finetuned_rows(F, size_filter=None):
         if size_filter and size != size_filter:
             continue
         for prompt, label in (("box", "box"), ("point", "click")):
-            rows[f"SAM 2.1 {size} · fine-tuned ({ck.stem.split(size + '_', 1)[-1]}{', ' + where if where else ''}) · {label}"] = \
+            rows[f"SAM 2.1 {size} · fine-tuned on our clips ({ck.stem.split(size + '_', 1)[-1]}{', ' + where if where else ''}) · {label}"] = \
                 F.SAM2Prompted(ckpt=ck, prompt=prompt)
     return rows
 
 
 def _detector_rows(F):
-    """Every YOLO-seg detector trained on the project's labels (train-detector): runs/<name>/weights/best.pt."""
+    """Every detector fine-tuned on the project's labels (train-detector): runs/<name>/weights/best.pt. The row says
+    what it started from: e.g. 'yolo26n-seg · WGISD → fine-tuned on our clips (yolo26_grapes_v1)'."""
+    import json
     rows = {}
     for best in sorted(F.RUNS.glob("*/weights/best.pt")):
-        rows[f"YOLO-seg · fine-tuned ({best.parents[1].name})"] = F.UltralyticsModel(best, conf=0.25)
+        run = best.parents[1]
+        recipe = json.loads((run / "recipe.json").read_text()) if (run / "recipe.json").exists() else {}
+        base = Path(recipe.get("base", "")).name
+        if base == "best.pt":                                   # one of our shipped models (yolo26_pipeline/model/best.pt …)
+            start = f"{Path(recipe['base']).parents[1].name.replace('_pipeline', '')} · WGISD"
+        elif base:
+            start = base.replace(".pt", "") + " · pretrained"
+        else:
+            start = "YOLO-seg"
+        rows[f"{start} → fine-tuned on our clips ({run.name})"] = F.UltralyticsModel(best, conf=0.25, imgsz=int(recipe.get("imgsz", 1280)))
     return rows
 
 

@@ -1,6 +1,6 @@
 # yolo26_pipeline/model — the YOLO26 model the team ships
 
-`best.pt` is the default model of every script here and the "YOLO26n-seg · ours" row of the SAM 2.1 leaderboard. It is 6.6 MB and committed in git.
+`best.pt` is the default model of every script here and the "yolo26 · trained on WGISD" row of the SAM 2.1 leaderboard. It is 6.6 MB and committed in git.
 
 ## best.pt
 
@@ -15,7 +15,7 @@
 | Count test (27 images, conf 0.25) | MAE 3.56 clusters per image; 465 predicted vs 407 by hand (best: conf 0.35, MAE 2.48) |
 | With SAM 2.1 behind it (`count_test.ipynb`) | MAE 2.59; 375 predicted vs 407 |
 
-Baseline, the October **YOLO11n-seg** run in `../../data/results/yolo11/` (Ultralytics 8.3.70, same data and settings, Windows GPU): test box mAP@0.50 0.810, mask 0.819; count test MAE 2.59, 451 predicted (best: conf 0.30, MAE 1.93). `python evaluate.py --model model/best.pt ../data/results/yolo11/best.pt` puts the two side by side.
+The October **YOLO11n-seg** model in `../../yolo11_pipeline/model/` (same data and settings): test box mAP@0.50 0.810, mask 0.819; count test MAE 2.59, 451 predicted (best: conf 0.30, MAE 1.93). `python evaluate.py --model model/best.pt ../yolo11_pipeline/model/best.pt` puts the two side by side.
 
 Both models run at `imgsz` 512, the size they were trained at. These are scores on WGISD photos; the number that matters is the leaderboard on our own clips (`python fruit.py evaluate` in `sam2_pipeline/`).
 

@@ -22,39 +22,39 @@ models:
     size: base_plus
     prompt: point
 
-  - name: YOLO26n-seg · ours (WGISD)
+  - name: yolo26 · trained on WGISD        # yolo26_pipeline/model/best.pt, no fine-tuning on our clips yet
     type: ultralytics          # any Ultralytics weights: YOLO you trained, or YOLOE with a text prompt
     weights: yolo26_pipeline/model/best.pt
     conf: 0.25
     imgsz: 512                 # the size it was trained at; at the default 1280 it misses most clusters
 
-  - name: YOLOE-26m 'grape cluster'
+  - name: yolo11 · trained on WGISD        # yolo11_pipeline/model/best.pt, the October model
+    type: ultralytics
+    weights: yolo11_pipeline/model/best.pt
+    conf: 0.25
+    imgsz: 512
+
+  - name: YOLOE-26m 'grape cluster' · zero-shot
     type: ultralytics
     weights: yoloe-26m-seg.pt
     text: grape cluster        # wording matters; "green grapes" scored higher on the team's sample clip
     conf: 0.2
 
-  - name: YOLOE-26m 'grape cluster' → SAM 2.1 base_plus
+  - name: YOLOE-26m 'grape cluster' → SAM 2.1 base_plus pretrained
     type: detect_then_sam2     # the detector finds clusters every 4th frame, SAM 2.1 segments and follows them
     size: base_plus
     detector: {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster, conf: 0.2}
 
-  - name: SAM 3.1 · text 'grape cluster'         # masks written by sam3_pipeline/run_sam3.py clips; skipped until they exist
+  - name: SAM 3.1 · text 'grape cluster' · zero-shot   # masks written by sam3_pipeline/run_sam3.py clips; skipped until they exist
     type: folder
     path: predictions/sam3_text
     tracks: true
 
   # ---- more you can switch on --------------------------------------------------------------------------
-  # - name: YOLO26n-seg · ours → SAM 2.1 fine-tuned
+  # - name: yolo26 fine-tuned on our clips → SAM 2.1 fine-tuned on our clips     # the full pipeline, once both exist
   #   type: detect_then_sam2
   #   checkpoint: sam2_pipeline/model/sam2.1_base_plus_grapes_v1.pt
-  #   detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25, imgsz: 512}
-
-  # - name: YOLO11n-seg · October baseline
-  #   type: ultralytics
-  #   weights: data/results/yolo11/best.pt
-  #   conf: 0.25
-  #   imgsz: 512
+  #   detector: {type: ultralytics, weights: runs/yolo26_grapes_v1/weights/best.pt, conf: 0.25, imgsz: 1280}
 
   # - name: SAM 2.1 large · pretrained · box
   #   type: sam2

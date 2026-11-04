@@ -1,7 +1,7 @@
 """Compare the model's cluster counts with hand counts on the 27 WGISD test images (Michal's count test).
 
-Prints the per-image error and the mean absolute error; writes data/results/yolo26/count_test.csv and the
-annotated images to data/results/yolo26/count_test/. Default model: model/best.pt.
+Prints the per-image error and the mean absolute error; writes data/results/<pipeline>/count_test.csv and the
+annotated images to data/results/<pipeline>/count_test/. Default model: model/best.pt.
 """
 from __future__ import annotations
 
@@ -11,8 +11,9 @@ from pathlib import Path
 
 from ultralytics import YOLO
 
-ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+ROOT = Path(__file__).resolve().parent       # this pipeline's folder
 DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+PIPELINE = ROOT.name.replace('_pipeline', '') # yolo26 or yolo11: names this pipeline's folders under data/runs and data/results
 MODEL = ROOT / 'model' / 'best.pt'           # the model this pipeline ships
 IMAGE_DIR = DATA / 'wgisd_yolo' / 'images' / 'test'
 
@@ -56,7 +57,7 @@ def main():
     args = p.parse_args()
     if not args.model.is_file():
         p.error(f'Missing weights: {args.model} (train.py makes them; model/README.md says what goes in model/)')
-    out_dir = DATA / 'results' / 'yolo26' / 'count_test'
+    out_dir = DATA / 'results' / PIPELINE / 'count_test'
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f'Using model: {args.model}')
     model = YOLO(str(args.model))

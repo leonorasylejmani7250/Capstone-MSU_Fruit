@@ -1,9 +1,9 @@
 """Evaluate one or more YOLO segmentation checkpoints on a WGISD split (default: model/best.pt on test) and print box and mask mAP.
 
     python evaluate.py                                                          the shipped model, test split
-    python evaluate.py --model model/best.pt ../data/results/yolo11/best.pt     two models side by side → data/results/yolo26/evaluate_test.csv
+    python evaluate.py --model model/best.pt ../yolo11_pipeline/model/best.pt  two models side by side → data/results/<pipeline>/evaluate_test.csv
 
-Ultralytics' plots and curves go to data/runs/yolo26/eval_<split>_<model>/.
+Ultralytics' plots and curves go to data/runs/<pipeline>/eval_<split>_<model>/.
 """
 from __future__ import annotations
 
@@ -14,8 +14,9 @@ from pathlib import Path
 import torch
 from ultralytics import YOLO
 
-ROOT = Path(__file__).resolve().parent       # yolo26_pipeline/
+ROOT = Path(__file__).resolve().parent       # this pipeline's folder
 DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
+PIPELINE = ROOT.name.replace('_pipeline', '') # yolo26 or yolo11: names this pipeline's folders under data/runs and data/results
 MODEL = ROOT / 'model' / 'best.pt'           # the model this pipeline ships
 
 
@@ -37,7 +38,7 @@ def main():
         tag = m.parents[1].name if m.parent.name == 'weights' else m.parent.name       # runs/<run>/weights/best.pt → <run>
         metrics = YOLO(str(m)).val(data=str(ROOT / 'grape.yaml'), split=args.split, imgsz=args.imgsz,
                                    batch=args.batch, device=device, workers=0,
-                                   project=str(DATA / 'runs' / 'yolo26'), name=f'eval_{args.split}_{tag}',
+                                   project=str(DATA / 'runs' / PIPELINE), name=f'eval_{args.split}_{tag}',
                                    exist_ok=True, plots=len(args.model) == 1)
         speed = getattr(metrics, 'speed', {}) or {}
         rows.append({'model': str(m), 'split': args.split, 'imgsz': args.imgsz,
@@ -48,7 +49,7 @@ def main():
         print(f'{m}\n  BOX  mAP50={metrics.box.map50:.4f}, mAP50-95={metrics.box.map:.4f}')
         print(f'  MASK mAP50={metrics.seg.map50:.4f}, mAP50-95={metrics.seg.map:.4f}')
     if len(rows) > 1:
-        out = DATA / 'results' / 'yolo26' / f'evaluate_{args.split}.csv'
+        out = DATA / 'results' / PIPELINE / f'evaluate_{args.split}.csv'
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open('w', newline='', encoding='utf-8') as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0]))

@@ -76,7 +76,7 @@ python evaluate.py
 Prints box and mask mAP@0.50 and mAP@0.50:0.95 on the 27 held-out test images; plots in `../data/runs/yolo26/eval_test_<model>/`. `--model <weights>` scores another checkpoint, `--split val` the validation split. Several models make a table, `../data/results/yolo26/evaluate_<split>.csv`:
 
 ```bash
-python evaluate.py --model model/best.pt ../data/results/yolo11/best.pt
+python evaluate.py --model model/best.pt ../yolo11_pipeline/model/best.pt
 ```
 
 These are scores on WGISD photos. The leaderboard in `../sam2_pipeline` (`python fruit.py evaluate`, in its own environment) scores this model on our own labelled clips next to SAM 2.1 and SAM 3.1.
