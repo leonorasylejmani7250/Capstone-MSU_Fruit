@@ -5,7 +5,7 @@ __pycache__/
 build/
 dist/
 
-# Python environments: sam2_pipeline/envs (conda), yolo26_pipeline/.venv, sam3_pipeline/.venv
+# Environments (sam2_pipeline/envs, yolo26_pipeline/.venv, sam3_pipeline/.venv)
 envs/
 .venv/
 venv/
@@ -24,11 +24,7 @@ desktop.ini
 .env.*
 *.key
 
-# data/: everything the pipelines read and write (data/README.md). In git: the public WGISD dataset
-# (data/wgisd, data/wgisd_yolo) and the archived October YOLO11 run (data/results/yolo11). Not in git:
-# the partner's videos, our labelled clips, predictions, training runs, fine-tuned SAM 2.1 weights,
-# the demo's output, and the results the scripts write (data/results/*). To keep a result for the
-# report, copy its numbers into a README or add the file with `git add -f`.
+# data/ (data/README.md): in git only the WGISD dataset, its YOLO labels, and the two archived result folders
 data/videos/
 data/dataset/
 data/predictions/
@@ -46,9 +42,7 @@ data/results/yolo26/*
 !data/results/yolo26/CodyKresta_1025/
 *.cache
 
-# Model weights. Each pipeline ships its model in <pipeline>/model/: YOLO26's best.pt is small and
-# committed; SAM 2.1 weights are too big for GitHub and come from a GitHub Release instead
-# (sam2_pipeline/model/README.md). Every other .pt is a download or a training artifact.
+# Model weights: only the two small committed models; SAM 2.1 weights go on a GitHub Release
 *.pt
 *.pth
 *.ckpt
@@ -56,13 +50,13 @@ data/results/yolo26/*
 !yolo26_pipeline/model/best.pt
 !data/results/yolo11/best.pt
 
-# Video files, wherever they are made
+# Videos
 *.mp4
 *.mov
 *.avi
 *.mkv
 
-# Logs and temporary files (fruit-<job>.out: HPCC job logs in sam2_pipeline/)
+# Logs (HPCC job logs are <job>-<id>.out in the pipeline folders)
 *.log
 *.tmp
 *.out
