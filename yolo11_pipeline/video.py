@@ -1,6 +1,11 @@
-"""Run this pipeline's YOLO model (default: model/best.pt) on a video, or on every video in a folder: an annotated video plus a per-frame CSV, in data/results/<pipeline>/.
+"""Run the model on a video, or on every video in a folder: an annotated video plus a per-frame CSV in
+../data/results/<pipeline>/. Default model: model/best.pt.
 
---mode detect draws every cluster the model finds in each frame; --mode track adds ByteTrack IDs across frames.
+    python video.py --video ../data/videos/row3.mp4 --max-frames 0            the whole video
+    python video.py --video-dir ../data/videos/CodyKresta_1025                 every video in the folder
+    python video.py --video ../data/videos/row3.mp4 --mode track               ByteTrack ids across frames
+
+--mode detect draws every cluster the model finds in each frame; --mode track adds ByteTrack ids across frames.
 """
 from __future__ import annotations
 
@@ -13,10 +18,7 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
-ROOT = Path(__file__).resolve().parent       # this pipeline's folder
-DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
-PIPELINE = ROOT.name.replace('_pipeline', '') # yolo26 or yolo11: names this pipeline's folders under data/runs and data/results
-MODEL = ROOT / 'model' / 'best.pt'           # the model this pipeline ships
+from pipeline import MODEL, RESULTS
 
 
 def color_for_id(identifier: int) -> tuple[int, int, int]:
@@ -159,7 +161,7 @@ def main():
     src.add_argument('--video-dir', type=Path, help='every video in a folder (.mp4, .mov, .avi, .mkv); done ones are skipped')
     p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
     p.add_argument('--output', type=Path, default=None,
-                   help='annotated video, or with --video-dir the output folder (default: data/results/<pipeline>/[<folder name>/]<video name>_<mode>.mp4)')
+                   help='annotated video, or with --video-dir the output folder (default: ../data/results/<pipeline>/[<folder name>/]<video name>_<mode>.mp4)')
     p.add_argument('--mode', choices=['detect', 'track'], default='detect')
     p.add_argument('--conf', type=float, default=0.30)
     p.add_argument('--imgsz', type=int, default=768)
@@ -171,7 +173,7 @@ def main():
     if not 0 < args.conf <= 1 or args.imgsz < 160:
         p.error('Require confidence in (0,1] and imgsz >=160')
     if not args.model.is_file():
-        p.error(f'Missing weights: {args.model} (train.py makes them; model/README.md says what goes in model/)')
+        p.error(f'Missing weights: {args.model}')
     if args.start_sec < 0 or args.max_frames < 0:
         p.error('start-sec and max-frames must be nonnegative')
     model = YOLO(str(args.model))
@@ -179,7 +181,7 @@ def main():
     if args.video:
         if not args.video.is_file():
             p.error(f'Missing video: {args.video}')
-        output = args.output or DATA / 'results' / PIPELINE / f'{args.video.stem}_{args.mode}.mp4'
+        output = args.output or RESULTS / f'{args.video.stem}_{args.mode}.mp4'
         process(args.video, model, args, output)
     else:
         if not args.video_dir.is_dir():
@@ -187,7 +189,7 @@ def main():
         videos = sorted(f for f in args.video_dir.iterdir() if f.is_file() and f.suffix.lower() in VIDEO_EXTS)
         if not videos:
             p.error(f'No videos in {args.video_dir}')
-        out_dir = args.output or DATA / 'results' / PIPELINE / args.video_dir.name
+        out_dir = args.output or RESULTS / args.video_dir.name
         args.max_frames = 0
         for i, video in enumerate(videos, 1):
             output = out_dir / f'{video.stem}_{args.mode}.mp4'

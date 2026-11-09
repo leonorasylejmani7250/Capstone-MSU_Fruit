@@ -1,9 +1,10 @@
-"""Evaluate one or more YOLO segmentation checkpoints on a WGISD split (default: model/best.pt on test) and print box and mask mAP.
+"""Box and mask mAP on the WGISD test photos. Default: the shipped model. Several weights make a table.
 
-    python evaluate.py                                                          the shipped model, test split
-    python evaluate.py --model model/best.pt ../yolo11_pipeline/model/best.pt  two models side by side → data/results/<pipeline>/evaluate_test.csv
+    python evaluate.py                                                   model/best.pt on the 27 test photos
+    python evaluate.py --model ../data/runs/<pipeline>/vineyard/weights/best.pt --split val
+    python evaluate.py --model model/best.pt <other weights> ...         → ../data/results/<pipeline>/evaluate_<split>.csv
 
-Ultralytics' plots and curves go to data/runs/<pipeline>/eval_<split>_<model>/.
+Plots (PR curve, confusion matrix) go to ../data/runs/<pipeline>/eval_<split>_<name>/ when one model is scored.
 """
 from __future__ import annotations
 
@@ -14,31 +15,27 @@ from pathlib import Path
 import torch
 from ultralytics import YOLO
 
-ROOT = Path(__file__).resolve().parent       # this pipeline's folder
-DATA = ROOT.parent / 'data'                  # the shared data folder of the repository
-PIPELINE = ROOT.name.replace('_pipeline', '') # yolo26 or yolo11: names this pipeline's folders under data/runs and data/results
-MODEL = ROOT / 'model' / 'best.pt'           # the model this pipeline ships
+from pipeline import MODEL, RESULTS, RUNS, WGISD
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--model', type=Path, nargs='+', default=[MODEL], help='weights to score (default: model/best.pt)')
     p.add_argument('--split', default='test', choices=['val', 'test'])
-    p.add_argument('--imgsz', type=int, default=512, help='the size the models were trained at')
+    p.add_argument('--imgsz', type=int, default=512, help='the size the model was trained at')
     p.add_argument('--batch', type=int, default=2)
     args = p.parse_args()
-    if not (ROOT / 'grape.yaml').is_file():
-        p.error('Missing grape.yaml. Run prepare_wgisd.py')
+    if not WGISD.is_file():
+        p.error(f'Missing {WGISD}: python ../data/wgisd_yolo/prepare_wgisd.py')
     for m in args.model:
         if not m.is_file():
-            p.error(f'Missing weights: {m} (train.py makes them; model/README.md says what goes in model/)')
+            p.error(f'Missing weights: {m}')
     device = 0 if torch.cuda.is_available() else 'cpu'
     rows = []
     for m in args.model:
-        tag = m.parents[1].name if m.parent.name == 'weights' else m.parent.name       # runs/<run>/weights/best.pt → <run>
-        metrics = YOLO(str(m)).val(data=str(ROOT / 'grape.yaml'), split=args.split, imgsz=args.imgsz,
-                                   batch=args.batch, device=device, workers=0,
-                                   project=str(DATA / 'runs' / PIPELINE), name=f'eval_{args.split}_{tag}',
+        tag = m.parents[1].name if m.parent.name == 'weights' else m.parent.name      # runs/<run>/weights/best.pt → <run>
+        metrics = YOLO(str(m)).val(data=str(WGISD), split=args.split, imgsz=args.imgsz, batch=args.batch,
+                                   device=device, workers=0, project=str(RUNS), name=f'eval_{args.split}_{tag}',
                                    exist_ok=True, plots=len(args.model) == 1)
         speed = getattr(metrics, 'speed', {}) or {}
         rows.append({'model': str(m), 'split': args.split, 'imgsz': args.imgsz,
@@ -49,14 +46,14 @@ def main():
         print(f'{m}\n  BOX  mAP50={metrics.box.map50:.4f}, mAP50-95={metrics.box.map:.4f}')
         print(f'  MASK mAP50={metrics.seg.map50:.4f}, mAP50-95={metrics.seg.map:.4f}')
     if len(rows) > 1:
-        out = DATA / 'results' / PIPELINE / f'evaluate_{args.split}.csv'
+        out = RESULTS / f'evaluate_{args.split}.csv'
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open('w', newline='', encoding='utf-8') as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0]))
             w.writeheader()
             w.writerows(rows)
         print(f'Table: {out}')
-    print(f'Scores on WGISD {args.split} images, not on vineyard video.')
+    print(f'Scores on WGISD {args.split} photos. The leaderboard on our own clips is ../sam2_pipeline: python fruit.py evaluate')
 
 
 if __name__ == '__main__':

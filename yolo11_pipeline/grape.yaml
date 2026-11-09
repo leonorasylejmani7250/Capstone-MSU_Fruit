@@ -1,8 +1,0 @@
-# Dataset for train.py and evaluate.py: the public WGISD grape dataset as YOLO segmentation labels.
-# Paths are relative to this file. No `path:` key: Ultralytics resolves a relative `path:` against its own
-# datasets folder, not against this file. prepare_wgisd.py rewrites this file.
-train: ../data/wgisd_yolo/images/train
-val: ../data/wgisd_yolo/images/val
-test: ../data/wgisd_yolo/images/test
-names:
-  0: grape_cluster

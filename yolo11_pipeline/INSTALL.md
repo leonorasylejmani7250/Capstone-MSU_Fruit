@@ -1,6 +1,6 @@
 # Install · YOLO11 pipeline
 
-Install, test the install, run the demo (the shipped model on public photos and a short video). No GPU and no partner data needed. Every command runs from this folder, `yolo11_pipeline/`.
+Install, test the install, score the shipped model. No GPU and no partner data needed. Every command runs from this folder, `yolo11_pipeline/`.
 
 ## 1. What you need
 
@@ -49,36 +49,20 @@ python -m unittest discover -s tests -v
 
 The first line prints the versions (`CUDA False` is fine); the second ends with `OK`.
 
-## 5. Get the data
+## 5. Score the shipped model
 
-Nothing to do: the WGISD dataset (`../data/wgisd/`), its YOLO labels (`../data/wgisd_yolo/`) and the model (`model/best.pt`) are in the repository. Partner video goes in `../data/videos/` (`../data/README.md`).
-
-## 6. Run the demo
-
-Evaluate the model on the 27 held-out WGISD test images (about a minute on a CPU; prints box and mask mAP):
+The WGISD dataset (`../data/wgisd/`, `../data/wgisd_yolo/`) and the model (`model/best.pt`) are in the repository, so this runs at once (about a minute each on a CPU):
 
 ```bash
 python evaluate.py
-```
-
-Count clusters on the same images against hand counts (writes `../data/results/yolo11/count_test.csv` and annotated images in `../data/results/yolo11/count_test/`):
-
-```bash
 python count_test.py
 ```
 
-Run it on a video. The first line makes a five-frame video from one WGISD photo; the second runs the model on it:
+`evaluate.py` prints box and mask mAP on the 27 held-out photos; `count_test.py` prints the count error per photo and writes `../data/results/yolo11/count_test.csv` and the annotated photos in `../data/results/yolo11/count_test/`.
 
-```bash
-python -c "from pathlib import Path; import cv2; p=next(Path('../data/wgisd/data').glob('*.jpg')); im=cv2.resize(cv2.imread(str(p)),(640,480)); Path('../data/videos').mkdir(exist_ok=True); w=cv2.VideoWriter('../data/videos/public_demo.mp4',cv2.VideoWriter_fourcc(*'mp4v'),5,(640,480)); [w.write(im) for _ in range(5)]; w.release(); print('wrote ../data/videos/public_demo.mp4')"
-python video.py --video ../data/videos/public_demo.mp4 --imgsz 512 --max-frames 5
-```
+Training, video, tracking and fine-tuning on our own footage: [README.md](README.md). Partner video goes in `../data/videos/` ([`../data/README.md`](../data/README.md)).
 
-Result: `../data/results/yolo11/public_demo_detect.mp4` (five annotated frames) and `public_demo_detect.csv` (five rows). The same two lines work in PowerShell.
-
-Training, tracking, whole folders of video, and fine-tuning on our own footage: [README.md](README.md).
-
-## 7. If something goes wrong
+## 6. If something goes wrong
 
 | Problem | Fix |
 | --- | --- |
