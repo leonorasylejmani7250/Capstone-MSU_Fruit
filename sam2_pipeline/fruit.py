@@ -19,9 +19,10 @@ Labelling needs a screen: open notebooks/MSU_FRUIT_SAM2_pipeline.ipynb in Colab 
 Options for every command (--project, --size) can go before or after the command name:
   python fruit.py --project ../data/demo --size tiny status
 --project defaults to $PROJECT_DIR (hpcc/config.sh sets it), else to the repository's data/ folder;
---size to $SAM2_SIZE, else base_plus. `evaluate` scores the lineup plus every fine-tuned model automatically:
-SAM 2.1 weights in model/ (the ones the team ships) and in the project's models/, and the detectors that
-train-detector wrote to the project's runs/. `video` uses the newest SAM 2.1 weights in model/.
+--size to $SAM2_SIZE, else base_plus. `evaluate` scores the lineup plus every model it finds in the project:
+SAM 2.1 weights in model/ (the ones the team ships) and in the project's models/, the detectors that
+train-detector wrote to the project's runs/, and the SAM 3 / SAM 3.1 masks in predictions/ (each folder with a
+recipe.json). `video` uses the newest SAM 2.1 weights in model/.
 """
 import argparse
 import os
@@ -166,11 +167,24 @@ def _detector_rows(F):
     return rows
 
 
+def _folder_rows(F):
+    """Masks written into the project's predictions/ by another pipeline, each folder with a recipe.json that names the
+    row (sam3_pipeline and sam3_1_pipeline write them: '<model> · text 'grape cluster' · zero-shot' or
+    '… → fine-tuned on our clips (<run>)'). Scored like any other model."""
+    import json
+    rows = {}
+    for recipe in sorted(F.PRED.glob("*/recipe.json")):
+        row = json.loads(recipe.read_text()).get("row") or recipe.parent.name
+        rows[row] = F.FromFolder(recipe.parent, tracks=True)
+    return rows
+
+
 def cmd_evaluate(F, a):
     models = F.load_lineup(here(a.lineup)) if a.lineup else {}
     if a.finetuned:
         models.update(_finetuned_rows(F))
         models.update(_detector_rows(F))
+        models.update(_folder_rows(F))
     if not models:
         sys.exit("Nothing to score: give --lineup FILE and/or train a model first.")
     print("scoring:", *models, sep="\n  · ")
@@ -215,7 +229,7 @@ def cmd_train_detector(F, a):
         for candidate in (here(base), F._project_path(base)):
             if candidate.exists():
                 base = str(candidate); break
-    best = F.train_detector(base, a.epochs, a.imgsz, a.name)
+    best = F.train_detector(base, a.epochs, a.imgsz, a.name, batch=a.batch)
     print("detector weights:", best)
     print("next: python fruit.py evaluate   (detectors in the project's runs/ are scored automatically)")
 
@@ -294,7 +308,8 @@ def main(argv=None):
     s = sub.add_parser("evaluate", help="score models on the labelled val clips")
     s.add_argument("--lineup", default=str(HERE / "configs" / "lineup.yaml"), help="YAML list of models ('' for none)")
     s.add_argument("--no-finetuned", dest="finetuned", action="store_false",
-                   help="do not add the fine-tuned models (SAM 2.1 in model/ and models/, detectors in runs/) automatically")
+                   help="do not add the models found in the project automatically (SAM 2.1 weights in model/ and models/, "
+                        "detectors in runs/, SAM 3 / SAM 3.1 masks in predictions/)")
     s.add_argument("--split", default="val")
     s.add_argument("--fresh", action="store_true",
                    help="start the table over: drop the rows kept from earlier runs (renamed or removed models stay otherwise)")
@@ -320,6 +335,7 @@ def main(argv=None):
                    help="starting weights: a bare Ultralytics name, or a file such as yolo26_pipeline/model/best.pt")
     s.add_argument("--epochs", type=int, default=100)
     s.add_argument("--imgsz", type=int, default=1280)
+    s.add_argument("--batch", type=int, default=16, help="lower it if the GPU runs out of memory")
     s.add_argument("--name", default="yolo_detector")
 
     s = sub.add_parser("approve", help="mark clips as checked (e.g. imported box → SAM masks you trust)")

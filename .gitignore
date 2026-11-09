@@ -5,7 +5,7 @@ __pycache__/
 build/
 dist/
 
-# Environments (sam2_pipeline/envs, yolo26_pipeline/.venv, sam3_pipeline/.venv)
+# Environments (sam2_pipeline/envs; .venv in the other pipeline folders)
 envs/
 .venv/
 venv/
@@ -38,7 +38,8 @@ data/demo/
 data/*_demo/
 data/count_test/
 data/yolo_dataset/
-data/frames_to_label/
+data/sam3_dataset/
+data/wgisd_yolo/preview/
 data/results/*
 !data/results/yolo11/
 data/results/yolo11/*
@@ -48,7 +49,7 @@ data/results/yolo26/*
 !data/results/yolo26/CodyKresta_1025/
 *.cache
 
-# Model weights: only the two small committed YOLO models; SAM 2.1 weights go on a GitHub Release
+# Model weights: only the two small committed YOLO models; SAM 2.1, SAM 3 and SAM 3.1 weights go on a GitHub Release
 *.pt
 *.pth
 *.ckpt

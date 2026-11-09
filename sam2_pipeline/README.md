@@ -36,9 +36,9 @@ New here: [INSTALL.md](INSTALL.md) installs the pipeline and runs `demo.ipynb`.
 | **draft / done** | A clip's labels are a *draft* until you check them and press *Clip checked: mark done* (or run `fruit.py approve`). Only *done* clips are used for training and scoring. |
 | **train / val** | Whole videos are held out as *val*. Models are fine-tuned on the train clips and scored on the val clips. |
 | **pretrained** | SAM 2.1 as Meta released it. |
-| **trained on WGISD** | A YOLO model trained on the public WGISD photos (`yolo26_pipeline`, `yolo11_pipeline`). |
+| **trained on WGISD** | A YOLO model trained on the public WGISD photos (the two YOLO pipelines). |
 | **fine-tuned on our clips** | A model trained further on our labelled clips: `fruit.py train` for SAM 2.1 (from pretrained), `fruit.py train-detector` for YOLO (from the WGISD model). |
-| **zero-shot** | No training: SAM 3.1 or YOLOE finding clusters from the text "grape cluster". |
+| **zero-shot** | No training: SAM 3, SAM 3.1 or YOLOE finding clusters from the text "grape cluster". |
 | **prompted / automatic** | The two leaderboards: a model shown each cluster once (SAM 2.1, J&F score) vs a model that must find them itself (everything else, F1 score). |
 
 ## 1. Colab
@@ -91,7 +91,7 @@ sbatch hpcc/run.sb evaluate
 sbatch hpcc/run.sb video videos/row3.mp4 --start 60 --seconds 60
 ```
 
-Fine-tune SAM 2.1 from Meta's pretrained weights on our clips (→ `data/models/sam2.1_base_plus_grapes_v1.pt`); fine-tune the YOLO26 and YOLO11 WGISD models on the same clips (→ `data/runs/yolo26_grapes_v1/weights/best.pt`, `data/runs/yolo11_grapes_v1/…`); the leaderboard (→ `data/results/leaderboard_val.csv`); the fine-tuned SAM 2.1 on one minute of video (→ `data/results/sam2/`). `video` uses the newest weights in `model/` and YOLOE as the detector; `--weights <file>` and `--detector-weights-trained <file> --detector-imgsz 512` pick others. [`../hpcc/run_all.sh`](../hpcc/README.md) submits all of this, plus SAM 3.1, as one chain.
+Fine-tune SAM 2.1 from Meta's pretrained weights on our clips (→ `data/models/sam2.1_base_plus_grapes_v1.pt`); fine-tune the YOLO26 and YOLO11 WGISD models on the same clips (→ `data/runs/yolo26_grapes_v1/weights/best.pt`, `data/runs/yolo11_grapes_v1/…`); the leaderboard (→ `data/results/leaderboard_val.csv`); the fine-tuned SAM 2.1 on one minute of video (→ `data/results/sam2/`). `video` uses the newest weights in `model/` and YOLOE as the detector; `--weights <file>` and `--detector-weights-trained <file> --detector-imgsz 512` pick others. [`../hpcc/run_all.sh`](../hpcc/README.md) submits all of this, plus SAM 3 and SAM 3.1, as one chain.
 
 `squeue --me` shows jobs; `tail -f fruit-<jobid>.out` follows a log. `run.sb` asks for one A100 for 4 hours; override per job: `sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate`. A training run that hits the time limit resumes when you submit the same command again. Options for every command go before the command name: `sbatch hpcc/run.sb --size large evaluate`.
 
@@ -107,10 +107,10 @@ COCO or YOLO outlines are used as drawn. Box-only labels get a SAM 2.1 mask and 
 
 ## 4. Scoring any model
 
-`python fruit.py evaluate` scores every model in `configs/lineup.yaml` plus every fine-tuned model automatically (SAM 2.1 weights in `model/` and `data/models/`, detectors from `train-detector` in `data/runs/`), on the labelled val clips:
+`python fruit.py evaluate` scores every model in `configs/lineup.yaml` plus every model it finds in the project (SAM 2.1 weights in `model/` and `data/models/`, detectors from `train-detector` in `data/runs/`, SAM 3 and SAM 3.1 masks in `data/predictions/`), on the labelled val clips:
 
 - **Prompted** (SAM 2.1): shown each cluster once by a box or a click, must follow it. Headline **J&F** (0–100).
-- **Automatic** (YOLO26, YOLO11, YOLOE, detector → SAM 2.1, SAM 3.1): gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error, tracks found vs true.
+- **Automatic** (YOLO26, YOLO11, YOLOE, detector → SAM 2.1, SAM 3, SAM 3.1): gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error, tracks found vs true.
 
 Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<run>)`. The table keeps the rows of earlier runs on the same clips, so models can be scored one at a time; `--fresh` starts it over (after renaming or removing an entry).
 
@@ -120,7 +120,7 @@ To add a model, add an entry under `models:` in `configs/lineup.yaml`. Paths are
   - {name: my YOLO-seg, type: ultralytics, weights: runs/yolo_detector/weights/best.pt, imgsz: 1280}
   - {name: YOLO26 → SAM 2.1 fine-tuned, type: detect_then_sam2, checkpoint: sam2_pipeline/model/sam2.1_base_plus_grapes_v1.pt,
      detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25, imgsz: 512}}
-  - {name: SAM 3.1 text, type: folder, path: predictions/sam3_text, tracks: true}
+  - {name: masks from another program, type: folder, path: predictions/my_masks, tracks: true}
   - {name: my model, type: python, class: ../examples/my_model.py:MyModel}
 ```
 

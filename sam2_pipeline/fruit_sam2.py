@@ -1418,8 +1418,8 @@ class FromFolder(Model):
 
 class SAM3Text(Model):
     """SAM 3.1 (or SAM 3) with a text prompt, through Meta's `sam3` package. Needs that package installed and
-    the gated Hugging Face weights (sam3_pipeline/README.md). The sam3_pipeline folder runs SAM 3.1 in its
-    own environment and writes predictions/sam3_text/ instead, which the lineup scores as a folder."""
+    the gated Hugging Face weights. The sam3_1_pipeline and sam3_pipeline folders run these models in their own
+    environments and write predictions/<name>/ with a recipe.json instead, which `evaluate` scores as folders."""
     tracks = True
     def __init__(self, text=None, version="sam3.1", max_num_objects=64, checkpoint=None, **builder_args):
         self.text, self._p = text or OBJECT_NAME, None
@@ -1469,7 +1469,7 @@ def build_model(spec):
       {type: sam2, size: base_plus, checkpoint: models/x.pt, prompt: box}      SAM 2.1, pretrained or fine-tuned
       {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster}      YOLO / YOLOE (automatic)
       {type: detect_then_sam2, detector: {...}, checkpoint: models/x.pt}       a detector finds, SAM 2.1 follows
-      {type: folder, path: predictions/sam3_text, tracks: true}                masks written by any other program
+      {type: folder, path: predictions/sam3_1_text, tracks: true}              masks written by any other program
       {type: sam3, text: grape cluster}                                        SAM 3.1 in this environment (gated weights)
       {type: python, class: my_models.py:MyModel, args: {...}}                 your own Model subclass"""
     spec = dict(spec); kind = spec.pop("type").lower()
@@ -1847,20 +1847,21 @@ def plot_training(run="grapes_v1"):
     else:                                  # command line / batch job: keep the picture next to the run
         plt.savefig(f.parent / "loss.png", dpi=120); plt.close(); print("loss curve:", f.parent / "loss.png")
 
-def train_detector(base="yolo26n-seg.pt", epochs=100, imgsz=1280, name="yolo_detector", every=2):
+def train_detector(base="yolo26n-seg.pt", epochs=100, imgsz=1280, name="yolo_detector", every=2, batch=16):
     """Train a YOLO segmentation model on the labelled clips (same train / val split). Returns the path of its
-    best weights. `every`: use every n-th frame of each clip (neighbouring frames are near-copies)."""
+    best weights. `every`: use every n-th frame of each clip (neighbouring frames are near-copies); `batch`: lower
+    it when the GPU (or a CPU test) runs out of memory."""
     ul = _ultralytics()
     best = RUNS / name / "weights" / "best.pt"
     if best.exists():
         print(f"{best} already exists, reusing it. Pick a new name to train again."); return best
     data = export_yolo_seg(every=every)
     model = ul.YOLO(base)
-    model.train(data=str(data), epochs=int(epochs), imgsz=int(imgsz), project=str(RUNS),
+    model.train(data=str(data), epochs=int(epochs), imgsz=int(imgsz), batch=int(batch), project=str(RUNS),
                 name=name, exist_ok=True, device=0 if DEVICE == "cuda" else "cpu", workers=2, plots=False)
     best = Path(model.trainer.best)
     (best.parents[1] / "recipe.json").write_text(json.dumps(dict(            # what this detector started from and learned on
-        base=str(base), epochs=int(epochs), imgsz=int(imgsz), every=int(every), data=str(data),
+        base=str(base), epochs=int(epochs), imgsz=int(imgsz), batch=int(batch), every=int(every), data=str(data),
         clips=[c.name for c in get_clips("train", labelled=True)]), indent=1))
     return best
 

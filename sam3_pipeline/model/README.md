@@ -1,11 +1,20 @@
-# sam3_pipeline/model — the SAM 3.1 weights
+# sam3_pipeline/model — SAM 3 weights
 
-Meta's checkpoint, used as released. The weights are gated: request access at [facebook/sam3.1](https://huggingface.co/facebook/sam3.1), wait for the approval, then `hf auth login` once on the machine that runs the pipeline.
+`run.py` uses the newest `.pt` in this folder, else it lets Meta's package download the release. `.pt` files here are ignored by git (3 GB each).
 
-`run_sam3.py` lets the `sam3` package download the checkpoint on the first run. To keep a copy here (compute nodes on the HPCC may have no internet), download it on a node that has:
+## Meta's release
+
+Gated: request access at [facebook/sam3](https://huggingface.co/facebook/sam3), wait for the approval, then once on the machine that runs the pipeline:
 
 ```bash
-hf download facebook/sam3.1 sam3.1_multiplex.pt --local-dir model
+hf auth login
+hf download facebook/sam3 sam3.pt --local-dir model
 ```
 
-`run_sam3.py` then uses the newest `.pt` here by default. The file is ignored by git. The original SAM 3 checkpoint is at [facebook/sam3](https://huggingface.co/facebook/sam3), for `run_sam3.py --version sam3`.
+## Fine-tuned on our clips
+
+`python finetune.py --run <run>` writes `sam3_<run>.pt` here with a `.json` recipe (what it started from, the dataset, the settings). To share one, attach it to a GitHub Release of this repository (*Releases ▸ Draft a new release*) and put the link in the table; to use a shared one, download it into this folder.
+
+| File | Started from | Trained on | Leaderboard F1 (release → fine-tuned) | Download |
+|---|---|---|---|---|
+| — | — | — | — | — |
