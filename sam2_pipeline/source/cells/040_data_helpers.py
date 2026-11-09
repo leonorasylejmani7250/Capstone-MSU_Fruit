@@ -176,31 +176,71 @@ def probe_video(path):
     cap.release()
     return dict(fps=float(fps), frames=n, width=w, height=h, seconds=(n / fps if fps else 0.0))
 
+SETTLE_MINUTES = 2        # a video written this recently may still be syncing (SharePoint, rclone, Globus): skipped until the next run
+
+def _is_junk(p):
+    """Files a sync or a camera leaves next to the videos: hidden files, Office and macOS sidecars, partial downloads."""
+    return p.name.startswith((".", "~$")) or p.name.lower().endswith((".partial", ".tmp", ".part", ".crdownload"))
+
+def find_videos(root=None, settle_minutes=SETTLE_MINUTES, quiet=False):
+    """Every video under videos/ (any depth, any name). Skips hidden and partial files, hidden folders, and
+    anything written in the last `settle_minutes` (still syncing). Safe to run again and again."""
+    root = Path(root) if root else VIDEOS
+    found, syncing, now = [], [], time.time()
+    for p in sorted(root.rglob("*")):
+        if not p.is_file() or _is_junk(p) or p.suffix.lower() not in VIDEO_EXTS:
+            continue
+        if any(part.startswith(".") for part in p.relative_to(root).parts[:-1]):
+            continue
+        (syncing if settle_minutes and now - p.stat().st_mtime < settle_minutes * 60 else found).append(p)
+    if syncing and not quiet:
+        for p in syncing:
+            print(f"  · {video_key(p)}: written less than {settle_minutes} min ago, still syncing? skipped this time")
+    return found
+
+def video_key(p):
+    """How a video is named in clips.json: its path under videos/, e.g. 'CodyKresta_1025/DJI_0001.MP4'."""
+    p = Path(p)
+    try:
+        return p.resolve().relative_to(VIDEOS.resolve()).as_posix()
+    except ValueError:
+        return p.name
+
+def clip_stem(p):
+    """Start of the names of the clips cut from a video: its path under videos/ without the suffix, made safe
+    ('CodyKresta_1025__DJI_0001'), so the same camera file name in two folders never collides."""
+    return _safe(Path(video_key(p)).with_suffix("").as_posix().replace("/", "__"))
+
 def list_videos():
-    rows = []
-    for p in sorted(VIDEOS.iterdir()):
-        if p.suffix.lower() in VIDEO_EXTS:
-            info = probe_video(p)
-            rows.append(dict(video=p.name, MB=round(p.stat().st_size / 2**20, 1), **(info or {"fps": None})))
+    """One row per video under videos/: path, size, length, frame rate, clips cut from it, clips labelled and done."""
+    rows, meta = [], _load_meta()
+    for p in find_videos(quiet=True):
+        key = video_key(p)
+        clips = [n for n, m in meta.items() if m.get("source") in (key, p.name)]
+        info = probe_video(p) or {}
+        rows.append(dict(video=key, MB=round(p.stat().st_size / 2**20, 1), seconds=round(info.get("seconds") or 0),
+                         fps=info.get("fps"), clips=len(clips),
+                         done=sum(1 for n in clips if meta[n].get("status") == "done")))
     return pd.DataFrame(rows)
 
 def cut_clips(video, clips_per_video=6, clip_frames=16, clip_fps=6.0, max_side=1280, starts=None):
     """Extract evenly spaced, non-overlapping clips from one video. Safe to re-run: existing clips are kept."""
     video = Path(video); info = probe_video(video)
     if not info or not info["fps"] or not info["frames"]:
-        print(f"  ✗ cannot read {video.name}"); return []
+        print(f"  ✗ cannot read {video_key(video)}"); return []
     stride = max(1, round(info["fps"] / clip_fps))          # keep every stride-th frame
     span = clip_frames * stride / info["fps"]               # seconds of video one clip covers
     dur = info["seconds"]
     if starts is None:
         k = min(clips_per_video, max(1, int(dur // span)))
         starts = [(i + 0.5) * dur / k - span / 2 for i in range(k)]
+    key, stem = video_key(video), clip_stem(video)
     taken = {n: (m.get("start_s") or 0, (m.get("start_s") or 0) + m.get("span_s", 0)) for n, m in _load_meta().items()
-             if m.get("source") == video.name and (IMG / n).exists()}
+             if m.get("source") in (key, video.name) and (IMG / n).exists()}
     made, cap = [], cv2.VideoCapture(str(video))
     for s in starts:
         s = max(0.0, min(s, max(0.0, dur - span)))
-        name = f"{_safe(video.stem)}_t{int(round(s * 1000)):07d}"
+        name = f"{stem}_t{int(round(s * 1000)):07d}"
         out = IMG / name
         if name in taken:
             made.append(name); continue
@@ -223,7 +263,7 @@ def cut_clips(video, clips_per_video=6, clip_frames=16, clip_fps=6.0, max_side=1
         out.mkdir(parents=True, exist_ok=True)
         for j, f in enumerate(frames):
             cv2.imwrite(str(out / f"{j:05d}.jpg"), f, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        set_meta(name, source=video.name, start_s=round(s, 3), span_s=round(span, 3),
+        set_meta(name, source=key, start_s=round(s, 3), span_s=round(span, 3),
                  fps=round(info["fps"] / stride, 2))
         taken[name] = (s, s + span); made.append(name)
     cap.release()

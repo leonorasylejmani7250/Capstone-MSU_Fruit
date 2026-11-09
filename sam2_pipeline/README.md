@@ -31,7 +31,7 @@ New here: [INSTALL.md](INSTALL.md) installs the pipeline and runs `demo.ipynb`.
 
 | Word | Meaning |
 |---|---|
-| **clip** | 16 frames cut from a video (Step 2). Everything works on clips. |
+| **clip** | 16 frames cut from a video (Step 2), named after the video's path under `videos/`. Everything works on clips. |
 | **label** | One mask per grape cluster per frame, drawn by SAM 2.1 from the box you draw (Step 3). Stored in `data/dataset/Annotations/`. |
 | **draft / done** | A clip's labels are a *draft* until you check them and press *Clip checked: mark done* (or run `fruit.py approve`). Only *done* clips are used for training and scoring. |
 | **train / val** | Whole videos are held out as *val*. Models are fine-tuned on the train clips and scored on the val clips. |
@@ -69,7 +69,7 @@ bash hpcc/setup_env.sh
 
 The project folder is `~/Capstone-MSU_Fruit/data`; change `PROJECT_DIR` or `SAM2_SIZE` in `hpcc/config.sh` if needed.
 
-**Videos** go into `~/Capstone-MSU_Fruit/data/videos/`: OnDemand (*Files ▸ Upload*, files under 1 GB), Globus (collection `msuhpcc`; Google Drive is `msu#google`), or `rsync -av data/videos/ <netid>@rsync.hpcc.msu.edu:~/Capstone-MSU_Fruit/data/videos/`. Data synced to the HPCC elsewhere: link it in (`../data/README.md`).
+**Videos** go under `~/Capstone-MSU_Fruit/data/videos/`, in any folder structure: from the team's SharePoint by Globus or `hpcc/sync_sharepoint.sh`, from a laptop by OnDemand (*Files ▸ Upload*, files under 1 GB) or `rsync`. [`../data/README.md`](../data/README.md), "Video from SharePoint", has the steps.
 
 **In every HPCC shell**, before any `fruit.py` command:
 

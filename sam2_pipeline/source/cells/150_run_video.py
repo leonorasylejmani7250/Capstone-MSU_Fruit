@@ -6,7 +6,7 @@ SECONDS       = 10     #@param {type:"number"}
 RUN_FPS       = 6      #@param {type:"number"}
 USE_FINETUNED = True   #@param {type:"boolean"}
 
-_videos = sorted(p for p in VIDEOS.iterdir() if p.suffix.lower() in VIDEO_EXTS)
+_videos = find_videos(settle_minutes=0, quiet=True)
 _video = VIDEOS / VIDEO_FILE if VIDEO_FILE else (_videos[0] if _videos else None)
 if _video is None:
     print("No video to run on yet.")

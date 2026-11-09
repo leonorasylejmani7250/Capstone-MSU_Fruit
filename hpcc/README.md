@@ -33,12 +33,7 @@ Ship a winner by copying it into its pipeline's `model/` folder and filling in t
    cd ~/Capstone-MSU_Fruit/sam3_1_pipeline && bash hpcc/setup_env.sh
    ```
    The SAM 2.1 environment also runs the YOLO fine-tuning. Each SAM 3 setup ends by printing its two `hf` lines (log in, download the release into `model/`); they need Hugging Face approval for `facebook/sam3` and `facebook/sam3.1`.
-2. **Data.** Videos go in `data/videos/`. If they are synced to the HPCC somewhere else (SharePoint or OneDrive through rclone, a research space), link that folder in instead of copying:
-   ```bash
-   cd ~/Capstone-MSU_Fruit
-   rmdir data/videos
-   ln -sT /path/to/the/synced/videos data/videos
-   ```
+2. **Data.** Videos go under `data/videos/`, in any folder structure. From SharePoint: Globus (`msu#onedrive` → `msuhpcc`, sync option) or `bash hpcc/sync_sharepoint.sh` with rclone; a big library lives on the research space with `data/videos` as a symlink to it. All of it in [`data/README.md`](../data/README.md), "Video from SharePoint".
 3. **Labels.** Cut clips and label them (`sam2_pipeline/README.md`, section 2):
    ```bash
    cd ~/Capstone-MSU_Fruit/sam2_pipeline

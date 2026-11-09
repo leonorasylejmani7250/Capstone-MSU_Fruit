@@ -99,7 +99,24 @@ def render(frame: np.ndarray, result, seen_ids: set[int], conf_threshold: float,
     return out, n, track_now
 
 
-VIDEO_EXTS = {'.mp4', '.mov', '.avi', '.mkv'}
+VIDEO_EXTS = {'.mp4', '.mov', '.m4v', '.avi', '.mkv', '.mts', '.webm'}
+SETTLE_MINUTES = 2      # a file written this recently may still be syncing from SharePoint: skipped until the next run
+
+
+def find_videos(folder: Path) -> list[Path]:
+    """Every video under the folder, any depth, in path order; hidden and partial files and files still being
+    written are skipped (a SharePoint sync can land here as it is)."""
+    import time
+    found, now = [], time.time()
+    for f in sorted(folder.rglob('*')):
+        rel = f.relative_to(folder)
+        if not f.is_file() or f.suffix.lower() not in VIDEO_EXTS or any(part.startswith(('.', '~$')) for part in rel.parts):
+            continue
+        if now - f.stat().st_mtime < SETTLE_MINUTES * 60:
+            print(f'{rel}: written less than {SETTLE_MINUTES} min ago, still syncing? skipped this time')
+            continue
+        found.append(f)
+    return found
 
 
 def process(video: Path, model, args, output: Path) -> None:
@@ -158,7 +175,7 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument('--video', type=Path, help='one video')
-    src.add_argument('--video-dir', type=Path, help='every video in a folder (.mp4, .mov, .avi, .mkv); done ones are skipped')
+    src.add_argument('--video-dir', type=Path, help='every video under a folder, any depth; done ones are skipped')
     p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
     p.add_argument('--output', type=Path, default=None,
                    help='annotated video, or with --video-dir the output folder (default: ../data/results/<pipeline>/[<folder name>/]<video name>_<mode>.mp4)')
@@ -186,18 +203,26 @@ def main():
     else:
         if not args.video_dir.is_dir():
             p.error(f'Missing folder: {args.video_dir}')
-        videos = sorted(f for f in args.video_dir.iterdir() if f.is_file() and f.suffix.lower() in VIDEO_EXTS)
+        videos = find_videos(args.video_dir)
         if not videos:
-            p.error(f'No videos in {args.video_dir}')
+            p.error(f'No videos under {args.video_dir}')
         out_dir = args.output or RESULTS / args.video_dir.name
         args.max_frames = 0
+        failed = []
         for i, video in enumerate(videos, 1):
-            output = out_dir / f'{video.stem}_{args.mode}.mp4'
+            rel = video.relative_to(args.video_dir)                      # subfolders are kept in the output
+            output = out_dir / rel.parent / f'{video.stem}_{args.mode}.mp4'
             if output.with_suffix('.csv').exists() and not args.overwrite:
-                print(f'[{i}/{len(videos)}] {video.name}: done already, skipping (--overwrite to redo)')
+                print(f'[{i}/{len(videos)}] {rel}: done already, skipping (--overwrite to redo)')
                 continue
-            print(f'[{i}/{len(videos)}] {video.name}')
-            process(video, model, args, output)
+            print(f'[{i}/{len(videos)}] {rel}')
+            try:
+                process(video, model, args, output)
+            except RuntimeError as e:                                     # one unreadable file does not stop the folder
+                print(f'  skipped: {e}')
+                failed.append(str(rel))
+        if failed:
+            print(f'{len(failed)} video(s) could not be read: ' + ', '.join(failed))
     print('Track IDs seen != verified unique clusters; no yield estimate is claimed.')
 
 

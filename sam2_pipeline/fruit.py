@@ -64,7 +64,7 @@ def load(args):
 
 def cmd_status(F, a):
     vids = F.list_videos()
-    print(f"\nvideos/: {len(vids)} file(s)")
+    print(f"\nvideos/: {len(vids)} file(s) (any folder depth; clips = cut from it, done = labelled and marked done)")
     if len(vids):
         print(vids.to_string(index=False))
     print("\nclips:")
@@ -96,13 +96,19 @@ def cmd_download(F, a):
 
 
 def cmd_clips(F, a):
-    found = [p for p in sorted(F.VIDEOS.iterdir()) if p.suffix.lower() in F.VIDEO_EXTS]
+    found = F.find_videos()                      # every video under videos/, any depth; files still syncing wait for the next run
     if not found:
-        sys.exit(f"No videos in {F.VIDEOS}. Copy them there first (see README: 'Getting videos onto the HPCC').")
+        sys.exit(f"No videos under {F.VIDEOS}. Put them there, or sync them from SharePoint (data/README.md).")
+    new = 0
     for p in found:
         made = F.cut_clips(p, a.per_video, a.frames, a.fps, a.max_side)
-        print(f"{p.name}: {len(made)} clip(s)")
+        new += len(made)
+        print(f"{F.video_key(p)}: {len(made)} clip(s)")
+    print(f"{len(found)} video(s), {new} clip(s)")
     print("split:", F.split_clips(a.val_fraction))
+    table = F.list_videos()
+    table.to_csv(F.DATA / "videos.csv", index=False)           # what has come in and what has been cut from it
+    print(f"video list: {F.DATA / 'videos.csv'}")
     F.dataset_report(show_examples=False)
 
 

@@ -23,7 +23,7 @@ Capstone-MSU_Fruit/
 ├── data/              everything the pipelines read and write (data/README.md)
 │   ├── wgisd/         public WGISD grape dataset (in git)
 │   ├── wgisd_yolo/    WGISD as YOLO labels, with grape.yaml and the script that builds it (in git)
-│   ├── videos/        the partner's video (team drive, not in git)
+│   ├── videos/        the partner's video, synced from SharePoint (not in git)
 │   ├── dataset/       our labelled clips (not in git)
 │   ├── predictions/   every model's masks on the clips, what the leaderboard scores (not in git)
 │   └── results/       every output: the leaderboard, then sam2/ sam3/ sam3_1/ yolo26/ yolo11/
@@ -39,7 +39,7 @@ Three rules: code lives in `<pipeline>/`; everything it reads or writes lives in
 
 ## Data
 
-Vineyard video (GoPro, phone, DJI drone) from National Grape, on the team drive. Public data: the Embrapa WGISD grape dataset (CC BY-NC 4.0), in `data/wgisd/`.
+Vineyard video (GoPro, phone, DJI drone) from National Grape, in the team's SharePoint library; it reaches the HPCC through Globus or `hpcc/sync_sharepoint.sh` ([`data/README.md`](data/README.md)). Public data: the Embrapa WGISD grape dataset (CC BY-NC 4.0), in `data/wgisd/`.
 
 ## Tools
 

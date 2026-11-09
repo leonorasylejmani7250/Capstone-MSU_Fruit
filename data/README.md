@@ -21,6 +21,8 @@ Everything lands in `data/results/`: the leaderboard of all models at the top, o
 | `yolo26_pipeline` / `yolo11_pipeline`: `python count_test.py` | `results/<pipeline>/count_test.csv` and the annotated photos in `results/<pipeline>/count_test/` |
 | `yolo26_pipeline` / `yolo11_pipeline`: `python video.py --video <file>` / `--video-dir <folder>` | `results/<pipeline>/<video>_<mode>.mp4` and `.csv` (a folder's videos under `results/<pipeline>/<folder>/`) |
 | `wgisd_yolo/prepare_wgisd.py --preview 8` | `wgisd_yolo/preview/` |
+| `sam2_pipeline`: `python fruit.py clips` | `dataset/JPEGImages/<clip>/`, `dataset/clips.json`, `dataset/videos.csv` |
+| `hpcc/sync_sharepoint.sh` | new videos under `videos/`, `videos/.sync.log`, then the same as `fruit.py clips` |
 | `hpcc/run_all.sh` | the same places; job logs in `sam2_pipeline/fruit-<jobid>.out`, `sam3_pipeline/sam3-<jobid>.out`, `sam3_1_pipeline/sam3_1-<jobid>.out` |
 
 The models the team ships are copied from here into each pipeline's `model/` folder.
@@ -32,8 +34,8 @@ The models the team ships are copied from here into each pipeline's `model/` fol
 | `wgisd/` | Public Embrapa WGISD grape dataset: 300 photos, hand-drawn cluster masks (CC BY-NC 4.0). | yes |
 | `wgisd_yolo/` | WGISD as YOLO labels for the YOLO pipelines: `images/`, `labels/`, split `train/` 94, `val/` 16, `test/` 27; `grape.yaml` describes it; `prepare_wgisd.py` rebuilds it from `wgisd/` (`--preview 8` draws the labels on a few photos). | yes |
 | `results/` | Outputs (table above). In git: `yolo11/CodyKresta_1025/` and `yolo26/CodyKresta_1025/`, the per-frame counts of both YOLO models on the partner's DJI videos. | those two |
-| `videos/` | The partner's video. From the team drive; never committed. | no |
-| `dataset/` | Our labelled clips: `JPEGImages/<clip>/` frames, `Annotations/<clip>/` masks (pixel value = cluster number), `clips.json` (split, source video, draft/done). Back it up to the team drive. | no |
+| `videos/` | The partner's video, any folder structure (synced from SharePoint: section below); never committed. | no |
+| `dataset/` | Our labelled clips: `JPEGImages/<clip>/` frames, `Annotations/<clip>/` masks (pixel value = cluster number), `clips.json` (split, source video, draft/done), `videos.csv` (every video and the clips cut from it). Back it up to the team drive. | no |
 | `predictions/<model>/` | What each model drew on the clips, same format as `Annotations/`. The SAM 3 pipelines write theirs here with a `recipe.json`. | no |
 | `models/` | Fine-tuned SAM 2.1 weights (+ `.json` recipe each). | no |
 | `runs/` | Training runs: `runs/yolo26/<name>/` and `runs/yolo11/<name>/` (YOLO on WGISD), `runs/<name>/` (SAM 2.1 fine-tuning, and `train-detector`'s `weights/best.pt` + `recipe.json`), `runs/sam3_<name>/` and `runs/sam3_1_<name>/` (SAM 3 fine-tuning). In git: `runs/yolo11/wgisd/`, the October YOLO11 training run (curves and metrics). | `yolo11/wgisd/` |
@@ -41,19 +43,37 @@ The models the team ships are copied from here into each pipeline's `model/` fol
 | `sam3_dataset/` | Our labelled clips exported as a COCO dataset by `finetune.py` (train clips → `train/`, val clips → `test/`), what the SAM 3 trainer learns from. | no |
 | `demo/`, `count_test/` | What the two SAM 2.1 notebooks make. Delete to start over. | no |
 
-## Getting the partner's video
+## Video from SharePoint
 
-Copy it from the team drive into `data/videos/` (`.mp4`, `.mov`, `.avi`, `.mkv`). On the HPCC the folder is `~/Capstone-MSU_Fruit/data/videos/` (`sam2_pipeline/README.md` lists the ways to get files there).
+The pipelines read every video under `data/videos/`, at any depth and with any name: the SharePoint library can land here exactly as it is. Hidden files, Office and macOS sidecars (`._*`, `~$*`), partial downloads and GoPro `.LRV`/`.THM` proxies are ignored, a file written in the last two minutes is left for the next run (it may still be syncing), and an unreadable file is reported and skipped. Clips are named after the video's path (`CodyKresta_1025__DJI_0001_t0003200`), so two cameras' `DJI_0001.MP4` in different folders never collide; `data/dataset/videos.csv` lists every video with the clips cut from it.
 
-If the video is synced to the HPCC somewhere else (SharePoint or OneDrive through rclone, a research space), link that folder in instead of copying:
+**Where the files live.** Home has a 100 GB quota, so a library of any size goes on the group's research space (or `$SCRATCH`, which deletes files untouched for 45 days; SharePoint stays the master copy either way) with `data/videos` pointing at it:
 
 ```bash
 cd ~/Capstone-MSU_Fruit
+mkdir -p /mnt/research/<group>/fruit_videos
 rmdir data/videos
-ln -sT /path/to/the/synced/videos data/videos
+ln -sT /mnt/research/<group>/fruit_videos data/videos
 ```
 
-New files then show up as they arrive. Labels made elsewhere (COCO or YOLO exports) come in with `fruit.py import-coco` / `import-yolo`.
+**Route A, Globus (no software, MSU's own OneDrive connector).** At <https://app.globus.org/file-manager>, two panels: left `msu#onedrive` (log in with the MSU address; the root shows *My files*, *Shared* and *Shared libraries*, where the SharePoint library is), right `msuhpcc` at `~/Capstone-MSU_Fruit/data/videos` (or the research-space folder). Select the library's video folder, *Transfer & Sync Options* ▸ *sync - only transfer new or changed files*, *Start*. Run the same transfer again whenever new video has been uploaded, or set it to repeat on a schedule in the same options. Then, on a development node:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+source hpcc/activate.sh
+python fruit.py clips
+```
+
+**Route B, rclone (scriptable).** Once, on a development node with `ssh -X`: `module load rclone`, `rclone config` (new remote `sharepoint`, type `onedrive`, auto config `y`, log in in the browser that opens on the node, then *search* for the team's SharePoint site and pick its document library), and `export FRUIT_REMOTE="sharepoint:Shared Documents/<video folder>"` in `~/.bashrc`. Then, whenever new video has been uploaded:
+
+```bash
+cd ~/Capstone-MSU_Fruit
+bash hpcc/sync_sharepoint.sh
+```
+
+It copies new videos only (never deletes anything local), logs to `data/videos/.sync.log`, and cuts clips from what is new. If `rclone config` ends in an `AADSTS` error, MSU's Microsoft tenant does not allow rclone: use Route A.
+
+**Then** label the new clips (`sam2_pipeline/README.md`, section 2) and train (`hpcc/README.md`). Clips, labels and splits are never redone: a second run cuts clips only from new videos, and a video already split stays on its side. Labels made elsewhere (COCO or YOLO exports) come in with `fruit.py import-coco` / `import-yolo`. A single video from a laptop: copy it into `data/videos/` by OnDemand (*Files ▸ Upload*, under 1 GB) or `rsync -av <file> <netid>@rsync.hpcc.msu.edu:~/Capstone-MSU_Fruit/data/videos/`.
 
 ## Licences
 

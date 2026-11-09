@@ -72,7 +72,7 @@ Writes `../data/results/yolo11/row3_detect.mp4` (masks, boxes, confidences, a co
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `--video` / `--video-dir` | one required | One video, or every video in a folder (finished ones are skipped; `--overwrite` redoes them) |
+| `--video` / `--video-dir` | one required | One video, or every video under a folder at any depth, as a SharePoint sync leaves it (subfolders kept in the output; unreadable and still-syncing files skipped; finished ones skipped unless `--overwrite`) |
 | `--model` | `model/best.pt` | Weights |
 | `--mode` | `detect` | `detect`, or `track` (ByteTrack ids across frames) |
 | `--conf` | `0.30` | Minimum confidence |
