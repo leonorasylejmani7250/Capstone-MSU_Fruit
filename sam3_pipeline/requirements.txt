@@ -1,11 +1,12 @@
 # Python packages for the SAM 3 pipeline. Install the CUDA build of PyTorch first (README.md), then:
 #   python -m pip install -r requirements.txt
 # Meta's sam3 package comes from its GitHub repository (the PyPI "sam3" package is a third-party upload);
-# [train] adds Meta's trainer for finetune.py. The three packages after it are imported by sam3 but not declared by it.
+# [train] adds Meta's trainer for finetune.py. The four packages after it are imported by sam3 but not declared by it.
 sam3[train] @ git+https://github.com/facebookresearch/sam3.git
 setuptools<81
 einops
 pycocotools
+psutil
 huggingface_hub
 opencv-python-headless
 numpy

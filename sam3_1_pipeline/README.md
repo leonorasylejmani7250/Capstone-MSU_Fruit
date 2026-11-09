@@ -107,7 +107,7 @@ Logs are `sam3_1-<jobid>.out` in this folder. [`../hpcc/run_all.sh`](../hpcc/REA
 |---|---|
 | `401` / `GatedRepoError` on download | Access to `facebook/sam3.1` not approved yet, or `hf auth login` not done on this machine. |
 | `start_session` fails on a folder of frames | `run.py clips` retries with a temporary MP4 by itself. |
-| `No module named sam3.train` | `python -m pip install -r requirements.txt` (the `[train]` extra). |
+| `No module named sam3.train`, `psutil`, `einops`, `pycocotools` or `pkg_resources` | `python -m pip install -r requirements.txt`: it holds the `[train]` extra and the packages `sam3` imports without declaring them. |
 | `CUDA out of memory` | `run.py`: lower `--max-objects`, shorten `--seconds`. `finetune.py`: `--resolution 768`, or a bigger GPU. |
 | `No detector weights matched` after training | The trained checkpoint is kept in `../data/runs/<pipeline>_<run>/checkpoints/`; open an issue with the first lines of `unmatched_tensors` from the `.json`. |
 | Masks look right but the leaderboard shows 0 tracks | Check that `../data/dataset/clips.json` lists the clip as `val` and `done`. |
