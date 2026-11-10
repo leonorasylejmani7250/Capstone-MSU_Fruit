@@ -75,7 +75,7 @@ Every cluster gets an id that follows it from frame to frame (ByteTrack). The to
 | `--model` | `model/best.pt` | Weights |
 | `--conf` | `0.30` | Minimum confidence |
 | `--imgsz` | `auto` | The size a frame is shrunk to before the model sees it. `auto` tries every size on five frames of the video, prints what it finds at each and uses the one at which the model is most sure; a number fixes it |
-| `--max-frames`, `--start-sec` | the whole video | A stretch of it, e.g. `--max-frames 300` for a quick look; only a whole video adds its total to the table |
+| `--max-frames`, `--start-sec` | the whole video | With `--video`: a stretch of it, e.g. `--max-frames 300` for a quick look. Only a whole video adds its total to the table; a folder is always counted whole |
 | `--mode` | `track` | `detect` draws what is in each frame, without ids or a total |
 | `--output` | `../data/results/yolo26/<video>_<mode>.mp4` | Output video; the CSV gets the same name. A folder's videos go to `../data/results/yolo26/<folder>/` |
 

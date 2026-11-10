@@ -243,8 +243,9 @@ def process(video: Path, model, args, output: Path) -> None:
     device = 0 if torch.cuda.is_available() else 'cpu'
     size = args.imgsz
     if size == 'auto':
-        rows = sweep(model, sample_frames(video, args.start_sec, args.max_frames), args.conf, device)
-        size = pick(rows, args.trained_size or 768)
+        frames = sample_frames(video, args.start_sec, args.max_frames)
+        rows = sweep(model, frames, args.conf, device) if frames else []           # an unreadable video has no frames
+        size = pick(rows, args.trained_size or 768) if rows else args.trained_size or 768
         print('imgsz  boxes per frame  top score')
         for r in rows:
             print(f"{r['imgsz']:5}  {r['boxes_per_frame']:15.1f}  {r['top_score']:9.2f}" + ('   <- used' if r['imgsz'] == size else ''))
@@ -286,7 +287,7 @@ def process(video: Path, model, args, output: Path) -> None:
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p = argparse.ArgumentParser(description=' '.join(__doc__.split('\n\n')[0].split()))
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument('--video', type=Path, help='one video')
     src.add_argument('--video-dir', type=Path, help='every video under a folder, any depth; done ones are skipped')
@@ -298,8 +299,8 @@ def main():
     p.add_argument('--conf', type=float, default=0.30)
     p.add_argument('--imgsz', type=lambda v: v if v == 'auto' else int(v), default='auto',
                    help='input size: auto (the size at which the model is most sure on this video) or a number')
-    p.add_argument('--max-frames', type=int, default=0, help='frames to process (default 0: the whole video)')
-    p.add_argument('--start-sec', type=float, default=0.)
+    p.add_argument('--max-frames', type=int, default=0, help='with --video: frames to process (default 0: the whole video)')
+    p.add_argument('--start-sec', type=float, default=0., help='with --video: where to start, in seconds')
     p.add_argument('--tracker', default='bytetrack.yaml')
     p.add_argument('--overwrite', action='store_true', help='with --video-dir: redo videos that already have an output')
     args = p.parse_args()

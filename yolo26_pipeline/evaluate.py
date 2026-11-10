@@ -18,7 +18,7 @@ from pipeline import MODEL, RESULTS, RUNS, WGISD, load
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p = argparse.ArgumentParser(description=' '.join(__doc__.split('\n\n')[0].split()))
     p.add_argument('--model', type=Path, nargs='+', default=[MODEL], help='weights to score (default: model/best.pt)')
     p.add_argument('--split', default='test', choices=['val', 'test'])
     p.add_argument('--imgsz', type=int, default=None, help='image size (default: the size each model was trained at)')

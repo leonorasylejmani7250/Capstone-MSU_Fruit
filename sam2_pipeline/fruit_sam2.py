@@ -733,6 +733,13 @@ if IN_COLAB:
     _colab_output.enable_custom_widget_manager()         # lets Colab show the drawing canvas
 
 
+def _me():
+    """The login name of whoever is labelling ('' where the system has none)."""
+    try:
+        return getpass.getuser()
+    except Exception:
+        return ""
+
 def _load_prompts(clip):
     f = PROMPTS / f"{clip}.json"
     return json.loads(f.read_text()) if f.exists() else []
@@ -859,7 +866,7 @@ class ClipLabels:
         if new_status:
             self.status_now = "done" if done else "draft"
         if new_status or not self._mine:                   # the first change also says who is working on the clip
-            set_meta(self.clip.name, status=self.status_now, by=getpass.getuser()); self._mine = True
+            set_meta(self.clip.name, status=self.status_now, by=_me()); self._mine = True
 
     def render(self, frame, selected=None, width=1100):
         """The frame with labels, the boxes/clicks placed on it, and the selected object outlined in white."""
@@ -1021,10 +1028,10 @@ def label(clip=None, size=None, ckpt=None):
     if not names:
         print("No clips yet: add videos and cut clips first (Steps 1 and 2)."); return
     def menu():
-        t, meta, me = clips_table().set_index("clip"), _load_meta(), getpass.getuser()
+        t, meta, me = clips_table().set_index("clip"), _load_meta(), _me()
         mark = {"done": "✅ done ", "draft": "✏️ draft", "none": "⬜ to do"}
         who = lambda n: meta.get(n, {}).get("by")          # in a shared dataset folder: the teammate who labels this clip
-        return [(f"{mark[t.loc[n, 'labels']]} · {t.loc[n, 'split'] or '?'} · {n}" + (f" · {who(n)}" if who(n) not in (None, me) else ""), n)
+        return [(f"{mark[t.loc[n, 'labels']]} · {t.loc[n, 'split'] or '?'} · {n}" + (f" · {who(n)}" if who(n) and who(n) != me else ""), n)
                 for n in names]
     pick = widgets.Dropdown(options=menu(), value=clip or names[0], description="clip", layout=widgets.Layout(width="620px"))
     box, current = widgets.VBox([pick, widgets.HTML("loading…")]), [None]

@@ -19,7 +19,7 @@ from pipeline import BASE_MODEL, MODEL, RUNS, WGISD
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p = argparse.ArgumentParser(description=' '.join(__doc__.split('\n\n')[0].split()))
     p.add_argument('--data', type=Path, default=WGISD, help='dataset YAML (default: WGISD)')
     p.add_argument('--model', default=BASE_MODEL,
                    help=f'starting weights: an Ultralytics name such as {BASE_MODEL} (downloaded) or a file such as model/best.pt')

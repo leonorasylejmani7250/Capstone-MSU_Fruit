@@ -46,7 +46,7 @@ HAND_COUNTS = [
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p = argparse.ArgumentParser(description=' '.join(__doc__.split('\n\n')[0].split()))
     p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
     p.add_argument('--conf', type=float, default=0.25)
     p.add_argument('--imgsz', type=int, default=None, help='image size (default: the size the model was trained at)')
