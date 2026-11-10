@@ -36,6 +36,7 @@ def _ultralytics(text=False):
 
 DETECTOR_SIZES = (256, 384, 512, 768, 1024, 1280, 1536, 1920, 2560, 3840)   # input sizes tried by imgsz="auto" and by check_detectors
 SURE = 0.25                                                                # a box the detector is sure of scores at least this
+KNOWS = 0.8                                                                # on footage a detector knows, its clearest box scores at least this
 NOTHING_FOUND = ("`python fruit.py check <video>` shows what every detector sees in a video at every input size. "
                  "If none of them finds the clusters, label clips of this footage and fine-tune (LABELLING.md).")
 

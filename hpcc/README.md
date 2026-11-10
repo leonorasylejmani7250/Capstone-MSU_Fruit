@@ -79,7 +79,6 @@ sbatch hpcc/run.sb train --run grapes_v2 --steps 5000
 sbatch hpcc/run.sb train-detector --base ../yolo26_pipeline/model/best.pt --epochs 100 --name yolo26_grapes_v2
 sbatch hpcc/run.sb evaluate
 sbatch hpcc/run.sb video videos/row3.mp4 --detector runs/yolo26_grapes_v2/weights/best.pt
-sbatch hpcc/run.sb check videos/row3.mp4
 
 cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
 sbatch --time=08:00:00 hpcc/run.sb finetune.py --run grapes_v2
@@ -90,6 +89,13 @@ sbatch hpcc/run.sb train.py --epochs 50 --batch 16
 ```
 
 The `sam3_1_pipeline` lines work the same in `sam3_pipeline`, the `yolo26_pipeline` line in `yolo11_pipeline`. A shell command that is not a job (`fruit.py status`, `clips`, `counts`) needs the environment first: `cd sam2_pipeline && source hpcc/activate.sh`.
+
+`fruit.py check` takes a minute or two and needs no queue. On a development node, the job script without `sbatch` runs it right there:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+bash --login hpcc/run.sb check videos/row3.mp4
+```
 
 ## Getting a better model
 

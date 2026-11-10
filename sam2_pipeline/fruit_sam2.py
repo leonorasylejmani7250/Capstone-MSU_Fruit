@@ -1024,7 +1024,7 @@ class LabelEditor(ClipLabels):
 def label(clip=None, size=None, ckpt=None):
     """Open the labelling screen. Pick a clip from the menu, or pass a clip name."""
     clip = clip.name if isinstance(clip, Clip) else clip
-    names = [c for c in clips_table()["clip"]]
+    names = list(clips_table().sort_values("split", key=lambda s: s != "val", kind="stable")["clip"])     # the val clips first
     if not names:
         print("No clips yet: add videos and cut clips first (Steps 1 and 2)."); return
     def menu():
@@ -1392,6 +1392,7 @@ def _ultralytics(text=False):
 
 DETECTOR_SIZES = (256, 384, 512, 768, 1024, 1280, 1536, 1920, 2560, 3840)   # input sizes tried by imgsz="auto" and by check_detectors
 SURE = 0.25                                                                # a box the detector is sure of scores at least this
+KNOWS = 0.8                                                                # on footage a detector knows, its clearest box scores at least this
 NOTHING_FOUND = ("`python fruit.py check <video>` shows what every detector sees in a video at every input size. "
                  "If none of them finds the clusters, label clips of this footage and fine-tune (LABELLING.md).")
 
@@ -2282,12 +2283,18 @@ def check_detectors(video, detectors, frames=6, conf=SURE, max_side=1280):
     trained = [k for k in best if not detectors[k].warn] or list(best)          # a test run never wins
     name = max(trained, key=lambda k: best[k]["sure"]); b = best[name]
     print(f"\npictures and table: {out}")
-    if b["sure"] > 0:
+    picture = f"{_safe(name)}_{int(b['imgsz'])}px.jpg"
+    if b["sure"] > 0 and b["top_score"] >= KNOWS:
         d = detectors[name]
         print(f"Most sure: {name} at {int(b['imgsz'])} px: {b['boxes_per_frame']:.1f} boxes per frame, top score {b['top_score']:.2f}.\n"
-              f"Open {_safe(name)}_{int(b['imgsz'])}px.jpg. Boxes on the clusters: use it,\n"
+              f"Open {picture}. Boxes on the clusters: use it,\n"
               f"  python fruit.py video {_short(video)} --detector {_short(d.weights)}" + (f' --text "{d.text}"' if d.text else "") + "\n"
               "Boxes on leaves, or clusters without a box: label clips of this footage and fine-tune (LABELLING.md).")
+    elif b["sure"] > 0:
+        print(f"Weak: the surest detector, {name} at {int(b['imgsz'])} px, finds {b['boxes_per_frame']:.1f} boxes per frame and none "
+              f"scores above {b['top_score']:.2f}.\nA detector that knows the footage scores {KNOWS:g} or more on its clearest cluster. "
+              f"Open {picture}: expect boxes on leaves.\nThe footage is unlike the photos the detectors learned from (in early-season "
+              "video the clusters are flower clusters, not grapes).\nLabel clips of it and fine-tune (LABELLING.md).")
     else:
         print(f"No detector is sure of anything in this video at any size (highest score {table['top_score'].max():.2f}; sure is "
               f"{max(conf, SURE):g} or more).\nThe footage is unlike the photos they were trained on: label clips of it and fine-tune (LABELLING.md).")

@@ -16,7 +16,7 @@ On the MSU HPCC, from `~/Capstone-MSU_Fruit`. [`hpcc/README.md`](hpcc/README.md)
 
 Two results come out of it, both in `data/results/`: `leaderboard_val.csv` (how good each model is on our labelled clips) and `cluster_counts_by_video.csv` (each model's cluster total for each video).
 
-A model finds nothing in a video: `python fruit.py check <video>`, in `sam2_pipeline/`, shows what every detector sees in it and what to do.
+A model finds nothing in a video: `bash --login hpcc/run.sb check videos/<video>`, in `sam2_pipeline/` on a development node, shows what every detector sees in it and what to do.
 
 ## The pipelines
 

@@ -4,6 +4,8 @@ You draw one box around each grape cluster, once. SAM 2.1 turns the box into an 
 
 ## The rule
 
+A cluster is what the vine carries when the video was shot: early in the season a flower cluster, a small bumpy green bunch on a young shoot; later a bunch of grapes.
+
 1. One cluster, one box. Two clusters that touch are two if you can tell them apart. A cluster cut in two by a leaf, a shoot or a wire is one.
 2. Label every cluster on the row in front of the camera, also the small and the half-hidden ones. Leave out the rows behind it.
 3. A cluster keeps its outline and its number through the whole clip. If an outline jumps to another cluster, fix it.
@@ -36,7 +38,7 @@ Every change is saved at once. Only clips marked done are used.
 
 ## How many
 
-The `val` clips first (the menu says `val` or `train`): at least 8, from at least 2 videos. Every model is scored on them. Then as many `train` clips as you can.
+The `val` clips first (they are at the top of the menu): at least 8, from at least 2 videos. Every model is scored on them. Then as many `train` clips as you can.
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
@@ -48,7 +50,9 @@ shows how many clips are done.
 
 ## A head start
 
-In **Step 3a** tick `DRAFT_LABELS` and run the cell: our YOLO26 boxes the clusters in every clip that has no labels yet. Then open each clip in Step 3b, add the clusters it missed, fix the wrong ones and mark it done.
+When a model already finds the clusters in this footage (`python fruit.py check <video>` shows its boxes on them), let it draft the labels. In **Step 3a** tick `DRAFT_LABELS` and run the cell: the model boxes the clusters in every clip that has no labels yet. Then open each clip in Step 3b, add the clusters it missed, fix the wrong ones and mark it done.
+
+Footage no model has learned, such as early-season video, has no head start at first. Label the val clips and a first batch of train clips by hand and fine-tune (next section). Then set `DRAFT_WEIGHTS` in Step 3a to the fine-tuned detector, `runs/yolo26_grapes_v1/weights/best.pt`, and let it draft the rest.
 
 ## Then
 

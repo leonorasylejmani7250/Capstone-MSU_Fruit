@@ -140,7 +140,7 @@ Three things make a detector silent:
 |---|---|---|
 | The wrong weights: a base model such as `yolo26n-seg.pt`, which has no grape class, or a training run of an epoch or two | The weights line says so when the model loads | Use `yolo26_pipeline/model/best.pt` or a fine-tuned model |
 | The wrong input size. A YOLO trained on photos only sees clusters about 40 to 100 px tall in the image it is given: footage shot closer needs a smaller size, wider shots a larger one | Boxes at some sizes, none at others | Nothing: the default size, `auto`, picks the size at which the detector is most sure |
-| Footage unlike the photos the detector learned from | No size has boxes, or the boxes sit on leaves | Label clips of this footage ([`../LABELLING.md`](../LABELLING.md)) and fine-tune |
+| Footage unlike the photos the detector learned from, such as early-season video, where the clusters are flower clusters | No size has boxes, or a few low-scoring boxes sit on leaves | Label clips of this footage ([`../LABELLING.md`](../LABELLING.md)) and fine-tune |
 
 ## 7. Reading the results
 

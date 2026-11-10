@@ -297,7 +297,7 @@ class LabelEditor(ClipLabels):
 def label(clip=None, size=None, ckpt=None):
     """Open the labelling screen. Pick a clip from the menu, or pass a clip name."""
     clip = clip.name if isinstance(clip, Clip) else clip
-    names = [c for c in clips_table()["clip"]]
+    names = list(clips_table().sort_values("split", key=lambda s: s != "val", kind="stable")["clip"])     # the val clips first
     if not names:
         print("No clips yet: add videos and cut clips first (Steps 1 and 2)."); return
     def menu():
