@@ -2211,13 +2211,17 @@ def count_table():
     return table
 
 def _short(p):
-    """A path as it can be typed on the command line again: inside the project folder or the repository, relative to it."""
+    """A path as it can be typed on the command line again: inside the project folder or the repository, relative
+    to it (also when videos/ is a link to a shared folder); quoted when it holds a space."""
+    import shlex
+    p = Path(p)
     for base in (ROOT, REPO_DIR):
-        try:
-            return str(Path(p).resolve().relative_to(base))
-        except (ValueError, TypeError):
-            pass
-    return str(Path(p).resolve())
+        for a, b in ((Path(os.path.normpath(p.absolute())), base), (p.resolve(), base.resolve() if base else None)):
+            try:
+                return shlex.quote(str(a.relative_to(b)))
+            except (ValueError, TypeError):
+                pass
+    return shlex.quote(str(p.resolve()))
 
 def check_detectors(video, detectors, frames=6, conf=SURE, max_side=1280):
     """Why does a model find nothing in my video? Runs every detector ({name: UltralyticsModel}) on a few frames
