@@ -27,14 +27,18 @@ models:
   - name: yolo26 · trained on WGISD        # yolo26_pipeline/model/best.pt, no fine-tuning on our clips yet
     type: ultralytics          # any Ultralytics weights: YOLO you trained, or YOLOE with a text prompt
     weights: yolo26_pipeline/model/best.pt
-    conf: 0.25
-    imgsz: 512                 # the size it was trained at; at the default 1280 it misses most clusters
+    conf: 0.25                 # keep boxes that score at least this
+    # imgsz: 768               # the detector's input size. Left out: auto, the size at which it is most sure on each clip
 
   - name: yolo11 · trained on WGISD        # yolo11_pipeline/model/best.pt, the October model
     type: ultralytics
     weights: yolo11_pipeline/model/best.pt
     conf: 0.25
-    imgsz: 512
+
+  - name: yolo26 · trained on WGISD → SAM 2.1 base_plus pretrained      # what `python fruit.py video` runs
+    type: detect_then_sam2     # the detector finds clusters every 4th frame, SAM 2.1 segments and follows them
+    size: base_plus
+    detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25}
 
   - name: YOLOE-26m 'grape cluster' · zero-shot
     type: ultralytics
@@ -43,7 +47,7 @@ models:
     conf: 0.2
 
   - name: YOLOE-26m 'grape cluster' → SAM 2.1 base_plus pretrained
-    type: detect_then_sam2     # the detector finds clusters every 4th frame, SAM 2.1 segments and follows them
+    type: detect_then_sam2
     size: base_plus
     detector: {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster, conf: 0.2}
 

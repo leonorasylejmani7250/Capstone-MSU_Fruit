@@ -1,4 +1,5 @@
-"""No-GPU checks: the folders this pipeline points at exist, the video renderer works, the dataset build works.
+"""No-GPU checks: the folders this pipeline points at exist, the video renderer works, the dataset build works,
+a weights file is described and the input size is chosen as documented.
 Run from the pipeline folder:  python -m unittest discover -s tests -v
 """
 from __future__ import annotations
@@ -23,7 +24,7 @@ if 'ultralytics' not in sys.modules:                        # the renderer does 
         sys.modules['ultralytics'] = types.SimpleNamespace(YOLO=object)
 
 from prepare_wgisd import convert   # noqa: E402
-from video import render            # noqa: E402
+from video import pick, render      # noqa: E402
 
 
 class FakeTensor:
@@ -60,6 +61,26 @@ class SmokeTest(unittest.TestCase):
         self.assertEqual(pipeline.RUNS.parent.name, 'runs')
         self.assertEqual(pipeline.RESULTS.parent.name, 'results')
         self.assertEqual(pipeline.RUNS.name, pipeline.NAME)
+
+    def test_weights_are_described(self):
+        trained = {'train_args': {'model': 'yolo26n-seg.pt', 'imgsz': 512, 'epochs': 50},
+                   'train_metrics': {'metrics/mAP50(M)': 0.83}, 'train_results': {'epoch': list(range(50))}}
+        line, warnings, size = pipeline.describe(trained, ['grape_cluster'], 'model/best.pt')
+        self.assertEqual((warnings, size), ([], 512))
+        self.assertIn('50 epoch(s) at 512 px', line)
+        test_run = {'train_args': {'imgsz': 512, 'epochs': 1}, 'train_metrics': {'metrics/mAP50(M)': 0.01},
+                    'train_results': {'epoch': [1]}}
+        self.assertIn('test run', pipeline.describe(test_run, ['grape_cluster'], 'runs/x/weights/best.pt')[1][0])
+        with self.assertRaises(ValueError):                 # a base model has no grape class
+            pipeline.describe({'train_args': {'imgsz': 640}}, ['person', 'bicycle', 'car'], 'yolo26n-seg.pt')
+
+    def test_input_size_is_where_the_model_is_most_sure(self):
+        rows = [{'imgsz': 256, 'sure': 3.0, 'top_score': 0.9}, {'imgsz': 512, 'sure': 9.5, 'top_score': 0.95},
+                {'imgsz': 1280, 'sure': 0.0, 'top_score': 0.2}]
+        self.assertEqual(pick(rows, 768), 512)
+        unsure = [{'imgsz': 256, 'sure': 0.0, 'top_score': 0.1}, {'imgsz': 512, 'sure': 0.0, 'top_score': 0.2}]
+        self.assertEqual(pick(unsure, 768), 512)            # sure of nothing: the size with the top score
+        self.assertEqual(pick([{'imgsz': 256, 'sure': 0.0, 'top_score': 0.0}], 768), 768)       # no box at all
 
     def test_wgisd_conversion(self):
         with tempfile.TemporaryDirectory() as d:

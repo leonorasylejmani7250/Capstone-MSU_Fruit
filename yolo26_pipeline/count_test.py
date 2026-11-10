@@ -9,9 +9,7 @@ import argparse
 import csv
 from pathlib import Path
 
-from ultralytics import YOLO
-
-from pipeline import DATA, MODEL, RESULTS
+from pipeline import DATA, MODEL, RESULTS, load
 
 IMAGE_DIR = DATA / 'wgisd_yolo' / 'images' / 'test'
 
@@ -51,14 +49,14 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
     p.add_argument('--conf', type=float, default=0.25)
-    p.add_argument('--imgsz', type=int, default=512)
+    p.add_argument('--imgsz', type=int, default=None, help='image size (default: the size the model was trained at)')
     args = p.parse_args()
     if not args.model.is_file():
         p.error(f'Missing weights: {args.model}')
     out_dir = RESULTS / 'count_test'
     out_dir.mkdir(parents=True, exist_ok=True)
-    print(f'Using model: {args.model}')
-    model = YOLO(str(args.model))
+    model, trained_size = load(args.model)
+    imgsz = args.imgsz or trained_size or 512
 
     rows = []
     for filename, actual in HAND_COUNTS:
@@ -66,7 +64,7 @@ def main():
         if not image_path.is_file():
             print(f'Missing image: {image_path}')
             continue
-        result = model.predict(source=str(image_path), imgsz=args.imgsz, conf=args.conf, verbose=False)[0]
+        result = model.predict(source=str(image_path), imgsz=imgsz, conf=args.conf, verbose=False)[0]
         predicted = len(result.masks) if result.masks is not None else 0     # one mask per detected cluster
         error = predicted - actual
         rows.append({'image': filename, 'actual_count': actual, 'predicted_count': predicted,

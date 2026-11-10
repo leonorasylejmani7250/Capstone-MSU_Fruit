@@ -13,16 +13,15 @@ import csv
 from pathlib import Path
 
 import torch
-from ultralytics import YOLO
 
-from pipeline import MODEL, RESULTS, RUNS, WGISD
+from pipeline import MODEL, RESULTS, RUNS, WGISD, load
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument('--model', type=Path, nargs='+', default=[MODEL], help='weights to score (default: model/best.pt)')
     p.add_argument('--split', default='test', choices=['val', 'test'])
-    p.add_argument('--imgsz', type=int, default=512, help='the size the model was trained at')
+    p.add_argument('--imgsz', type=int, default=None, help='image size (default: the size each model was trained at)')
     p.add_argument('--batch', type=int, default=2)
     args = p.parse_args()
     if not WGISD.is_file():
@@ -34,11 +33,13 @@ def main():
     rows = []
     for m in args.model:
         tag = m.parents[1].name if m.parent.name == 'weights' else m.parent.name      # runs/<run>/weights/best.pt → <run>
-        metrics = YOLO(str(m)).val(data=str(WGISD), split=args.split, imgsz=args.imgsz, batch=args.batch,
-                                   device=device, workers=0, project=str(RUNS), name=f'eval_{args.split}_{tag}',
-                                   exist_ok=True, plots=len(args.model) == 1)
+        model, trained_size = load(m)
+        imgsz = args.imgsz or trained_size or 512                 # WGISD photos are scored at the size the model learned them at
+        metrics = model.val(data=str(WGISD), split=args.split, imgsz=imgsz, batch=args.batch,
+                            device=device, workers=0, project=str(RUNS), name=f'eval_{args.split}_{tag}',
+                            exist_ok=True, plots=len(args.model) == 1)
         speed = getattr(metrics, 'speed', {}) or {}
-        rows.append({'model': str(m), 'split': args.split, 'imgsz': args.imgsz,
+        rows.append({'model': str(m), 'split': args.split, 'imgsz': imgsz,
                      'box_mAP50': round(metrics.box.map50, 4), 'box_mAP50-95': round(metrics.box.map, 4),
                      'mask_mAP50': round(metrics.seg.map50, 4), 'mask_mAP50-95': round(metrics.seg.map, 4),
                      'mask_precision': round(metrics.seg.mp, 4), 'mask_recall': round(metrics.seg.mr, 4),

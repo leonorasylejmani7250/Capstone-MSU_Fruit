@@ -23,7 +23,7 @@ PROJECT_DIR = ""
 # from source/cells/030_setup.py
 # ====================================================================================================
 #@title B · Install and set up (about a minute)  { display-mode: "form" }
-import os, sys, subprocess, json, time, math, random, shutil, re, glob, io, base64, warnings, functools
+import os, sys, subprocess, json, time, math, random, shutil, re, glob, io, base64, warnings, functools, contextlib, getpass
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -110,6 +110,8 @@ def use_project(root):
     PRED, RUNS        = ROOT / "predictions", ROOT / "runs"
     WEIGHTS, RESULTS  = ROOT / "models", ROOT / "results"
     _META, PROMPTS    = DATA / "clips.json", DATA / "prompts"
+    if DATA.exists() and DATA.stat().st_mode & 0o020:      # a dataset folder its group may write to is shared by a team
+        os.umask(0o002)                                     # (hpcc/share_data.sh): what we create, the others can change
     for _d in (VIDEOS, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS):
         _d.mkdir(parents=True, exist_ok=True)
     return ROOT
@@ -228,10 +230,32 @@ class Clip:
             if stale.name not in keep: stale.unlink()
 
 # ---- the clip table (one small JSON next to the data keeps split + origin of every clip) ----
+@contextlib.contextmanager
+def _meta_lock():
+    """One writer at a time on clips.json, so several people can label in one shared dataset folder."""
+    try:
+        import fcntl
+    except ImportError:                                    # Windows: one user
+        yield; return
+    lock = str(_META) + ".lock"
+    try:
+        f = open(lock, "a")
+    except PermissionError:                                # made by a teammate before the folder was group-writable
+        f = open(lock)
+    with f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
 def _load_meta(): return json.loads(_META.read_text()) if _META.exists() else {}
-def _save_meta(m): _META.write_text(json.dumps(m, indent=1))
+def _save_meta(m):
+    tmp = _META.with_name(f"{_META.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(m, indent=1)); os.replace(tmp, _META)      # a reader never sees a half-written file
 def set_meta(clip, **kw):
-    m = _load_meta(); m.setdefault(clip, {}).update(kw); _save_meta(m)
+    with _meta_lock():
+        m = _load_meta(); m.setdefault(clip, {}).update(kw); _save_meta(m)
 
 _count_cache = {}
 def _count_objects(files):
@@ -430,30 +454,31 @@ def split_clips(val_fraction=0.25, reset=False):
     """Give every clip without a split a 'train' or 'val' tag.
     3+ source videos: whole videos are held out. Fewer: the last clips (in time) of each video are held out.
     Clips that already have a split keep it, so adding videos later never moves a val clip into train."""
-    meta = _load_meta()
-    names = [d.name for d in sorted(IMG.iterdir()) if d.is_dir()]
-    for n in names:
-        meta.setdefault(n, {})
-        if reset: meta[n]["split"] = ""
-    by_src = {}
-    for n in names:
-        by_src.setdefault(meta[n].get("source") or n, []).append(n)
-    count = lambda s: sum(1 for n in names if meta[n].get("split") == s)
-    whole_videos = len(by_src) >= 3                 # a source = one video (clips cut here, or imported frames)
-    for src in sorted(by_src):
-        cl = sorted(by_src[src], key=lambda n: (meta[n].get("start_s") or 0, n))
-        todo = [n for n in cl if not meta[n].get("split")]
-        if not todo: continue
-        already = {meta[n]["split"] for n in cl if meta[n].get("split")}
-        if whole_videos and len(already) <= 1:
-            s = already.pop() if already else (
-                "val" if count("val") < val_fraction * (count("train") + count("val") + len(todo)) else "train")
-            for n in todo: meta[n]["split"] = s
-        else:
-            k = max(1, round(len(cl) * val_fraction)) if len(cl) > 1 else 0
-            for i, n in enumerate(cl):
-                if n in todo: meta[n]["split"] = "val" if i >= len(cl) - k else "train"
-    _save_meta(meta)
+    with _meta_lock():
+        meta = _load_meta()
+        names = [d.name for d in sorted(IMG.iterdir()) if d.is_dir()]
+        for n in names:
+            meta.setdefault(n, {})
+            if reset: meta[n]["split"] = ""
+        by_src = {}
+        for n in names:
+            by_src.setdefault(meta[n].get("source") or n, []).append(n)
+        count = lambda s: sum(1 for n in names if meta[n].get("split") == s)
+        whole_videos = len(by_src) >= 3                 # a source = one video (clips cut here, or imported frames)
+        for src in sorted(by_src):
+            cl = sorted(by_src[src], key=lambda n: (meta[n].get("start_s") or 0, n))
+            todo = [n for n in cl if not meta[n].get("split")]
+            if not todo: continue
+            already = {meta[n]["split"] for n in cl if meta[n].get("split")}
+            if whole_videos and len(already) <= 1:
+                s = already.pop() if already else (
+                    "val" if count("val") < val_fraction * (count("train") + count("val") + len(todo)) else "train")
+                for n in todo: meta[n]["split"] = s
+            else:
+                k = max(1, round(len(cl) * val_fraction)) if len(cl) > 1 else 0
+                for i, n in enumerate(cl):
+                    if n in todo: meta[n]["split"] = "val" if i >= len(cl) - k else "train"
+        _save_meta(meta)
     return "whole videos held out" if whole_videos else "last clips of each video held out"
 
 def set_split(clip, split):
@@ -462,7 +487,8 @@ def set_split(clip, split):
 def delete_clip(clip):
     for d in (IMG / clip, ANN / clip):
         if d.exists(): shutil.rmtree(d)
-    m = _load_meta(); m.pop(clip, None); _save_meta(m)
+    with _meta_lock():
+        m = _load_meta(); m.pop(clip, None); _save_meta(m)
 
 VAL_FRACTION = 0.25          # share of clips (or of whole videos) held out for scoring; Step 2 can change it
 
@@ -726,7 +752,7 @@ class ClipLabels:
         self.ids = lab if lab is not None else np.zeros((self.T, self.H, self.W), np.uint16)
         self.best = np.where(self.ids > 0, 1000, 0).astype(np.float16)   # existing labels keep their pixels
         self.prompts = _load_prompts(self.clip.name)
-        self._model, self._sess, self._undo = (size, ckpt), None, []
+        self._model, self._sess, self._undo, self._mine = (size, ckpt), None, [], False
         self._on_disk = self.ids.copy() if lab is not None else None       # what the label files currently hold
         self.status_now = (_load_meta().get(self.clip.name, {}).get("status") or "draft") if lab is not None else None
 
@@ -829,9 +855,11 @@ class ClipLabels:
         changed = None if self._on_disk is None else {t for t in range(self.T) if not np.array_equal(self.ids[t], self._on_disk[t])}
         self.clip.save_labels(self.ids, only=changed); self._on_disk = self.ids.copy()
         _save_prompts(self.clip.name, self.prompts)
-        if done is not None or self.status_now is None:
+        new_status = done is not None or self.status_now is None
+        if new_status:
             self.status_now = "done" if done else "draft"
-            set_meta(self.clip.name, status=self.status_now)
+        if new_status or not self._mine:                   # the first change also says who is working on the clip
+            set_meta(self.clip.name, status=self.status_now, by=getpass.getuser()); self._mine = True
 
     def render(self, frame, selected=None, width=1100):
         """The frame with labels, the boxes/clicks placed on it, and the selected object outlined in white."""
@@ -993,9 +1021,11 @@ def label(clip=None, size=None, ckpt=None):
     if not names:
         print("No clips yet: add videos and cut clips first (Steps 1 and 2)."); return
     def menu():
-        t = clips_table().set_index("clip")
+        t, meta, me = clips_table().set_index("clip"), _load_meta(), getpass.getuser()
         mark = {"done": "✅ done ", "draft": "✏️ draft", "none": "⬜ to do"}
-        return [(f"{mark[t.loc[n, 'labels']]} · {t.loc[n, 'split'] or '?'} · {n}", n) for n in names]
+        who = lambda n: meta.get(n, {}).get("by")          # in a shared dataset folder: the teammate who labels this clip
+        return [(f"{mark[t.loc[n, 'labels']]} · {t.loc[n, 'split'] or '?'} · {n}" + (f" · {who(n)}" if who(n) not in (None, me) else ""), n)
+                for n in names]
     pick = widgets.Dropdown(options=menu(), value=clip or names[0], description="clip", layout=widgets.Layout(width="620px"))
     box, current = widgets.VBox([pick, widgets.HTML("loading…")]), [None]
     def refresh_menu():
@@ -1017,6 +1047,7 @@ def draft_labels(model, clips=None, overwrite=False):
     t = clips_table()             # never touches clips a person has already approved
     todo = clips or [Clip(n) for n, lab in zip(t["clip"], t["labels"]) if lab == "none" or (overwrite and lab == "draft")]
     model.prepare()
+    empty = 0
     for clip in tqdm(todo, desc="drafting"):
         back = getattr(model, "backward", None)
         if back is not None: model.backward = True          # also label frames before the first detection
@@ -1027,7 +1058,10 @@ def draft_labels(model, clips=None, overwrite=False):
         clip.save_labels(ids)
         _save_prompts(clip.name, getattr(model, "last_prompts", []))
         set_meta(clip.name, status="draft")
+        empty += not ids.any()
     print(f"drafted {len(todo)} clip(s). Next: label() to check each one.")
+    if empty:
+        print(f"⚠️  the detector found nothing in {empty} of them. " + NOTHING_FOUND)
 
 def mark_done(clips):
     """Approve clips from code (for labels you have already checked some other way)."""
@@ -1349,25 +1383,70 @@ def _ultralytics(text=False):
     torch.set_num_threads(threads)                # importing ultralytics lowers the CPU thread count; put it back
     return ultralytics
 
+DETECTOR_SIZES = (256, 384, 512, 768, 1024, 1280, 1536, 1920, 2560, 3840)   # input sizes tried by imgsz="auto" and by check_detectors
+SURE = 0.25                                                                # a box the detector is sure of scores at least this
+NOTHING_FOUND = ("`python fruit.py check <video>` shows what every detector sees in a video at every input size. "
+                 "If none of them finds the clusters, label clips of this footage and fine-tune (LABELLING.md).")
+
+def weights_card(model, weights, text=None):
+    """What an Ultralytics weights file is, read from the file itself: (one line, warnings, the size it was trained at).
+    Two files find no grape cluster however they are run. A base model, which has no grape class, is refused;
+    a training run that was only a test (an epoch or two) gets a warning."""
+    ck = getattr(model, "ckpt", None) or {}
+    ta, tm, tr = ck.get("train_args") or {}, ck.get("train_metrics") or {}, ck.get("train_results") or {}
+    names = [str(n) for n in (getattr(model, "names", None) or {}).values()]
+    label = "/".join(Path(weights).parts[-3:]) if "/" in str(weights) else str(weights)
+    if text:
+        return f"{label}: text prompt '{text if isinstance(text, str) else ', '.join(text)}'", [], None
+    epochs = len(tr.get("epoch") or []) or ta.get("epochs")
+    score = tm.get("metrics/mAP50(M)", tm.get("metrics/mAP50(B)"))
+    ours = len(names) == 1 or any(w in n.lower() for n in names for w in OBJECT_NAME.lower().split())
+    card = f"{label}: " + " · ".join(x for x in (
+        Path(str(ta.get("model") or "")).stem or None,
+        f"{epochs} epoch(s) at {ta.get('imgsz')} px" if epochs and ta.get("imgsz") else None,
+        f"val mAP50 {score:.2f}" if score is not None and ours else None,
+        f"class: {names[0]}" if len(names) == 1 else f"{len(names)} classes") if x)
+    warn = []
+    if not ours:
+        raise ValueError(f"{label} is a base model: it knows {len(names)} classes ({', '.join(names[:3])}, …), none of them a "
+                         f"{OBJECT_NAME}, so whatever it finds is not a {OBJECT_NAME}. Use a trained model "
+                         "(yolo26_pipeline/model/best.pt) or train one (train-detector).")
+    if (epochs and epochs < 5) or (score is not None and score < 0.2):
+        warn.append(f"⚠️  {label} is a test run, not a trained model ({epochs or '?'} epoch(s)"
+                    + (f", val mAP50 {score:.2f}" if score is not None else "") + "): it finds little or nothing on any "
+                    "footage. The trained models are yolo26_pipeline/model/best.pt and yolo11_pipeline/model/best.pt.")
+    return card, warn, (int(ta["imgsz"]) if ours and isinstance(ta.get("imgsz"), (int, float)) else None)
+
 class UltralyticsModel(Model):
-    """Any Ultralytics weights: a YOLO-seg model you trained, or YOLOE with a text prompt (text='grape cluster').
-    Used on its own it is an automatic model (ByteTrack ids); it can also feed boxes to SAM 2 (DetectThenSAM2)."""
+    """Any Ultralytics weights: a YOLO-seg model you trained, or YOLOE with a text prompt (text='grape cluster';
+    only YOLOE weights use a text). `weights` is a file (absolute, or inside the project folder or the repository,
+    e.g. 'yolo26_pipeline/model/best.pt') or a bare Ultralytics name, which is downloaded. Used on its own it is an
+    automatic model (ByteTrack ids); it can also feed boxes to SAM 2 (DetectThenSAM2).
+
+    imgsz is the size the frame is shrunk to before the detector sees it, so it sets how big a cluster looks to
+    the detector. A YOLO trained on photos only finds clusters in a band of sizes (the WGISD models: about 40 to
+    100 px tall; at 250 px they find 3 in 100). imgsz='auto' tries DETECTOR_SIZES on three frames of each clip and
+    uses the size at which the detector is most sure; a number fixes it."""
     tracks = True
-    def __init__(self, weights, text=None, conf=0.25, imgsz=1280, tracker="bytetrack.yaml"):
-        self.weights, self.text, self.conf, self.imgsz, self.tracker = str(weights), text, conf, imgsz, tracker
-        self._m = None
+    def __init__(self, weights, text=None, conf=0.25, imgsz="auto", tracker="bytetrack.yaml"):
+        here = _project_path(weights) if "ROOT" in globals() else Path(weights)
+        self.weights, self.text, self.conf, self.tracker = str(here if here.exists() else weights), text, conf, tracker
+        self.imgsz = imgsz if imgsz == "auto" else int(imgsz)
+        self._m, self._size, self.trained_size, self.card, self.warn, self.tried = None, None, None, "", [], None
     @property
     def model(self):
         if self._m is None:
             ul = _ultralytics(text=bool(self.text))
-            print(f"loading {Path(self.weights).name} (downloaded on first use) …")
             with contextlib.redirect_stdout(io.StringIO()):          # hides the download progress bars
-                if self.text:
+                m = ul.YOLOE(self.weights) if self.text else ul.YOLO(self.weights)
+                if self.text and hasattr(m.model, "get_text_pe"):
                     names = [self.text] if isinstance(self.text, str) else list(self.text)
-                    self._m = ul.YOLOE(self.weights)
-                    self._m.set_classes(names, self._m.get_text_pe(names))
-                else:
-                    self._m = ul.YOLO(self.weights)
+                    m.set_classes(names, m.get_text_pe(names))
+                elif self.text:                                      # trained weights have their own class: no text
+                    m, self.text = ul.YOLO(self.weights), None
+            self.card, self.warn, self.trained_size = weights_card(m, self.weights, self.text)
+            self._m = m
+            print("\n".join(["detector " + self.card, *self.warn]))
         return self._m
     def prepare(self):
         self.model
@@ -1396,15 +1475,47 @@ class UltralyticsModel(Model):
             for i, (x0, y0, x1, y1) in enumerate(boxes.round().astype(int)):
                 masks[i, max(y0, 0):y1, max(x0, 0):x1] = True
         return boxes, scores, masks, ids
-    def detect(self, img):
+    def sweep(self, frames, sizes=None, conf=None):
+        """The detector on a few RGB frames at several input sizes. One row per size: boxes per frame at `conf`,
+        the top score, how tall those boxes are in the pixels the detector sees, and `sure`: the summed scores of
+        the boxes it is sure of (SURE or more), which is what imgsz='auto' maximises. Only the 60 most confident
+        boxes of a frame are looked at: every box costs a full-size mask, and a weak model makes hundreds."""
+        conf = self.conf if conf is None else conf
+        full = int(math.ceil(max(max(f.shape[:2]) for f in frames) / 32) * 32)
+        rows = []
+        for size in sorted(set(sizes or [s for s in DETECTOR_SIZES if s < full] + [full])):
+            scores, tall = [], []
+            for f in frames:
+                r = self.model.predict(f[..., ::-1], conf=min(conf, 0.05), imgsz=size, max_det=60, verbose=False)[0]
+                if r.boxes is None or not len(r.boxes): continue
+                sc, b = r.boxes.conf.cpu().numpy(), r.boxes.xyxy.cpu().numpy()
+                scores.append(sc); tall.append((b[:, 3] - b[:, 1])[sc >= conf] * size / max(f.shape[:2]))
+            sc, tall = np.concatenate(scores or [np.zeros(0)]), np.concatenate(tall or [np.zeros(0)])
+            rows.append(dict(imgsz=size, boxes_per_frame=float((sc >= conf).sum()) / len(frames),
+                             top_score=float(sc.max()) if len(sc) else 0.0, sure=float(sc[sc >= max(conf, SURE)].sum()),
+                             box_height_px=float(np.median(tall)) if len(tall) else np.nan))
+        return pd.DataFrame(rows)
+    def fit(self, clip):
+        """The input size for this clip (a Clip, or a list of RGB frames). A number in imgsz: that number.
+        imgsz='auto': the size at which the detector is most sure on three frames of the clip (the first, the
+        middle, the last); sure of nothing at any size: the size with the highest score."""
+        if self.imgsz != "auto":
+            self._size = int(self.imgsz); return self._size
+        frames = clip if isinstance(clip, (list, tuple)) else [clip.image(t) for t in sorted({0, len(clip) // 2, len(clip) - 1})]
+        t = self.tried = self.sweep(frames)
+        best = t.loc[(t["sure"] if t["sure"].max() > 0 else t["top_score"]).idxmax()]
+        self._size = int(best["imgsz"]) if best["top_score"] > 0 else int(self.trained_size or 1280)
+        return self._size
+    def detect(self, img, conf=None, imgsz=None):
         """One RGB frame → (boxes [N,4] x0,y0,x1,y1, scores [N], masks [N,H,W])."""
-        r = self.model.predict(img[..., ::-1], conf=self.conf, imgsz=self.imgsz, retina_masks=True, verbose=False)[0]
+        size = imgsz or self._size or self.fit([img])
+        r = self.model.predict(img[..., ::-1], conf=self.conf if conf is None else conf, imgsz=size, retina_masks=True, verbose=False)[0]
         return self._unpack(r, img.shape[:2])[:3]
     def predict(self, clip, prompts=None):
         T = len(clip); H, W = clip.hw
-        out, remap, tracker = np.zeros((T, H, W), np.uint16), {}, self._tracker_file()
+        out, remap, tracker, size = np.zeros((T, H, W), np.uint16), {}, self._tracker_file(), self.fit(clip)
         for t in range(T):
-            r = self.model.track(clip.image(t)[..., ::-1], persist=t > 0, conf=self.conf, imgsz=self.imgsz,
+            r = self.model.track(clip.image(t)[..., ::-1], persist=t > 0, conf=self.conf, imgsz=size,
                                  tracker=tracker, retina_masks=True, verbose=False)[0]
             boxes, scores, masks, ids = self._unpack(r, (H, W))
             if ids is None: continue
@@ -1432,6 +1543,7 @@ class DetectThenSAM2(Model):
         sess = Sam2Session(load_sam2(self.size, self.ckpt), clip)
         ids = np.zeros((sess.T, sess.H, sess.W), np.uint16); best = np.zeros(ids.shape, np.float16)
         made = []
+        if hasattr(self.detector, "fit"): self.detector.fit(clip)          # imgsz="auto": the input size for this clip
         for t in range(0, sess.T, self.every):
             boxes, scores, _ = self.detector.detect(clip.image(t))
             known = [(s[1].start, s[0].start, s[1].stop, s[0].stop) for s in ndimage.find_objects(ids[t]) if s is not None]
@@ -1673,6 +1785,9 @@ def benchmark(models, split="val", clips=None):
         new.to_csv(fd, index=False)
     print(f"scored on {len(clips)} {split} clip(s), {sum(len(c) for c in clips)} frames · table saved to {f}")
     show_board(board)
+    silent = [n for n, d in details.items() if "n_pred" in d and not d["n_pred"].sum()]
+    if silent:
+        print("\n⚠️  found nothing on any clip: " + "; ".join(silent) + ".\n" + NOTHING_FOUND)
     own = [c.name for c in clips if _load_prompts(c.name)]
     if own and len(board) and (board["kind"] == "prompted").any():
         print(f"\n⚠️  {len(own)} of these {len(clips)} clips were labelled with SAM 2.1's help (labelling screen or box imports), so SAM 2.1 is partly being "
@@ -1964,6 +2079,12 @@ def run_on_video(model, video, start_s=0, seconds=10, fps=6, max_side=1280, chun
     cap.release()
     assert n > 0, "no frames could be read from that part of the video"
     model.prepare()
+    det = getattr(model, "detector", model)
+    auto = getattr(det, "imgsz", None) == "auto"
+    if auto:                                                  # one detector input size for the whole stretch
+        det.imgsz = det.fit([cv2.cvtColor(cv2.imread(str(work / "all" / f"{t:05d}.jpg")), cv2.COLOR_BGR2RGB)
+                             for t in sorted({int(t) for t in np.linspace(0, n - 1, 5)})])
+        print(f"detector input size: {det.imgsz} px, where it is most sure (tried {', '.join(str(v) for v in det.tried['imgsz'])})")
     tracks, per_frame, state = {}, [], dict(last=None, next_id=1)
 
     def overlays():
@@ -2003,11 +2124,87 @@ def run_on_video(model, video, start_s=0, seconds=10, fps=6, max_side=1280, chun
             start = stop - 1
 
     (RESULTS / "sam2").mkdir(parents=True, exist_ok=True)           # the SAM 2.1 pipeline's own video runs
-    out = write_video(overlays(), RESULTS / "sam2" / f"overlay_{_safe(video.stem)}_{int(start_s)}s.mp4", fps=info["fps"] / stride)
+    try:
+        out = write_video(overlays(), RESULTS / "sam2" / f"overlay_{_safe(video.stem)}_{int(start_s)}s.mp4", fps=info["fps"] / stride)
+    finally:
+        if auto: det.imgsz = "auto"
     counts = pd.DataFrame(per_frame)
     tr = pd.DataFrame(list(tracks.values()), columns=["object", "first_frame", "last_frame", "frames"])
     tr = tr[tr["frames"] >= min_track_frames].reset_index(drop=True)
     counts.to_csv(out.with_suffix(".counts.csv"), index=False); tr.to_csv(out.with_suffix(".tracks.csv"), index=False)
     print(f"{n} frames · {counts['objects_in_view'].mean():.1f} objects in view on average · "
           f"{len(tr)} distinct objects seen in at least {min_track_frames} frames\noverlay: {out}")
+    if not counts["objects_in_view"].sum():
+        print("⚠️  nothing found in this stretch. " + NOTHING_FOUND)
     return out, counts, tr
+
+def _short(p):
+    """A path as it can be typed on the command line again: inside the project folder or the repository, relative to it."""
+    for base in (ROOT, REPO_DIR):
+        try:
+            return str(Path(p).resolve().relative_to(base))
+        except (ValueError, TypeError):
+            pass
+    return str(Path(p).resolve())
+
+def check_detectors(video, detectors, frames=6, conf=SURE, max_side=1280):
+    """Why does a model find nothing in my video? Runs every detector ({name: UltralyticsModel}) on a few frames
+    spread over the video, at every input size, and says which detector and size to use, or that none works.
+    Frames are shrunk to `max_side` first, as `clips` and `video` do. Writes results/check/<video>/: check.csv
+    and one picture per detector (its boxes on the frames, at its best size). Returns the table."""
+    video = Path(video); info = probe_video(video)
+    assert info and info["fps"], f"cannot read {video}"
+    cap, imgs = cv2.VideoCapture(str(video)), []
+    for sec in np.linspace(0, info["seconds"], frames + 2)[1:-1]:
+        cap.set(cv2.CAP_PROP_POS_MSEC, sec * 1000); ok, bgr = cap.read()
+        if not ok: continue
+        sc = max_side / max(bgr.shape[:2]) if max_side else 1
+        if sc < 1: bgr = cv2.resize(bgr, None, fx=sc, fy=sc, interpolation=cv2.INTER_AREA)
+        imgs.append(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
+    cap.release()
+    assert imgs, f"no frames could be read from {video}"
+    out = RESULTS / "check" / _safe(video.stem)
+    shutil.rmtree(out, ignore_errors=True); out.mkdir(parents=True)
+    print(f"{video.name}: {info['width']}×{info['height']}, {info['seconds']:.0f} s · {len(imgs)} frames, "
+          f"seen at {imgs[0].shape[1]}×{imgs[0].shape[0]} · a box counts from a score of {conf:g}")
+    tables, best = [], {}
+    for name, det in detectors.items():
+        try:
+            det.prepare()
+            t = det.sweep(imgs, conf=conf)
+            b = best[name] = t.loc[(t["sure"] if t["sure"].max() > 0 else t["top_score"]).idxmax()]
+            tiles = []
+            for im in imgs:                                   # the picture: this detector's boxes at its best size
+                boxes, scores, _ = det.detect(im, conf=conf, imgsz=int(b["imgsz"]))
+                tile = np.ascontiguousarray(im[..., ::-1])
+                for (x0, y0, x1, y1), s_ in zip(boxes.round().astype(int), scores):
+                    cv2.rectangle(tile, (x0, y0), (x1, y1), (0, 230, 255), 3)
+                    cv2.putText(tile, f"{s_:.2f}", (x0 + 4, max(y0 + 24, 24)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 5, cv2.LINE_AA)
+                    cv2.putText(tile, f"{s_:.2f}", (x0 + 4, max(y0 + 24, 24)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 230, 255), 2, cv2.LINE_AA)
+                tiles.append(cv2.resize(tile, (640, round(640 * tile.shape[0] / tile.shape[1])), interpolation=cv2.INTER_AREA))
+            tiles += [np.zeros_like(tiles[0])] * (-len(tiles) % 3)
+            cv2.imwrite(str(out / f"{_safe(name)}_{int(b['imgsz'])}px.jpg"),
+                        np.concatenate([np.concatenate(tiles[i:i + 3], axis=1) for i in range(0, len(tiles), 3)]))
+            tables.append(t.assign(detector=name))
+        except Exception as e:                                # one detector that cannot load does not stop the others
+            print(f"✗ {name}: {type(e).__name__}: {str(e)[:200]}")
+    if not tables:
+        raise RuntimeError("no detector could be run")
+    table = pd.concat(tables, ignore_index=True)[["detector", "imgsz", "boxes_per_frame", "top_score", "box_height_px", "sure"]]
+    table.to_csv(out / "check.csv", index=False)
+    show = table.assign(cell=[f"{b_:.1f} ({s_:.2f})" for b_, s_ in zip(table["boxes_per_frame"], table["top_score"])])
+    print("\nboxes per frame (top score), by the detector's input size:")
+    print(show.pivot(index="imgsz", columns="detector", values="cell")[list(best)].to_string())
+    trained = [k for k in best if not detectors[k].warn] or list(best)          # a test run never wins
+    name = max(trained, key=lambda k: best[k]["sure"]); b = best[name]
+    print(f"\npictures and table: {out}")
+    if b["sure"] > 0:
+        d = detectors[name]
+        print(f"Most sure: {name} at {int(b['imgsz'])} px: {b['boxes_per_frame']:.1f} boxes per frame, top score {b['top_score']:.2f}.\n"
+              f"Open {_safe(name)}_{int(b['imgsz'])}px.jpg. Boxes on the clusters: use it,\n"
+              f"  python fruit.py video {_short(video)} --detector {_short(d.weights)}" + (f' --text "{d.text}"' if d.text else "") + "\n"
+              "Boxes on leaves, or clusters without a box: label clips of this footage and fine-tune (LABELLING.md).")
+    else:
+        print(f"No detector is sure of anything in this video at any size (highest score {table['top_score'].max():.2f}; sure is "
+              f"{max(conf, SURE):g} or more).\nThe footage is unlike the photos they were trained on: label clips of it and fine-tune (LABELLING.md).")
+    return table

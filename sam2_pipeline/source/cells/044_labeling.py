@@ -25,7 +25,7 @@ class ClipLabels:
         self.ids = lab if lab is not None else np.zeros((self.T, self.H, self.W), np.uint16)
         self.best = np.where(self.ids > 0, 1000, 0).astype(np.float16)   # existing labels keep their pixels
         self.prompts = _load_prompts(self.clip.name)
-        self._model, self._sess, self._undo = (size, ckpt), None, []
+        self._model, self._sess, self._undo, self._mine = (size, ckpt), None, [], False
         self._on_disk = self.ids.copy() if lab is not None else None       # what the label files currently hold
         self.status_now = (_load_meta().get(self.clip.name, {}).get("status") or "draft") if lab is not None else None
 
@@ -128,9 +128,11 @@ class ClipLabels:
         changed = None if self._on_disk is None else {t for t in range(self.T) if not np.array_equal(self.ids[t], self._on_disk[t])}
         self.clip.save_labels(self.ids, only=changed); self._on_disk = self.ids.copy()
         _save_prompts(self.clip.name, self.prompts)
-        if done is not None or self.status_now is None:
+        new_status = done is not None or self.status_now is None
+        if new_status:
             self.status_now = "done" if done else "draft"
-            set_meta(self.clip.name, status=self.status_now)
+        if new_status or not self._mine:                   # the first change also says who is working on the clip
+            set_meta(self.clip.name, status=self.status_now, by=getpass.getuser()); self._mine = True
 
     def render(self, frame, selected=None, width=1100):
         """The frame with labels, the boxes/clicks placed on it, and the selected object outlined in white."""
@@ -292,9 +294,11 @@ def label(clip=None, size=None, ckpt=None):
     if not names:
         print("No clips yet: add videos and cut clips first (Steps 1 and 2)."); return
     def menu():
-        t = clips_table().set_index("clip")
+        t, meta, me = clips_table().set_index("clip"), _load_meta(), getpass.getuser()
         mark = {"done": "✅ done ", "draft": "✏️ draft", "none": "⬜ to do"}
-        return [(f"{mark[t.loc[n, 'labels']]} · {t.loc[n, 'split'] or '?'} · {n}", n) for n in names]
+        who = lambda n: meta.get(n, {}).get("by")          # in a shared dataset folder: the teammate who labels this clip
+        return [(f"{mark[t.loc[n, 'labels']]} · {t.loc[n, 'split'] or '?'} · {n}" + (f" · {who(n)}" if who(n) not in (None, me) else ""), n)
+                for n in names]
     pick = widgets.Dropdown(options=menu(), value=clip or names[0], description="clip", layout=widgets.Layout(width="620px"))
     box, current = widgets.VBox([pick, widgets.HTML("loading…")]), [None]
     def refresh_menu():
@@ -316,6 +320,7 @@ def draft_labels(model, clips=None, overwrite=False):
     t = clips_table()             # never touches clips a person has already approved
     todo = clips or [Clip(n) for n, lab in zip(t["clip"], t["labels"]) if lab == "none" or (overwrite and lab == "draft")]
     model.prepare()
+    empty = 0
     for clip in tqdm(todo, desc="drafting"):
         back = getattr(model, "backward", None)
         if back is not None: model.backward = True          # also label frames before the first detection
@@ -326,7 +331,10 @@ def draft_labels(model, clips=None, overwrite=False):
         clip.save_labels(ids)
         _save_prompts(clip.name, getattr(model, "last_prompts", []))
         set_meta(clip.name, status="draft")
+        empty += not ids.any()
     print(f"drafted {len(todo)} clip(s). Next: label() to check each one.")
+    if empty:
+        print(f"⚠️  the detector found nothing in {empty} of them. " + NOTHING_FOUND)
 
 def mark_done(clips):
     """Approve clips from code (for labels you have already checked some other way)."""

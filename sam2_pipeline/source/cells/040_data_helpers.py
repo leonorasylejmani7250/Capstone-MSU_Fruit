@@ -71,10 +71,32 @@ class Clip:
             if stale.name not in keep: stale.unlink()
 
 # ---- the clip table (one small JSON next to the data keeps split + origin of every clip) ----
+@contextlib.contextmanager
+def _meta_lock():
+    """One writer at a time on clips.json, so several people can label in one shared dataset folder."""
+    try:
+        import fcntl
+    except ImportError:                                    # Windows: one user
+        yield; return
+    lock = str(_META) + ".lock"
+    try:
+        f = open(lock, "a")
+    except PermissionError:                                # made by a teammate before the folder was group-writable
+        f = open(lock)
+    with f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
 def _load_meta(): return json.loads(_META.read_text()) if _META.exists() else {}
-def _save_meta(m): _META.write_text(json.dumps(m, indent=1))
+def _save_meta(m):
+    tmp = _META.with_name(f"{_META.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(m, indent=1)); os.replace(tmp, _META)      # a reader never sees a half-written file
 def set_meta(clip, **kw):
-    m = _load_meta(); m.setdefault(clip, {}).update(kw); _save_meta(m)
+    with _meta_lock():
+        m = _load_meta(); m.setdefault(clip, {}).update(kw); _save_meta(m)
 
 _count_cache = {}
 def _count_objects(files):
@@ -273,30 +295,31 @@ def split_clips(val_fraction=0.25, reset=False):
     """Give every clip without a split a 'train' or 'val' tag.
     3+ source videos: whole videos are held out. Fewer: the last clips (in time) of each video are held out.
     Clips that already have a split keep it, so adding videos later never moves a val clip into train."""
-    meta = _load_meta()
-    names = [d.name for d in sorted(IMG.iterdir()) if d.is_dir()]
-    for n in names:
-        meta.setdefault(n, {})
-        if reset: meta[n]["split"] = ""
-    by_src = {}
-    for n in names:
-        by_src.setdefault(meta[n].get("source") or n, []).append(n)
-    count = lambda s: sum(1 for n in names if meta[n].get("split") == s)
-    whole_videos = len(by_src) >= 3                 # a source = one video (clips cut here, or imported frames)
-    for src in sorted(by_src):
-        cl = sorted(by_src[src], key=lambda n: (meta[n].get("start_s") or 0, n))
-        todo = [n for n in cl if not meta[n].get("split")]
-        if not todo: continue
-        already = {meta[n]["split"] for n in cl if meta[n].get("split")}
-        if whole_videos and len(already) <= 1:
-            s = already.pop() if already else (
-                "val" if count("val") < val_fraction * (count("train") + count("val") + len(todo)) else "train")
-            for n in todo: meta[n]["split"] = s
-        else:
-            k = max(1, round(len(cl) * val_fraction)) if len(cl) > 1 else 0
-            for i, n in enumerate(cl):
-                if n in todo: meta[n]["split"] = "val" if i >= len(cl) - k else "train"
-    _save_meta(meta)
+    with _meta_lock():
+        meta = _load_meta()
+        names = [d.name for d in sorted(IMG.iterdir()) if d.is_dir()]
+        for n in names:
+            meta.setdefault(n, {})
+            if reset: meta[n]["split"] = ""
+        by_src = {}
+        for n in names:
+            by_src.setdefault(meta[n].get("source") or n, []).append(n)
+        count = lambda s: sum(1 for n in names if meta[n].get("split") == s)
+        whole_videos = len(by_src) >= 3                 # a source = one video (clips cut here, or imported frames)
+        for src in sorted(by_src):
+            cl = sorted(by_src[src], key=lambda n: (meta[n].get("start_s") or 0, n))
+            todo = [n for n in cl if not meta[n].get("split")]
+            if not todo: continue
+            already = {meta[n]["split"] for n in cl if meta[n].get("split")}
+            if whole_videos and len(already) <= 1:
+                s = already.pop() if already else (
+                    "val" if count("val") < val_fraction * (count("train") + count("val") + len(todo)) else "train")
+                for n in todo: meta[n]["split"] = s
+            else:
+                k = max(1, round(len(cl) * val_fraction)) if len(cl) > 1 else 0
+                for i, n in enumerate(cl):
+                    if n in todo: meta[n]["split"] = "val" if i >= len(cl) - k else "train"
+        _save_meta(meta)
     return "whole videos held out" if whole_videos else "last clips of each video held out"
 
 def set_split(clip, split):
@@ -305,7 +328,8 @@ def set_split(clip, split):
 def delete_clip(clip):
     for d in (IMG / clip, ANN / clip):
         if d.exists(): shutil.rmtree(d)
-    m = _load_meta(); m.pop(clip, None); _save_meta(m)
+    with _meta_lock():
+        m = _load_meta(); m.pop(clip, None); _save_meta(m)
 
 VAL_FRACTION = 0.25          # share of clips (or of whole videos) held out for scoring; Step 2 can change it
 

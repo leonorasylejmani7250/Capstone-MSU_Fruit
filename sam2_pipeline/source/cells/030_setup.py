@@ -1,5 +1,5 @@
 #@title B · Install and set up (about a minute)  { display-mode: "form" }
-import os, sys, subprocess, json, time, math, random, shutil, re, glob, io, base64, warnings, functools
+import os, sys, subprocess, json, time, math, random, shutil, re, glob, io, base64, warnings, functools, contextlib, getpass
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -86,6 +86,8 @@ def use_project(root):
     PRED, RUNS        = ROOT / "predictions", ROOT / "runs"
     WEIGHTS, RESULTS  = ROOT / "models", ROOT / "results"
     _META, PROMPTS    = DATA / "clips.json", DATA / "prompts"
+    if DATA.exists() and DATA.stat().st_mode & 0o020:      # a dataset folder its group may write to is shared by a team
+        os.umask(0o002)                                     # (hpcc/share_data.sh): what we create, the others can change
     for _d in (VIDEOS, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS):
         _d.mkdir(parents=True, exist_ok=True)
     return ROOT

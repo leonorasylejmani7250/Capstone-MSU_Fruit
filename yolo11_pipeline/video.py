@@ -6,6 +6,8 @@
     python video.py --video ../data/videos/row3.mp4 --mode track               ByteTrack ids across frames
 
 --mode detect draws every cluster the model finds in each frame; --mode track adds ByteTrack ids across frames.
+--imgsz is the size a frame is shrunk to before the model sees it, so it sets how big a cluster looks to the model.
+The default, auto, tries every size on five frames of the video and uses the one at which the model is most sure.
 """
 from __future__ import annotations
 
@@ -16,9 +18,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
-from ultralytics import YOLO
 
-from pipeline import MODEL, RESULTS
+from pipeline import MODEL, RESULTS, load
 
 
 def color_for_id(identifier: int) -> tuple[int, int, int]:
@@ -119,6 +120,52 @@ def find_videos(folder: Path) -> list[Path]:
     return found
 
 
+SIZES = (256, 384, 512, 768, 1024, 1280, 1536, 1920, 2560, 3840)   # the input sizes --imgsz auto tries
+SURE = 0.25                                                        # a box the model is sure of scores at least this
+
+
+def sample_frames(video: Path, start_sec: float, max_frames: int, count: int = 5) -> list[np.ndarray]:
+    """A few frames spread over the stretch of the video that will be processed."""
+    cap = cv2.VideoCapture(str(video))
+    first = int(start_sec * (cap.get(cv2.CAP_PROP_FPS) or 0))
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    last = min(total, first + max_frames) if max_frames else total
+    frames = []
+    for i in sorted({int(i) for i in np.linspace(first, max(first, last - 1), count)}):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+        ok, frame = cap.read()
+        if ok:
+            frames.append(frame)
+    cap.release()
+    return frames
+
+
+def sweep(model, frames: list[np.ndarray], conf: float, device) -> list[dict]:
+    """The model on the frames at every input size up to their own. One row per size: boxes per frame at `conf`,
+    the top score, and `sure`, the summed scores of the boxes that score SURE or more. Only the 60 most confident
+    boxes of a frame are looked at: every box costs a full-size mask, and a weak model makes hundreds."""
+    full = int(np.ceil(max(max(f.shape[:2]) for f in frames) / 32) * 32)
+    rows = []
+    for size in [s for s in SIZES if s < full] + [full]:
+        scores = [np.zeros(0)]
+        for frame in frames:
+            boxes = model.predict(source=frame, conf=min(conf, 0.05), imgsz=size, max_det=60, device=device, verbose=False)[0].boxes
+            if boxes is not None and len(boxes):
+                scores.append(boxes.conf.float().cpu().numpy())
+        scores = np.concatenate(scores)
+        rows.append({'imgsz': size, 'boxes_per_frame': float((scores >= conf).sum()) / len(frames),
+                     'top_score': float(scores.max()) if len(scores) else 0.0,
+                     'sure': float(scores[scores >= max(conf, SURE)].sum())})
+    return rows
+
+
+def pick(rows: list[dict], fallback: int) -> int:
+    """The size at which the model is most sure. Sure of nothing at any size: the size with the top score.
+    Not one box at any size: `fallback`."""
+    best = max(rows, key=lambda r: (r['sure'], r['top_score']))
+    return best['imgsz'] if best['top_score'] > 0 else fallback
+
+
 def process(video: Path, model, args, output: Path) -> None:
     """One video → annotated video at `output` and a per-frame CSV next to it."""
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -142,8 +189,15 @@ def process(video: Path, model, args, output: Path) -> None:
         raise RuntimeError(f'Unable to create {output}')
     seen_ids: set[int] = set()
     csv_path = output.with_suffix('.csv')
-    processed = 0
+    processed = found = 0
     device = 0 if torch.cuda.is_available() else 'cpu'
+    size = args.imgsz
+    if size == 'auto':
+        rows = sweep(model, sample_frames(video, args.start_sec, args.max_frames), args.conf, device)
+        size = pick(rows, args.trained_size or 768)
+        print('imgsz  boxes per frame  top score')
+        for r in rows:
+            print(f"{r['imgsz']:5}  {r['boxes_per_frame']:15.1f}  {r['top_score']:9.2f}" + ('   <- used' if r['imgsz'] == size else ''))
     try:
         with csv_path.open('w', newline='', encoding='utf-8') as file:
             log = csv.writer(file)
@@ -152,7 +206,7 @@ def process(video: Path, model, args, output: Path) -> None:
                 ok, frame = cap.read()
                 if not ok:
                     break
-                kwargs = dict(source=frame, conf=args.conf, imgsz=args.imgsz,
+                kwargs = dict(source=frame, conf=args.conf, imgsz=size,
                               device=device, verbose=False, retina_masks=True)
                 if args.mode == 'track':
                     result = model.track(**kwargs, persist=True, tracker=args.tracker)[0]
@@ -161,6 +215,7 @@ def process(video: Path, model, args, output: Path) -> None:
                 rendered, visible, tracked = render(frame, result, seen_ids, args.conf, args.mode)
                 writer.write(rendered)
                 processed += 1
+                found += visible
                 log.writerow([processed, visible, tracked, len(seen_ids)])
                 if processed % 30 == 0:
                     print(f'Frame {processed} | visible={visible}, tracked={tracked}, IDs seen={len(seen_ids)}', flush=True)
@@ -169,6 +224,10 @@ def process(video: Path, model, args, output: Path) -> None:
         cap.release()
     print(f'Saved {processed} frames: {output}')
     print(f'Per-frame CSV: {csv_path}')
+    if processed and not found:
+        print('No clusters found. ' + ('The model is sure of nothing in this video at any input size: the footage is unlike the '
+                                       'photos it was trained on. Label clips of it and fine-tune (../LABELLING.md).'
+                                       if args.imgsz == 'auto' else 'Leave --imgsz out: the default tries every input size.'), flush=True)
 
 
 def main():
@@ -181,19 +240,20 @@ def main():
                    help='annotated video, or with --video-dir the output folder (default: ../data/results/<pipeline>/[<folder name>/]<video name>_<mode>.mp4)')
     p.add_argument('--mode', choices=['detect', 'track'], default='detect')
     p.add_argument('--conf', type=float, default=0.30)
-    p.add_argument('--imgsz', type=int, default=768)
+    p.add_argument('--imgsz', type=lambda v: v if v == 'auto' else int(v), default='auto',
+                   help='input size: auto (the size at which the model is most sure on this video) or a number')
     p.add_argument('--max-frames', type=int, default=300, help='0 means the entire video (always 0 with --video-dir)')
     p.add_argument('--start-sec', type=float, default=0.)
     p.add_argument('--tracker', default='bytetrack.yaml')
     p.add_argument('--overwrite', action='store_true', help='with --video-dir: redo videos that already have an output')
     args = p.parse_args()
-    if not 0 < args.conf <= 1 or args.imgsz < 160:
+    if not 0 < args.conf <= 1 or (args.imgsz != 'auto' and args.imgsz < 160):
         p.error('Require confidence in (0,1] and imgsz >=160')
     if not args.model.is_file():
         p.error(f'Missing weights: {args.model}')
     if args.start_sec < 0 or args.max_frames < 0:
         p.error('start-sec and max-frames must be nonnegative')
-    model = YOLO(str(args.model))
+    model, args.trained_size = load(args.model)
 
     if args.video:
         if not args.video.is_file():

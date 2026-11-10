@@ -9,8 +9,8 @@ computer with the environment from hpcc/setup_env.sh. It runs the same code as t
   python fruit.py import-yolo export/images export/labels            YOLO outlines or boxes
   python fruit.py train --run grapes_v1 --steps 3000                 fine-tune SAM 2.1 (Meta's trainer)
   python fruit.py evaluate --lineup configs/lineup.yaml              score every model on the val clips
-  python fruit.py video videos/row3.mp4 --seconds 30 --weights models/sam2.1_base_plus_grapes_v1.pt
-  python fruit.py video videos/row3.mp4 --detector-weights-trained yolo26_pipeline/model/best.pt --detector-imgsz 512
+  python fruit.py video videos/row3.mp4 --seconds 30                 our YOLO26 finds the clusters, SAM 2.1 follows them
+  python fruit.py check videos/row3.mp4                              a model finds nothing: which detector and size see this video
   python fruit.py train-detector --base yolo26_pipeline/model/best.pt   fine-tune our YOLO26 on the same labels
   python fruit.py approve --all-drafts                               accept drafted labels unchecked
   python fruit.py export-yolo                                        labels out as a YOLO dataset
@@ -22,7 +22,7 @@ Options for every command (--project, --size) can go before or after the command
 --size to $SAM2_SIZE, else base_plus. `evaluate` scores the lineup plus every model it finds in the project:
 SAM 2.1 weights in model/ (the ones the team ships) and in the project's models/, the detectors that
 train-detector wrote to the project's runs/, and the SAM 3 / SAM 3.1 masks in predictions/ (each folder with a
-recipe.json). `video` uses the newest SAM 2.1 weights in model/.
+recipe.json). `video` uses the YOLO26 in yolo26_pipeline/model/ and the newest SAM 2.1 weights in model/.
 """
 import argparse
 import os
@@ -204,18 +204,25 @@ def cmd_evaluate(F, a):
             F.compare(c, names)
 
 
+def _video(F, name):
+    """A video typed on the command line: a path, or one inside the project folder (videos/row3.mp4)."""
+    video = here(name)
+    if not video.exists():
+        video = F._project_path(name)
+    if not video.exists():
+        sys.exit(f"cannot find {name}")
+    return video
+
+
+def _detector(F, weights, text, **args):
+    """Detector weights typed on the command line: a file (here, in the project or in the repository) or a bare
+    Ultralytics name, which is downloaded. Only YOLOE weights use the text."""
+    return F.UltralyticsModel(here(weights) if here(weights).exists() else weights, text=text or None, **args)
+
+
 def cmd_video(F, a):
-    video = here(a.video)
-    if not video.exists():
-        video = F._project_path(a.video)          # e.g. videos/row3.mp4 inside the project folder
-    if not video.exists():
-        sys.exit(f"cannot find {a.video}")
-    if a.detector_weights_trained:
-        w = a.detector_weights_trained
-        w = here(w) if here(w).exists() else F._project_path(w)        # ours: a project or repository path
-        finder = F.UltralyticsModel(w, conf=a.conf, imgsz=a.detector_imgsz)
-    else:
-        finder = F.UltralyticsModel(a.detector, text=a.text or None, conf=a.conf, imgsz=a.detector_imgsz)
+    video = _video(F, a.video)
+    finder = _detector(F, a.detector_weights_trained or a.detector, a.text, conf=a.conf, imgsz=a.detector_imgsz)
     if a.weights:
         ckpt = here(a.weights) if here(a.weights).exists() else F._project_path(a.weights)
         if not ckpt.exists():
@@ -224,9 +231,28 @@ def cmd_video(F, a):
         shipped = sorted(MODEL_DIR.glob("sam2.1_*.pt"), key=lambda c: c.stat().st_mtime)
         ckpt = shipped[-1] if shipped else None
     pipeline = F.DetectThenSAM2(finder, ckpt=ckpt)
-    print("detector:", Path(finder.weights).name, "· SAM 2.1:", ckpt.name if ckpt else f"{F.SAM2_SIZE} pretrained")
+    print("SAM 2.1:", ckpt.name if ckpt else f"{F.SAM2_SIZE} pretrained")
     out, counts, tracks = F.run_on_video(pipeline, video, a.start, a.seconds, a.fps)
     print(tracks.head(30).to_string(index=False))
+
+
+def cmd_check(F, a):
+    video = _video(F, a.video)
+    if a.weights:
+        found = {Path(w).name if Path(w).name != "best.pt" else "/".join(Path(w).parts[-3:]): _detector(F, w, a.text, conf=a.conf)
+                 for w in a.weights}
+    else:                                               # every detector the leaderboard scores
+        models = F.load_lineup(here(a.lineup)) if a.lineup else {}
+        models.update(_detector_rows(F))
+        found, seen = {}, set()
+        for name, m in models.items():
+            d = getattr(m, "detector", m)
+            if isinstance(d, F.UltralyticsModel) and (d.weights, str(d.text)) not in seen:
+                seen.add((d.weights, str(d.text)))
+                found[name.split(" → SAM")[0].split(" · zero-shot")[0]] = d
+    if not found:
+        sys.exit("No detector to check: give --weights FILE.")
+    F.check_detectors(video, found, frames=a.frames, conf=a.conf, max_side=a.max_side)
 
 
 def cmd_train_detector(F, a):
@@ -265,6 +291,8 @@ def main(argv=None):
                             choices=["tiny", "small", "base_plus", "large"])
         parser.add_argument("--object-name", default=D(os.environ.get("OBJECT_NAME", "grape cluster")))
         parser.add_argument("--image-size", type=int, default=D(None), help="advanced: SAM 2 input size (default 1024)")
+
+    size = lambda v: v if v == "auto" else int(v)
 
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     common_options(p)
@@ -328,13 +356,24 @@ def main(argv=None):
     s.add_argument("--fps", type=float, default=6)
     s.add_argument("--weights", default=None,
                    help="fine-tuned SAM 2.1 weights (default: the newest in model/, else pretrained)")
-    s.add_argument("--detector", default="yoloe-26m-seg.pt")
-    s.add_argument("--text", default="grape cluster")
-    s.add_argument("--conf", type=float, default=0.2)
-    s.add_argument("--detector-weights-trained", default=None,
-                   help="your own YOLO weights instead of YOLOE, e.g. yolo26_pipeline/model/best.pt or runs/<name>/weights/best.pt")
-    s.add_argument("--detector-imgsz", type=int, default=1280,
-                   help="the detector's input size: the size it was trained at (512 for the shipped WGISD model)")
+    s.add_argument("--detector", default="yolo26_pipeline/model/best.pt",
+                   help="the detector that finds the clusters: YOLO weights (default: our YOLO26; runs/<name>/weights/best.pt "
+                        "for one fine-tuned on our clips) or yoloe-26m-seg.pt, which goes by --text")
+    s.add_argument("--text", default="grape cluster", help="what a YOLOE detector looks for")
+    s.add_argument("--conf", type=float, default=0.25, help="keep boxes that score at least this")
+    s.add_argument("--detector-weights-trained", default=None, help=argparse.SUPPRESS)        # old name of --detector
+    s.add_argument("--detector-imgsz", type=size, default="auto",
+                   help="the detector's input size: auto (the size at which it is most sure on this video) or a number")
+
+    s = sub.add_parser("check", help="a model finds nothing: what every detector sees in a video, at every input size")
+    s.add_argument("video")
+    s.add_argument("--weights", nargs="+", default=None,
+                   help="detector weights to check (default: the lineup's detectors and the ones fine-tuned on our clips)")
+    s.add_argument("--text", default="grape cluster", help="what a YOLOE detector looks for")
+    s.add_argument("--lineup", default=str(HERE / "configs" / "lineup.yaml"))
+    s.add_argument("--frames", type=int, default=6, help="frames to look at, spread over the video")
+    s.add_argument("--conf", type=float, default=0.25, help="a box counts from this score")
+    s.add_argument("--max-side", type=int, default=1280, help="frames are shrunk to this first, as clips and video do (0: full size)")
 
     s = sub.add_parser("train-detector", help="train a YOLO-seg detector on the same labels")
     s.add_argument("--base", default="yolo26n-seg.pt",
@@ -354,7 +393,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     F = load(a)
     {"status": cmd_status, "download": cmd_download, "clips": cmd_clips, "import-coco": cmd_import_coco,
-     "import-yolo": cmd_import_yolo, "train": cmd_train, "evaluate": cmd_evaluate, "video": cmd_video,
+     "import-yolo": cmd_import_yolo, "train": cmd_train, "evaluate": cmd_evaluate, "video": cmd_video, "check": cmd_check,
      "train-detector": cmd_train_detector, "approve": cmd_approve, "export-yolo": cmd_export_yolo}[a.cmd](F, a)
 
 
