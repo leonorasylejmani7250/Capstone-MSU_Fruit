@@ -112,11 +112,11 @@ To add a model, add an entry under `models:` in `configs/lineup.yaml`. Paths are
 
 ```bash
 python fruit.py video videos/row3.mp4
-python fruit.py video videos/2026            # every video in a folder
-python fruit.py counts                       # every model's total for every video
+python fruit.py video videos/2026
+python fruit.py counts
 ```
 
-A detector finds the clusters and SAM 2.1 outlines and follows each one, so a cluster keeps one id for as long as it is in view; the total is the number of ids. Writes `data/results/sam2/overlay_<video>_0s.mp4`, `.counts.csv` (per frame) and `.tracks.csv` (one row per cluster), and adds the total to `data/results/cluster_counts.csv`, the file every pipeline adds to.
+One video; every video in a folder; every model's total for every video. A detector finds the clusters and SAM 2.1 outlines and follows each one, so a cluster keeps one id for as long as it is in view; the total is the number of ids. Writes `data/results/sam2/overlay_<video>_0s.mp4`, `.counts.csv` (per frame) and `.tracks.csv` (one row per cluster), and adds the total to `data/results/cluster_counts.csv`, the file every pipeline adds to.
 
 | Option | Default | Meaning |
 |---|---|---|

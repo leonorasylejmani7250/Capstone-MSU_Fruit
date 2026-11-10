@@ -44,18 +44,19 @@ for name in yolo26 yolo11; do
     [ -x "$env/bin/python" ] || env="$SAM2_ENV"        # the SAM 2.1 environment runs the YOLO scripts too
     flag=--video-dir; [ -f "$VIDEOS" ] && flag=--video
     J=$(submit "$REPO/${name}_pipeline" --time=12:00:00 --export="ALL,$var=$env" hpcc/run.sb video.py "$flag" "$VIDEOS")
-    echo "job $J: ${name^^}   with tracker ids"
+    echo "job $J: ${name^^}   tracker ids"
     DEPS="$DEPS:$J"
 done
 
 for name in sam3 sam3_1; do
+    label="SAM 3  "; [ "$name" = sam3_1 ] && label="SAM 3.1"
     env="$HOME/envs/fruit_$name"
     if [ ! -x "$env/bin/python" ]; then
-        echo "${name}: NOT submitted, no environment at $env (${name}_pipeline/hpcc/setup_env.sh)"
+        echo "$label  NOT submitted: no environment at $env (${name}_pipeline/hpcc/setup_env.sh)"
         continue
     fi
     J=$(submit "$REPO/${name}_pipeline" --time=12:00:00 hpcc/run.sb run.py video "$VIDEOS")
-    echo "job $J: ${name}  text prompt \"grape cluster\""
+    echo "job $J: $label  text prompt \"grape cluster\""
     DEPS="$DEPS:$J"
 done
 

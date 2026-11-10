@@ -1573,6 +1573,7 @@ def model_label(model):
         return f"{model_label(model.detector)} → SAM 2.1 " + (Path(model.ckpt).stem.replace("sam2.1_", "") if model.ckpt
                                                              else f"{model.size} pretrained")
     if isinstance(model, UltralyticsModel):
+        model.prepare()                                     # loading settles whether the weights use a text prompt
         w = Path(model.weights)                             # yolo26_pipeline/model/best.pt → yolo26; runs/<name>/weights/best.pt → <name>
         return (w.parents[1].name.replace("_pipeline", "") if w.name == "best.pt" and len(w.parts) > 2 else w.stem) \
             + (f" '{model.text if isinstance(model.text, str) else ', '.join(model.text)}'" if model.text else "")

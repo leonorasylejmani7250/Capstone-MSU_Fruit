@@ -50,11 +50,10 @@ Every model learns from the labelled `train` clips. The last job scores all of t
 ## 5. Count the clusters in every row video
 
 ```bash
-bash hpcc/count_rows.sh                        # every video under data/videos
-bash hpcc/count_rows.sh 2026/Grape--DJIOsmo    # one folder under data/videos, or one video
+bash hpcc/count_rows.sh
 ```
 
-One job per pipeline, each with the model it ships:
+counts every video under `data/videos`; `bash hpcc/count_rows.sh 2026/Grape--DJIOsmo` one folder under it, or one video. One job per pipeline, each with the model it ships:
 
 | Pipeline | How it counts |
 |---|---|
