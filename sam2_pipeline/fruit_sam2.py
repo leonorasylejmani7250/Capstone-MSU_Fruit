@@ -357,7 +357,7 @@ def probe_video(path):
     cap.release()
     return dict(fps=float(fps), frames=n, width=w, height=h, seconds=(n / fps if fps else 0.0))
 
-SETTLE_MINUTES = 2        # a video written this recently may still be syncing (SharePoint, rclone, Globus): skipped until the next run
+SETTLE_MINUTES = 2        # a video written this recently may still be arriving (Globus, a sync, an upload): skipped until the next run
 
 def _is_junk(p):
     """Files a sync or a camera leaves next to the videos: hidden files, Office and macOS sidecars, partial downloads."""
@@ -1539,24 +1539,44 @@ class DetectThenSAM2(Model):
         self.last_prompts = []
     def prepare(self):
         self.detector.prepare(); load_sam2(self.size, self.ckpt)
-    def predict(self, clip, prompts=None):
+    def predict(self, clip, prompts=None, carry=None, first_id=1):
+        """carry: the id map of this clip's first frame from the run before it (run_on_video hands over the last
+        frame of the previous chunk). Those objects go on under the same ids, whether or not the detector sees
+        them again; objects that are new here are numbered from `first_id`."""
         sess = Sam2Session(load_sam2(self.size, self.ckpt), clip)
         ids = np.zeros((sess.T, sess.H, sess.W), np.uint16); best = np.zeros(ids.shape, np.float16)
-        made = []
+        made, n_carried = [], 0
+        if carry is not None:
+            k, area = np.unique(carry, return_counts=True)
+            seeds = [dict(obj=int(o), frame=0, mask=carry == o) for o, a in zip(k, area) if o and a >= MIN_OBJECT_AREA]
+            if seeds:
+                sess.add(seeds[:self.max_objects], ids, best, backward=False)
+                n_carried, first_id = len(seeds), max(first_id, int(k.max()) + 1)
         if hasattr(self.detector, "fit"): self.detector.fit(clip)          # imgsz="auto": the input size for this clip
         for t in range(0, sess.T, self.every):
             boxes, scores, _ = self.detector.detect(clip.image(t))
             known = [(s[1].start, s[0].start, s[1].stop, s[0].stop) for s in ndimage.find_objects(ids[t]) if s is not None]
             new = []
             for b in boxes[np.argsort(-scores)]:
-                if len(made) + len(new) >= self.max_objects: break
+                if n_carried + len(made) + len(new) >= self.max_objects: break
                 if any(_same_box(b, k, self.match_iou) for k in known): continue
                 known.append(tuple(b))
-                new.append(dict(obj=len(made) + len(new) + 1, frame=t, box=[float(v) for v in b]))
+                new.append(dict(obj=first_id + len(made) + len(new), frame=t, box=[float(v) for v in b]))
             if new:
                 sess.add(new, ids, best, backward=self.backward); made += new
         self.last_prompts = made
         return ids
+
+def model_label(model):
+    """A short name for a model in result tables: its weights; for detector → SAM 2.1, both."""
+    if isinstance(model, DetectThenSAM2):
+        return f"{model_label(model.detector)} → SAM 2.1 " + (Path(model.ckpt).stem.replace("sam2.1_", "") if model.ckpt
+                                                             else f"{model.size} pretrained")
+    if isinstance(model, UltralyticsModel):
+        w = Path(model.weights)                             # yolo26_pipeline/model/best.pt → yolo26; runs/<name>/weights/best.pt → <name>
+        return (w.parents[1].name.replace("_pipeline", "") if w.name == "best.pt" and len(w.parts) > 2 else w.stem) \
+            + (f" '{model.text if isinstance(model.text, str) else ', '.join(model.text)}'" if model.text else "")
+    return type(model).__name__
 
 class FromFolder(Model):
     """Score predictions written by any other program: <folder>/<clip>/<frame>.png, pixel value = object id."""
@@ -2058,16 +2078,20 @@ def compare(clip, names, frames=4, video=True):
         else:
             print("comparison video:", out)
 
-def run_on_video(model, video, start_s=0, seconds=10, fps=6, max_side=1280, chunk=24, min_track_frames=2):
-    """Run an automatic model over part of a video in overlapping chunks and stitch the object ids together.
-    Returns (overlay video path, per-frame counts, per-object tracks)."""
+def run_on_video(model, video, start_s=0, seconds=0, fps=6, max_side=1280, chunk=24, min_track_frames=2):
+    """Run an automatic model over a video (seconds=0: to its end) in chunks that share one frame, and count the
+    clusters: every object keeps one id through the whole video. A detector → SAM 2.1 pipeline hands each
+    chunk the objects it is following; any other model has its ids matched on the shared frame.
+    Writes results/sam2/: the overlay video, per-frame counts and one row per object, and for a whole video one
+    line in results/cluster_counts.csv. Returns (overlay video path, per-frame counts, per-object tracks)."""
     video = Path(video); info = probe_video(video)
     assert info and info["fps"], f"cannot read {video}"
     stride = max(1, round(info["fps"] / fps))
+    whole = not start_s and (not seconds or seconds >= info["seconds"] - 0.5)
     work = BASE / "video_runs" / f"{_safe(video.stem)}_{int(start_s)}s_{int(seconds)}s"
     shutil.rmtree(work, ignore_errors=True); (work / "all").mkdir(parents=True)
     cap = cv2.VideoCapture(str(video)); cap.set(cv2.CAP_PROP_POS_MSEC, start_s * 1000)
-    n, i, limit = 0, 0, max(1, int(seconds * info["fps"] / stride))
+    n, i, limit = 0, 0, max(1, int(seconds * info["fps"] / stride)) if seconds else 10**9
     while n < limit and cap.grab():
         if i % stride == 0:
             ok, bgr = cap.retrieve()
@@ -2085,6 +2109,7 @@ def run_on_video(model, video, start_s=0, seconds=10, fps=6, max_side=1280, chun
         det.imgsz = det.fit([cv2.cvtColor(cv2.imread(str(work / "all" / f"{t:05d}.jpg")), cv2.COLOR_BGR2RGB)
                              for t in sorted({int(t) for t in np.linspace(0, n - 1, 5)})])
         print(f"detector input size: {det.imgsz} px, where it is most sure (tried {', '.join(str(v) for v in det.tried['imgsz'])})")
+    carries = isinstance(model, DetectThenSAM2)
     tracks, per_frame, state = {}, [], dict(last=None, next_id=1)
 
     def overlays():
@@ -2098,28 +2123,38 @@ def run_on_video(model, video, start_s=0, seconds=10, fps=6, max_side=1280, chun
                 except OSError:                       # Windows without Developer Mode: copy instead
                     shutil.copy2(work / "all" / f"{t:05d}.jpg", cdir / f"{j:05d}.jpg")
             clip = Clip(cdir.name, root=work)
-            ids = np.asarray(model.predict(clip)).astype(np.int64)
-            lut = np.zeros(int(ids.max()) + 1, np.int64)
-            if state["last"] is not None:                     # same frame seen by both chunks: carry ids over
-                old_ids, new_ids, iou, _, _ = iou_matrix(state["last"], ids[0])
-                if iou.size:
-                    r, c = linear_sum_assignment(-iou)
-                    for a, b in zip(r, c):
-                        if iou[a, b] >= 0.5: lut[new_ids[b]] = old_ids[a]
-            for k in np.unique(ids):
-                if k and lut[k] == 0:
-                    lut[k] = state["next_id"]; state["next_id"] += 1
-            ids = lut[ids]
+            if carries:                               # the objects being followed go on under their ids
+                ids = np.asarray(model.predict(clip, carry=state["last"], first_id=state["next_id"])).astype(np.int64)
+                state["next_id"] = max(state["next_id"], int(ids.max()) + 1)
+            else:
+                ids = np.asarray(model.predict(clip)).astype(np.int64)
+                lut = np.zeros(int(ids.max()) + 1, np.int64)
+                if state["last"] is not None:                     # same frame seen by both chunks: carry ids over
+                    old_ids, new_ids, iou, _, _ = iou_matrix(state["last"], ids[0])
+                    if iou.size:
+                        r, c = linear_sum_assignment(-iou)
+                        for a, b in zip(r, c):
+                            if iou[a, b] >= 0.5: lut[new_ids[b]] = old_ids[a]
+                for k in np.unique(ids):
+                    if k and lut[k] == 0:
+                        lut[k] = state["next_id"]; state["next_id"] += 1
+                ids = lut[ids]
             for j in range(0 if state["last"] is None else 1, len(ids)):
                 t = start + j
                 k, cnt = np.unique(ids[j], return_counts=True); k = k[(k != 0) & (cnt >= MIN_OBJECT_AREA)]
-                per_frame.append(dict(frame=t, second=round(start_s + t * stride / info["fps"], 2), objects_in_view=len(k)))
                 for o in k:
                     tr = tracks.setdefault(int(o), dict(object=int(o), first_frame=t, last_frame=t, frames=0))
                     tr["last_frame"] = t; tr["frames"] += 1
+                per_frame.append(dict(frame=t, second=round(start_s + t * stride / info["fps"], 2), objects_in_view=len(k),
+                                      clusters_so_far=sum(1 for tr in tracks.values() if tr["frames"] >= min_track_frames)))
                 im = overlay(clip.image(j), ids[j])
-                yield cv2.resize(im, (960, round(960 * im.shape[0] / im.shape[1])), interpolation=cv2.INTER_AREA)
+                im = cv2.resize(im, (960, round(960 * im.shape[0] / im.shape[1])), interpolation=cv2.INTER_AREA)
+                for colour, width in (((0, 0, 0), 5), ((255, 255, 255), 2)):
+                    cv2.putText(im, f"in view {len(k)} · clusters so far {per_frame[-1]['clusters_so_far']}", (12, 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, colour, width, cv2.LINE_AA)
+                yield im
             state["last"] = ids[-1]
+            shutil.rmtree(cdir, ignore_errors=True)
             if stop >= n: break
             start = stop - 1
 
@@ -2128,15 +2163,52 @@ def run_on_video(model, video, start_s=0, seconds=10, fps=6, max_side=1280, chun
         out = write_video(overlays(), RESULTS / "sam2" / f"overlay_{_safe(video.stem)}_{int(start_s)}s.mp4", fps=info["fps"] / stride)
     finally:
         if auto: det.imgsz = "auto"
+        shutil.rmtree(work, ignore_errors=True)
     counts = pd.DataFrame(per_frame)
     tr = pd.DataFrame(list(tracks.values()), columns=["object", "first_frame", "last_frame", "frames"])
     tr = tr[tr["frames"] >= min_track_frames].reset_index(drop=True)
     counts.to_csv(out.with_suffix(".counts.csv"), index=False); tr.to_csv(out.with_suffix(".tracks.csv"), index=False)
-    print(f"{n} frames · {counts['objects_in_view'].mean():.1f} objects in view on average · "
-          f"{len(tr)} distinct objects seen in at least {min_track_frames} frames\noverlay: {out}")
+    print(f"{n} frames, {n * stride / info['fps']:.0f} s · {counts['objects_in_view'].mean():.1f} clusters in view on average · "
+          f"{len(tr)} clusters in all (each followed for at least {min_track_frames} frames)\noverlay: {out}")
     if not counts["objects_in_view"].sum():
         print("⚠️  nothing found in this stretch. " + NOTHING_FOUND)
+    if whole:
+        f = record_count(video, model_label(model), len(tr), n * stride / info["fps"])
+        print(f"total for this video: {len(tr)} clusters, written to {f}")
     return out, counts, tr
+
+COUNT_COLUMNS = ["video", "model", "clusters", "seconds", "pipeline", "written"]
+
+def record_count(video, model, clusters, seconds, pipeline="sam2"):
+    """One line per counted video in results/cluster_counts.csv, the file every pipeline adds its totals to."""
+    import csv
+    f = RESULTS / "cluster_counts.csv"; f.parent.mkdir(parents=True, exist_ok=True)
+    buf = io.StringIO(); w = csv.writer(buf, lineterminator="\n")
+    if not f.exists() or not f.stat().st_size:
+        w.writerow(COUNT_COLUMNS)
+    w.writerow([video_key(video), model, int(clusters), round(float(seconds), 1), pipeline, time.strftime("%Y-%m-%d %H:%M")])
+    with open(f, "a", encoding="utf-8") as h:              # one short write: safe when several jobs finish together
+        h.write(buf.getvalue())
+    return f
+
+def counted(model):
+    """The videos this model has a total for already."""
+    f = RESULTS / "cluster_counts.csv"
+    return set(pd.read_csv(f).query("model == @model")["video"]) if f.exists() and f.stat().st_size else set()
+
+def count_table():
+    """The total of every model for every video (the newest run of each), from results/cluster_counts.csv:
+    one row per video, one column per model. Saved as results/cluster_counts_by_video.csv."""
+    f = RESULTS / "cluster_counts.csv"
+    if not f.exists():
+        print(f"No counts yet: {f} is written by every whole-video run (fruit.py video, video.py, run.py video)."); return None
+    t = pd.read_csv(f).drop_duplicates(["video", "model"], keep="last")
+    table = t.pivot(index="video", columns="model", values="clusters")
+    table = table[sorted(table.columns)].astype("Int64")
+    table.to_csv(f.with_name("cluster_counts_by_video.csv"))
+    print(f"clusters counted in each video, by model · {f.with_name('cluster_counts_by_video.csv')}")
+    print(table.to_string(na_rep="-"))
+    return table
 
 def _short(p):
     """A path as it can be typed on the command line again: inside the project folder or the repository, relative to it."""

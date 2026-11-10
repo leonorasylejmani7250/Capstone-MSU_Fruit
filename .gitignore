@@ -26,8 +26,8 @@ desktop.ini
 
 # data/ (data/README.md): in git only the WGISD dataset, its YOLO labels, the YOLO11 training run, and the
 # per-frame counts of the YOLO11 and YOLO26 runs on the partner's DJI videos
-data/videos/
-data/dataset/
+data/videos
+data/dataset
 data/predictions/
 data/models/
 data/runs/*
@@ -58,10 +58,13 @@ data/results/yolo26/*
 !yolo11_pipeline/model/best.pt
 
 # Videos
-*.mp4
-*.mov
-*.avi
-*.mkv
+*.[mM][pP]4
+*.[mM][oO][vV]
+*.[aA][vV][iI]
+*.[mM][kK][vV]
+*.[mM]4[vV]
+*.[mM][tT][sS]
+*.webm
 
 # Logs (HPCC job logs are <job>-<id>.out in the pipeline folders)
 *.log

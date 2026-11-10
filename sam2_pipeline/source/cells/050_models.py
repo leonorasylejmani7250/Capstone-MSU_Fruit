@@ -190,24 +190,44 @@ class DetectThenSAM2(Model):
         self.last_prompts = []
     def prepare(self):
         self.detector.prepare(); load_sam2(self.size, self.ckpt)
-    def predict(self, clip, prompts=None):
+    def predict(self, clip, prompts=None, carry=None, first_id=1):
+        """carry: the id map of this clip's first frame from the run before it (run_on_video hands over the last
+        frame of the previous chunk). Those objects go on under the same ids, whether or not the detector sees
+        them again; objects that are new here are numbered from `first_id`."""
         sess = Sam2Session(load_sam2(self.size, self.ckpt), clip)
         ids = np.zeros((sess.T, sess.H, sess.W), np.uint16); best = np.zeros(ids.shape, np.float16)
-        made = []
+        made, n_carried = [], 0
+        if carry is not None:
+            k, area = np.unique(carry, return_counts=True)
+            seeds = [dict(obj=int(o), frame=0, mask=carry == o) for o, a in zip(k, area) if o and a >= MIN_OBJECT_AREA]
+            if seeds:
+                sess.add(seeds[:self.max_objects], ids, best, backward=False)
+                n_carried, first_id = len(seeds), max(first_id, int(k.max()) + 1)
         if hasattr(self.detector, "fit"): self.detector.fit(clip)          # imgsz="auto": the input size for this clip
         for t in range(0, sess.T, self.every):
             boxes, scores, _ = self.detector.detect(clip.image(t))
             known = [(s[1].start, s[0].start, s[1].stop, s[0].stop) for s in ndimage.find_objects(ids[t]) if s is not None]
             new = []
             for b in boxes[np.argsort(-scores)]:
-                if len(made) + len(new) >= self.max_objects: break
+                if n_carried + len(made) + len(new) >= self.max_objects: break
                 if any(_same_box(b, k, self.match_iou) for k in known): continue
                 known.append(tuple(b))
-                new.append(dict(obj=len(made) + len(new) + 1, frame=t, box=[float(v) for v in b]))
+                new.append(dict(obj=first_id + len(made) + len(new), frame=t, box=[float(v) for v in b]))
             if new:
                 sess.add(new, ids, best, backward=self.backward); made += new
         self.last_prompts = made
         return ids
+
+def model_label(model):
+    """A short name for a model in result tables: its weights; for detector → SAM 2.1, both."""
+    if isinstance(model, DetectThenSAM2):
+        return f"{model_label(model.detector)} → SAM 2.1 " + (Path(model.ckpt).stem.replace("sam2.1_", "") if model.ckpt
+                                                             else f"{model.size} pretrained")
+    if isinstance(model, UltralyticsModel):
+        w = Path(model.weights)                             # yolo26_pipeline/model/best.pt → yolo26; runs/<name>/weights/best.pt → <name>
+        return (w.parents[1].name.replace("_pipeline", "") if w.name == "best.pt" and len(w.parts) > 2 else w.stem) \
+            + (f" '{model.text if isinstance(model.text, str) else ', '.join(model.text)}'" if model.text else "")
+    return type(model).__name__
 
 class FromFolder(Model):
     """Score predictions written by any other program: <folder>/<clip>/<frame>.png, pixel value = object id."""

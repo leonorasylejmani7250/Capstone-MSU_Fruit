@@ -24,7 +24,7 @@ if 'ultralytics' not in sys.modules:                        # the renderer does 
         sys.modules['ultralytics'] = types.SimpleNamespace(YOLO=object)
 
 from prepare_wgisd import convert   # noqa: E402
-from video import pick, render      # noqa: E402
+from video import clusters, pick, render      # noqa: E402
 
 
 class FakeTensor:
@@ -112,15 +112,17 @@ class SmokeTest(unittest.TestCase):
         polys = [np.array([[15, 40], [115, 40], [115, 190], [15, 190]]),
                  np.array([[220, 50], [320, 50], [320, 210], [220, 210]])]
         boxes = FakeBoxes([[15, 40, 115, 190], [220, 50, 320, 210]], [.9, .3])
-        seen = set()
+        seen = {}
         for _ in range(300):
             out, n, now = render(frame, FakeResult(boxes, polys), seen, .25, 'track')
             self.assertEqual((n, now, len(seen)), (2, 0, 0))
             self.assertTrue(np.any(out != frame))
         with_ids = FakeResult(FakeBoxes([[15, 40, 115, 190], [220, 50, 320, 210]], [.9, .3], [17]), polys)
-        out, n, now = render(frame, with_ids, seen, .25, 'track')
-        self.assertEqual((n, now, len(seen)), (2, 1, 1))
-        self.assertIn(17, seen)
+        for frames in range(1, 31):                         # an id counts once it has been followed for 30 frames
+            self.assertEqual(clusters(seen, 30), 0)
+            out, n, now = render(frame, with_ids, seen, .25, 'track', 30)
+            self.assertEqual((n, now, seen), (2, 1, {17: frames}))
+        self.assertEqual(clusters(seen, 30), 1)
 
 
 if __name__ == '__main__':

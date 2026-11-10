@@ -5,12 +5,12 @@ SAM 3 (Meta, November 2025) segments and tracks every object that matches a text
 ```
 ../data/dataset (labelled clips) ──▶ run.py clips ──▶ ../data/predictions/sam3_text/ ──▶ ../sam2_pipeline: python fruit.py evaluate
 ../data/dataset (labelled clips) ──▶ finetune.py ──▶ model/sam3_<run>.pt ──▶ run.py clips ──▶ ../data/predictions/sam3_<run>/ ──▶ evaluate
-../data/videos/<file>            ──▶ run.py video ──▶ ../data/results/sam3/<file>_sam3.mp4 + .csv
+../data/videos/<file>            ──▶ run.py video ──▶ ../data/results/sam3/<file>_sam3.mp4 + .csv, the total in ../data/results/cluster_counts.csv
 ```
 
 | File | What it does |
 |---|---|
-| `run.py` | `clips`: masks for the labelled val clips. `video`: overlay video and counts for a stretch of one video. |
+| `run.py` | `clips`: masks for the labelled val clips. `video`: counts the clusters in a video, or in every video of a folder. |
 | `finetune.py` | Fine-tunes the model on our labelled clips with Meta's trainer and writes the result to `model/`. |
 | `finetune.yaml` | Meta's fine-tuning recipe with our dataset and settings (filled in by `finetune.py`). |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
@@ -55,15 +55,18 @@ cd ../sam2_pipeline && python fruit.py evaluate
 
 `run.py` uses the newest `.pt` in `model/`: Meta's release after the install above, a fine-tuned model after `finetune.py`. `--checkpoint release` forces Meta's weights, `--checkpoint <file>` a particular file. Each run writes `../data/predictions/<name>/` with a `recipe.json`, and `fruit.py evaluate` adds a row for it by itself: `SAM 3 · text 'grape cluster' · zero-shot` for the release, `SAM 3 · text 'grape cluster' → fine-tuned on our clips (<run>)` for a fine-tuned model.
 
-A stretch of video:
+Count the clusters in a video, or in every video of a folder:
 
 ```bash
-python run.py video ../data/videos/row3.mp4 --start 60 --seconds 30
+python run.py video ../data/videos/row3.mp4
+python run.py video ../data/videos/CodyKresta_1025
 ```
 
-Writes `../data/results/sam3/row3_sam3.mp4` and `.csv` (clusters visible per frame, distinct ids so far).
+The video goes through the model in stretches of 10 seconds that share one frame; a cluster keeps its id from one stretch to the next when its masks on the shared frame overlap. The total is the number of ids seen in at least two frames. Writes `../data/results/sam3/row3_sam3.mp4` and `.csv` (`frame`, `visible_now`, `clusters_so_far`), and adds the video's total to `../data/results/cluster_counts.csv`, the file every pipeline adds to. `--start 60 --seconds 30` runs a stretch for a quick look; only a whole video adds its total. In a folder, videos that have a total are skipped unless `--overwrite`.
 
-Options for both: `--text "green grapes"` (one phrase per prompt), `--prob 0.4` (output threshold), `--max-objects 128` (object capacity; 16 is too few for a vine row), `--data <folder>` (project folder; default `../data` or `$PROJECT_DIR`).
+A total is the number of clusters the model followed, not a hand count, and not a yield estimate.
+
+Options for both go before the command name, as in `python run.py --text "green grapes" video …`: `--text` (one phrase per prompt), `--prob 0.4` (output threshold), `--max-objects 128` (object capacity; 16 is too few for a vine row), `--data <folder>` (project folder; default `../data` or `$PROJECT_DIR`).
 
 ## 4. Fine-tune on our clips
 
@@ -96,10 +99,10 @@ cd ~/Capstone-MSU_Fruit/sam3_pipeline
 sbatch hpcc/run.sb run.py clips --checkpoint release
 sbatch --time=08:00:00 hpcc/run.sb finetune.py --run grapes_v1
 sbatch hpcc/run.sb run.py clips
-sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4 --seconds 60
+sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4
 ```
 
-Logs are `sam3-<jobid>.out` in this folder. [`../hpcc/run_all.sh`](../hpcc/README.md) submits the first three together with every other model's jobs and the leaderboard.
+Logs are `sam3-<jobid>.out` in this folder. [`../hpcc/run_all.sh`](../hpcc/README.md) submits the first three together with every other model's jobs and the leaderboard; [`../hpcc/count_rows.sh`](../hpcc/README.md) submits the last one for every video and every pipeline.
 
 ## 6. If something goes wrong
 

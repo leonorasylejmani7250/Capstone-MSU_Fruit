@@ -2,10 +2,10 @@
 
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb)
 
-Label grape clusters in our video, fine-tune SAM 2.1 on the labels, and score any model on the same held-out clips with the same rules. Runs on a laptop, in Google Colab and on the MSU HPCC.
+Label grape clusters in our video, fine-tune SAM 2.1 on the labels, score any model on the same held-out clips with the same rules, and count the clusters in a video. Runs on a laptop, in Google Colab and on the MSU HPCC.
 
 ```
-videos ──▶ clips ──▶ labels ──▶ score the starting models ──▶ fine-tune SAM 2.1 ──▶ score again ──▶ run on new video
+videos ──▶ clips ──▶ labels ──▶ score the starting models ──▶ fine-tune SAM 2.1 ──▶ score again ──▶ count the clusters in new video
 ```
 
 New here: [INSTALL.md](INSTALL.md) installs the pipeline and runs `demo.ipynb`.
@@ -17,7 +17,7 @@ New here: [INSTALL.md](INSTALL.md) installs the pipeline and runs `demo.ipynb`.
 | `count_test.ipynb` | Our YOLO26 → SAM 2.1 counts against hand counts on 27 WGISD photos. |
 | `tests/test_install.py` | One-minute install check. |
 | `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` | The whole pipeline as a notebook: upload videos, label, train, compare. Colab, or Jupyter on the HPCC. |
-| `fruit.py` | The same pipeline as a command line: `status`, `clips`, `import-coco`, `import-yolo`, `train`, `train-detector`, `evaluate`, `video`, … (`python fruit.py --help`). |
+| `fruit.py` | The same pipeline as a command line: `status`, `clips`, `train`, `train-detector`, `evaluate`, `video`, `counts`, `check`, … (`python fruit.py --help`). |
 | `fruit_sam2.py` | The notebook's tool cells as one module. Generated; do not edit. |
 | `source/` | The notebooks' cells and `build.py`. Edit a cell, run `python source/build.py`, commit the regenerated files. |
 | `configs/lineup.yaml` | The models `evaluate` scores. Add any model here. |
@@ -56,44 +56,28 @@ Everything is on Drive, so after a disconnect **Run all** picks up where you wer
 
 ## 2. MSU HPCC
 
-You need an HPCC account (a faculty member sponsors it at <https://contact.icer.msu.edu/account>).
-
-**Once**, from a terminal on the HPCC (`ssh <netid>@hpcc.msu.edu`):
-
-```bash
-ssh dev-amd20-v100
-git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
-cd ~/Capstone-MSU_Fruit/sam2_pipeline
-bash hpcc/setup_env.sh
-```
-
-The project folder is `~/Capstone-MSU_Fruit/data`; change `PROJECT_DIR` or `SAM2_SIZE` in `hpcc/config.sh` if needed.
-
-**Videos** go under `~/Capstone-MSU_Fruit/data/videos/`, in any folder structure: from the team's SharePoint by Globus or `hpcc/sync_sharepoint.sh`, from a laptop by OnDemand (*Files ▸ Upload*, files under 1 GB) or `rsync`. [`../data/README.md`](../data/README.md), "Video from SharePoint", has the steps.
+Set up once with `bash hpcc/setup.sh` in the repository folder; the whole workflow is in [`../hpcc/README.md`](../hpcc/README.md), labelling in [`../LABELLING.md`](../LABELLING.md).
 
 **In every HPCC shell**, before any `fruit.py` command:
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
 source hpcc/activate.sh
-python fruit.py clips
+python fruit.py status
 ```
-
-**Label** in OnDemand Jupyter (*Interactive Apps ▸ Jupyter*; Jupyter location *Conda Environment using Miniforge3 module*, environment `~/envs/fruit_sam2`; *Advanced Options* ▸ 1 GPU, 2–4 hours). Open `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb`, set `DEMO` off and `PROJECT_DIR = "~/Capstone-MSU_Fruit/data"` in cell A, run cells A and B and the Tools cells, then label in Step 3.
 
 **GPU work goes to the queue**, submitted from `sam2_pipeline/`:
 
 ```bash
 sbatch hpcc/run.sb train --run grapes_v1 --steps 3000
 sbatch hpcc/run.sb train-detector --base ../yolo26_pipeline/model/best.pt --name yolo26_grapes_v1
-sbatch hpcc/run.sb train-detector --base ../yolo11_pipeline/model/best.pt --name yolo11_grapes_v1
 sbatch hpcc/run.sb evaluate
-sbatch hpcc/run.sb video videos/row3.mp4 --start 60 --seconds 60
+sbatch hpcc/run.sb video videos/row3.mp4
 ```
 
-Fine-tune SAM 2.1 from Meta's pretrained weights on our clips (→ `data/models/sam2.1_base_plus_grapes_v1.pt`); fine-tune the YOLO26 and YOLO11 WGISD models on the same clips (→ `data/runs/yolo26_grapes_v1/weights/best.pt`, `data/runs/yolo11_grapes_v1/…`); the leaderboard (→ `data/results/leaderboard_val.csv`); the fine-tuned SAM 2.1 on one minute of video (→ `data/results/sam2/`). `video` uses the newest weights in `model/` and YOLOE as the detector; `--weights <file>` and `--detector-weights-trained <file> --detector-imgsz 512` pick others. [`../hpcc/run_all.sh`](../hpcc/README.md) submits all of this, plus SAM 3 and SAM 3.1, as one chain.
+In order: fine-tune SAM 2.1 from Meta's pretrained weights on our clips (→ `data/models/sam2.1_base_plus_grapes_v1.pt`); fine-tune the YOLO26 WGISD model on the same clips (→ `data/runs/yolo26_grapes_v1/weights/best.pt`); the leaderboard (→ `data/results/leaderboard_val.csv`); the cluster count of one video (section 5).
 
-`squeue --me` shows jobs; `tail -f fruit-<jobid>.out` follows a log. `run.sb` asks for one A100 for 4 hours; override per job: `sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate`. A training run that hits the time limit resumes when you submit the same command again. Options for every command go before the command name: `sbatch hpcc/run.sb --size large evaluate`.
+`squeue --me` shows jobs; `tail -f fruit-<jobid>.out` follows a log. `run.sb` asks for one A100 for 4 hours; override per job: `sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate`. A training run that hits the time limit resumes when you submit the same command again. Options for every command go before the command name: `sbatch hpcc/run.sb --size large evaluate`. The project folder and the SAM 2.1 size are set in `hpcc/config.sh`.
 
 ## 3. Labels made elsewhere (Roboflow, CVAT, Label Studio, YOLO)
 
@@ -117,20 +101,55 @@ Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· ze
 To add a model, add an entry under `models:` in `configs/lineup.yaml`. Paths are relative to the project folder, then to the repository; an entry whose file is missing is skipped.
 
 ```yaml
-  - {name: my YOLO-seg, type: ultralytics, weights: runs/yolo_detector/weights/best.pt, imgsz: 1280}
+  - {name: my YOLO-seg, type: ultralytics, weights: runs/yolo_detector/weights/best.pt}
   - {name: YOLO26 → SAM 2.1 fine-tuned, type: detect_then_sam2, checkpoint: sam2_pipeline/model/sam2.1_base_plus_grapes_v1.pt,
-     detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25, imgsz: 512}}
+     detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25}}
   - {name: masks from another program, type: folder, path: predictions/my_masks, tracks: true}
   - {name: my model, type: python, class: ../examples/my_model.py:MyModel}
 ```
 
-## 5. Reading the results
+## 5. Count the clusters in a video
+
+```bash
+python fruit.py video videos/row3.mp4
+python fruit.py video videos/2026            # every video in a folder
+python fruit.py counts                       # every model's total for every video
+```
+
+A detector finds the clusters and SAM 2.1 outlines and follows each one, so a cluster keeps one id for as long as it is in view; the total is the number of ids. Writes `data/results/sam2/overlay_<video>_0s.mp4`, `.counts.csv` (per frame) and `.tracks.csv` (one row per cluster), and adds the total to `data/results/cluster_counts.csv`, the file every pipeline adds to.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--detector` | `yolo26_pipeline/model/best.pt` | The detector: any YOLO weights (`runs/<name>/weights/best.pt` for one fine-tuned on our clips), or `yoloe-26m-seg.pt`, which looks for `--text` |
+| `--weights` | newest in `model/`, else pretrained | SAM 2.1 weights |
+| `--conf` | `0.25` | Keep boxes that score at least this |
+| `--detector-imgsz` | `auto` | The detector's input size (next section) |
+| `--start`, `--seconds` | the whole video | A stretch of it, e.g. `--seconds 20` for a quick look; only a whole video adds its total to the table |
+
+## 6. A model finds nothing
+
+```bash
+python fruit.py check videos/row3.mp4
+```
+
+It runs every detector on six frames of the video at every input size, prints a table (boxes per frame and top score), writes one picture per detector to `data/results/check/<video>/`, and says which detector and size to use, or that none works.
+
+Three things make a detector silent:
+
+| Cause | What `check` shows | Do this |
+|---|---|---|
+| The wrong weights: a base model such as `yolo26n-seg.pt`, which has no grape class, or a training run of an epoch or two | The weights line says so when the model loads | Use `yolo26_pipeline/model/best.pt` or a fine-tuned model |
+| The wrong input size. A YOLO trained on photos only sees clusters about 40 to 100 px tall in the image it is given: footage shot closer needs a smaller size, wider shots a larger one | Boxes at some sizes, none at others | Nothing: the default size, `auto`, picks the size at which the detector is most sure |
+| Footage unlike the photos the detector learned from | No size has boxes, or the boxes sit on leaves | Label clips of this footage ([`../LABELLING.md`](../LABELLING.md)) and fine-tune |
+
+## 7. Reading the results
 
 - Fine-tuning is not guaranteed to help. Compare fine-tuned and pretrained on the same val clips, and watch the comparison video before trusting a gap of a point or two.
 - Labels drawn with SAM 2.1's help flatter its *box* rows; lean on the click rows and the automatic table.
+- A cluster total is the number of clusters a model followed. A cluster that is hidden and comes back is counted twice, a missed one not at all. The leaderboard's *tracks found / true* column is that check on the labelled clips; count one row by hand before relying on a video's total.
 - A cluster count is not yield; converting counts to kilograms needs a calibration against hand-harvested vines.
 
-## 6. When something goes wrong
+## 8. When something goes wrong
 
 | What you see | Do this |
 |---|---|

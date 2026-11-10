@@ -1,6 +1,6 @@
 # YOLO26 pipeline
 
-YOLO26n-seg finds and outlines grape clusters in a photo or a video frame. This folder trains it, scores it, counts with it and runs it on video. It reads everything from `../data/` and writes training runs to `../data/runs/yolo26/` and everything else to `../data/results/yolo26/`. The model it ships is `model/best.pt`.
+YOLO26n-seg finds and outlines grape clusters in a photo or a video frame. This folder trains it, scores it and counts the clusters in a video with it. It reads everything from `../data/` and writes training runs to `../data/runs/yolo26/` and everything else to `../data/results/yolo26/`. The model it ships is `model/best.pt`.
 
 ```
 ../data/wgisd_yolo ──▶ train.py ──▶ ../data/runs/yolo26/<run>/weights/best.pt ──▶ model/best.pt ──▶ evaluate.py · count_test.py · video.py
@@ -13,14 +13,14 @@ New here: [INSTALL.md](INSTALL.md). Every command runs from this folder with its
 | `train.py` | Trains the model: on the public WGISD photos by default, on our own labels with `--data`. |
 | `evaluate.py` | Box and mask mAP on the WGISD test photos; several weights make a table. |
 | `count_test.py` | Cluster counts against hand counts on the 27 WGISD test photos. |
-| `video.py` | Annotated video and per-frame counts for one video or a folder of videos; optional tracking. |
-| `pipeline.py` | The names every script uses: the model file, the data folder, where runs and results go. |
+| `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
+| `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
 | `model/` | The model this pipeline ships ([model/README.md](model/README.md)). |
 | `hpcc/` | HPCC environment (`setup_env.sh`) and batch job (`run.sb`). |
 | `tests/` | `python -m unittest discover -s tests` |
 | `requirements.txt` | Python packages. |
 
-The model detects grape clusters, not berries. Tracker ids are not verified unique clusters, and no count here is a yield estimate.
+The model detects grape clusters, not berries. A count is the number of clusters the tracker followed, not a hand count, and not a yield estimate.
 
 ## 1. Train on WGISD
 
@@ -40,14 +40,12 @@ python train.py
 
 The run folder holds `weights/best.pt`, `results.csv`, `results.png`, the PR and F1 curves and the confusion matrix. 50 epochs take about 12 minutes on a 4 GB GPU and 80 minutes on a 2-core CPU.
 
-A stronger WGISD model on a GPU: a bigger model, a larger image size, more epochs, evaluated at the training size.
+A stronger WGISD model on a GPU: a bigger model, a larger image size, more epochs.
 
 ```bash
 python train.py --model yolo26s-seg.pt --imgsz 1024 --batch 8 --epochs 150 --name wgisd_s1024
-python evaluate.py --model ../data/runs/yolo26/wgisd_s1024/weights/best.pt --imgsz 1024
+python evaluate.py --model ../data/runs/yolo26/wgisd_s1024/weights/best.pt
 ```
-
-Keep `imgsz` the same wherever a model is used (`video.py --imgsz`, its `imgsz:` in `../sam2_pipeline/configs/lineup.yaml`).
 
 To ship a run: `cp ../data/runs/yolo26/<name>/weights/best.pt model/best.pt`, then update `model/README.md`.
 
@@ -58,28 +56,30 @@ python evaluate.py
 python count_test.py
 ```
 
-`evaluate.py` prints box and mask mAP@0.50 and mAP@0.50:0.95 on the 27 held-out test photos (plots in `../data/runs/yolo26/eval_test_<name>/`); `--model <weights>` scores another checkpoint, `--split val` the validation split, several `--model` weights write a side-by-side table to `../data/results/yolo26/evaluate_<split>.csv`. `count_test.py` compares cluster counts with hand counts on the same photos (`--conf`, default 0.25, trades missed clusters for false ones) and writes `../data/results/yolo26/count_test.csv` plus the annotated photos in `../data/results/yolo26/count_test/`.
+`evaluate.py` prints box and mask mAP@0.50 and mAP@0.50:0.95 on the 27 held-out test photos (plots in `../data/runs/yolo26/eval_test_<name>/`); `--model <weights>` scores another checkpoint, `--split val` the validation split, several `--model` weights write a side-by-side table to `../data/results/yolo26/evaluate_<split>.csv`. `count_test.py` compares cluster counts with hand counts on the same photos (`--conf`, default 0.25, trades missed clusters for false ones) and writes `../data/results/yolo26/count_test.csv` plus the annotated photos in `../data/results/yolo26/count_test/`. Both score a model at the image size it was trained at.
 
 These are scores on WGISD photos. The leaderboard in `../sam2_pipeline` (`python fruit.py evaluate`, in its own environment) scores this model on our own labelled clips next to every other model.
 
-## 3. Run on video
+## 3. Count the clusters in a video
 
 ```bash
-python video.py --video ../data/videos/row3.mp4 --max-frames 0
+python video.py --video ../data/videos/row3.mp4
+python video.py --video-dir ../data/videos/CodyKresta_1025
 ```
 
-Writes `../data/results/yolo26/row3_detect.mp4` (masks, boxes, confidences, a count panel) and `row3_detect.csv` (`frame`, `visible_now`, `tracked_now`, `tracker_ids_seen`).
+Every cluster gets an id that follows it from frame to frame (ByteTrack). The total is the number of ids followed for at least a second; shorter ones are mostly a cluster the tracker lost and found again. Writes `../data/results/yolo26/row3_track.mp4` (masks, boxes, ids, the count so far) and `row3_track.csv` (`frame`, `visible_now`, `tracked_now`, `clusters_so_far`), and adds the video's total to `../data/results/cluster_counts.csv`, the file every pipeline adds to.
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `--video` / `--video-dir` | one required | One video, or every video under a folder at any depth, as a SharePoint sync leaves it (subfolders kept in the output; unreadable and still-syncing files skipped; finished ones skipped unless `--overwrite`) |
+| `--video` / `--video-dir` | one required | One video, or every video under a folder at any depth (subfolders kept in the output; unreadable and still-syncing files skipped; videos that have a total skipped unless `--overwrite`) |
 | `--model` | `model/best.pt` | Weights |
-| `--mode` | `detect` | `detect`, or `track` (ByteTrack ids across frames) |
 | `--conf` | `0.30` | Minimum confidence |
-| `--imgsz` | `768` | Inference image size |
-| `--max-frames` | `300` | Frames to process; `0` = the whole video (always the whole video with `--video-dir`) |
-| `--start-sec` | `0` | Start time in seconds |
+| `--imgsz` | `auto` | The size a frame is shrunk to before the model sees it. `auto` tries every size on five frames of the video, prints what it finds at each and uses the one at which the model is most sure; a number fixes it |
+| `--max-frames`, `--start-sec` | the whole video | A stretch of it, e.g. `--max-frames 300` for a quick look; only a whole video adds its total to the table |
+| `--mode` | `track` | `detect` draws what is in each frame, without ids or a total |
 | `--output` | `../data/results/yolo26/<video>_<mode>.mp4` | Output video; the CSV gets the same name. A folder's videos go to `../data/results/yolo26/<folder>/` |
+
+The input size matters because a model trained on photos only sees clusters of about the size they had in those photos: this one, about 40 to 100 px tall in the image it is given. Footage shot closer needs a smaller size, wider shots a larger one.
 
 ## 4. Fine-tune on our own video
 
@@ -103,6 +103,8 @@ sbatch hpcc/run.sb evaluate.py
 sbatch hpcc/run.sb video.py --video-dir ../data/videos/CodyKresta_1025
 ```
 
+[`../hpcc/count_rows.sh`](../hpcc/README.md) submits the last one for every pipeline at once.
+
 ## 6. If something goes wrong
 
 | Symptom | Fix |
@@ -111,8 +113,7 @@ sbatch hpcc/run.sb video.py --video-dir ../data/videos/CodyKresta_1025
 | `Missing …/wgisd_yolo/grape.yaml` | `python ../data/wgisd_yolo/prepare_wgisd.py` |
 | CUDA out of memory | Lower `--batch` (training) or `--imgsz` (video). |
 | CUDA unavailable | The CPU is used. For a GPU, install a CUDA build of PyTorch (INSTALL.md). |
-| Only 300 frames processed | Add `--max-frames 0`. |
-| `tracked_now` stays 0 | Tracking needs `--mode track`; ByteTrack does not give every detection an id. |
-| False positives or missed clusters on video | The model has only seen WGISD photos: fine-tune on our footage (section 4). |
+| `… is a base model` | A base model such as `yolo26n-seg.pt` has no grape class. Use `model/best.pt` or a trained run. |
+| `No clusters found` | The table printed at the start shows what the model saw at every input size. Nothing at any size, or false positives and missed clusters: the model has only seen WGISD photos, so label our footage ([`../LABELLING.md`](../LABELLING.md)) and fine-tune (section 4). |
 
 Licences: [WGISD](https://github.com/thsant/wgisd) CC BY-NC 4.0, [Ultralytics](https://github.com/ultralytics/ultralytics) AGPL-3.0. Repository: [`../LICENSE.txt`](../LICENSE.txt).

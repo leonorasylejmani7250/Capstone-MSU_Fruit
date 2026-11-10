@@ -14,7 +14,7 @@
 | **Test (27 held-out photos)** | **box mAP@0.50 0.810**, mAP@0.50:0.95 0.486 · **mask mAP@0.50 0.819**, mAP@0.50:0.95 0.469 |
 | Count test (27 photos, conf 0.25) | MAE 2.59 clusters per photo; 451 predicted vs 407 by hand (best: conf 0.30, MAE 1.93) |
 
-Run it at `imgsz` 512, the size it was trained at. These are scores on WGISD photos; the number that matters is the leaderboard on our own clips (`python fruit.py evaluate` in `sam2_pipeline/`). Its per-frame counts on the partner's DJI videos are in `../../data/results/yolo11/CodyKresta_1025/`.
+On WGISD photos it is scored at `imgsz` 512, the size it was trained at; on video the size depends on how big the clusters look in the footage, and `video.py` picks it (`--imgsz auto`). These are scores on WGISD photos; the number that matters is the leaderboard on our own clips (`python fruit.py evaluate` in `sam2_pipeline/`). Its per-frame counts on the partner's DJI videos are in `../../data/results/yolo11/CodyKresta_1025/`.
 
 ## Replacing it
 

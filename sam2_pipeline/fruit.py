@@ -9,7 +9,8 @@ computer with the environment from hpcc/setup_env.sh. It runs the same code as t
   python fruit.py import-yolo export/images export/labels            YOLO outlines or boxes
   python fruit.py train --run grapes_v1 --steps 3000                 fine-tune SAM 2.1 (Meta's trainer)
   python fruit.py evaluate --lineup configs/lineup.yaml              score every model on the val clips
-  python fruit.py video videos/row3.mp4 --seconds 30                 our YOLO26 finds the clusters, SAM 2.1 follows them
+  python fruit.py video videos/row3.mp4                              count the clusters in a video: YOLO26 finds them, SAM 2.1 follows them
+  python fruit.py counts                                             every model's total for every video
   python fruit.py check videos/row3.mp4                              a model finds nothing: which detector and size see this video
   python fruit.py train-detector --base yolo26_pipeline/model/best.pt   fine-tune our YOLO26 on the same labels
   python fruit.py approve --all-drafts                               accept drafted labels unchecked
@@ -232,8 +233,25 @@ def cmd_video(F, a):
         ckpt = shipped[-1] if shipped else None
     pipeline = F.DetectThenSAM2(finder, ckpt=ckpt)
     print("SAM 2.1:", ckpt.name if ckpt else f"{F.SAM2_SIZE} pretrained")
-    out, counts, tracks = F.run_on_video(pipeline, video, a.start, a.seconds, a.fps)
-    print(tracks.head(30).to_string(index=False))
+    if not video.is_dir():
+        out, counts, tracks = F.run_on_video(pipeline, video, a.start, a.seconds, a.fps)
+        return
+    videos = F.find_videos(video)                       # a folder: every video in it, whole; counted ones are skipped
+    done = set() if a.overwrite else F.counted(F.model_label(pipeline))
+    for i, v in enumerate(videos, 1):
+        if F.video_key(v) in done:
+            print(f"[{i}/{len(videos)}] {F.video_key(v)}: counted already, skipping (--overwrite to redo)")
+            continue
+        print(f"[{i}/{len(videos)}] {F.video_key(v)}", flush=True)
+        try:
+            F.run_on_video(pipeline, v, fps=a.fps)
+        except AssertionError as e:                     # one unreadable file does not stop the folder
+            print(f"  skipped: {e}")
+    F.count_table()
+
+
+def cmd_counts(F, a):
+    F.count_table()
 
 
 def cmd_check(F, a):
@@ -349,11 +367,12 @@ def main(argv=None):
                    help="start the table over: drop the rows kept from earlier runs (renamed or removed models stay otherwise)")
     s.add_argument("--compare", type=int, default=1, help="side-by-side videos for this many clips")
 
-    s = sub.add_parser("video", help="run detector → SAM 2.1 over a stretch of video")
-    s.add_argument("video")
-    s.add_argument("--start", type=float, default=0)
-    s.add_argument("--seconds", type=float, default=10)
+    s = sub.add_parser("video", help="count the clusters in a video: a detector finds them, SAM 2.1 follows them")
+    s.add_argument("video", help="a video, or a folder: every video in it")
+    s.add_argument("--start", type=float, default=0, help="seconds into the video")
+    s.add_argument("--seconds", type=float, default=0, help="how much of it (default 0: to the end; 20 for a quick look)")
     s.add_argument("--fps", type=float, default=6)
+    s.add_argument("--overwrite", action="store_true", help="with a folder: count again the videos that have a total")
     s.add_argument("--weights", default=None,
                    help="fine-tuned SAM 2.1 weights (default: the newest in model/, else pretrained)")
     s.add_argument("--detector", default="yolo26_pipeline/model/best.pt",
@@ -364,6 +383,8 @@ def main(argv=None):
     s.add_argument("--detector-weights-trained", default=None, help=argparse.SUPPRESS)        # old name of --detector
     s.add_argument("--detector-imgsz", type=size, default="auto",
                    help="the detector's input size: auto (the size at which it is most sure on this video) or a number")
+
+    sub.add_parser("counts", help="every model's cluster total for every video (results/cluster_counts.csv)")
 
     s = sub.add_parser("check", help="a model finds nothing: what every detector sees in a video, at every input size")
     s.add_argument("video")
@@ -393,7 +414,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     F = load(a)
     {"status": cmd_status, "download": cmd_download, "clips": cmd_clips, "import-coco": cmd_import_coco,
-     "import-yolo": cmd_import_yolo, "train": cmd_train, "evaluate": cmd_evaluate, "video": cmd_video, "check": cmd_check,
+     "import-yolo": cmd_import_yolo, "train": cmd_train, "evaluate": cmd_evaluate, "video": cmd_video, "counts": cmd_counts, "check": cmd_check,
      "train-detector": cmd_train_detector, "approve": cmd_approve, "export-yolo": cmd_export_yolo}[a.cmd](F, a)
 
 

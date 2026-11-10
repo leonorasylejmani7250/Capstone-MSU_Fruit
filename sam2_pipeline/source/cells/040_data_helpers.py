@@ -198,7 +198,7 @@ def probe_video(path):
     cap.release()
     return dict(fps=float(fps), frames=n, width=w, height=h, seconds=(n / fps if fps else 0.0))
 
-SETTLE_MINUTES = 2        # a video written this recently may still be syncing (SharePoint, rclone, Globus): skipped until the next run
+SETTLE_MINUTES = 2        # a video written this recently may still be arriving (Globus, a sync, an upload): skipped until the next run
 
 def _is_junk(p):
     """Files a sync or a camera leaves next to the videos: hidden files, Office and macOS sidecars, partial downloads."""

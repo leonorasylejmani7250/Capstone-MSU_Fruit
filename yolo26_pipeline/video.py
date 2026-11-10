@@ -1,11 +1,13 @@
-"""Run the model on a video, or on every video in a folder: an annotated video plus a per-frame CSV in
-../data/results/<pipeline>/. Default model: model/best.pt.
+"""Count the grape clusters in a video, or in every video of a folder: an annotated video, a per-frame CSV and the
+total in ../data/results/. Default model: model/best.pt.
 
-    python video.py --video ../data/videos/row3.mp4 --max-frames 0            the whole video
+    python video.py --video ../data/videos/row3.mp4                           one video
     python video.py --video-dir ../data/videos/CodyKresta_1025                 every video in the folder
-    python video.py --video ../data/videos/row3.mp4 --mode track               ByteTrack ids across frames
+    python video.py --video ../data/videos/row3.mp4 --max-frames 300           a quick look at the first 300 frames
 
---mode detect draws every cluster the model finds in each frame; --mode track adds ByteTrack ids across frames.
+Every cluster gets an id that follows it from frame to frame (ByteTrack); the total is the number of ids followed
+for at least MIN_SECONDS. A whole video adds its total to ../data/results/cluster_counts.csv, the file every
+pipeline writes to. --mode detect only draws what the model finds in each frame, without ids or a total.
 --imgsz is the size a frame is shrunk to before the model sees it, so it sets how big a cluster looks to the model.
 The default, auto, tries every size on five frames of the video and uses the one at which the model is most sure.
 """
@@ -13,13 +15,17 @@ from __future__ import annotations
 
 import argparse
 import csv
+import time
 from pathlib import Path
 
 import cv2
 import numpy as np
 import torch
 
-from pipeline import MODEL, RESULTS, load
+from pipeline import DATA, MODEL, NAME, RESULTS, load
+
+MIN_SECONDS = 1.0   # an id counts as a cluster once it has been followed for this long; shorter ones are mostly
+                    # a cluster the tracker lost and found again, or a leaf mistaken for one
 
 
 def color_for_id(identifier: int) -> tuple[int, int, int]:
@@ -28,8 +34,14 @@ def color_for_id(identifier: int) -> tuple[int, int, int]:
     return palette[int(identifier) % len(palette)]
 
 
-def render(frame: np.ndarray, result, seen_ids: set[int], conf_threshold: float,
-           mode: str) -> tuple[np.ndarray, int, int]:
+def clusters(seen: dict[int, int], min_frames: int) -> int:
+    """The count so far: ids that have been followed for at least `min_frames` frames."""
+    return sum(1 for frames in seen.values() if frames >= min_frames)
+
+
+def render(frame: np.ndarray, result, seen: dict[int, int], conf_threshold: float,
+           mode: str, min_frames: int = 1) -> tuple[np.ndarray, int, int]:
+    """Draw the result on the frame. `seen` maps each tracker id to the number of frames it has been followed."""
     h, w = frame.shape[:2]
     out = frame.copy()
     boxes = result.boxes
@@ -57,7 +69,7 @@ def render(frame: np.ndarray, result, seen_ids: set[int], conf_threshold: float,
         for i, (bb, conf) in enumerate(zip(xyxy, confidences)):
             ident = int(ids[i]) if i < len(ids) else None
             if ident is not None:
-                seen_ids.add(ident)
+                seen[ident] = seen.get(ident, 0) + 1
             color = color_for_id(ident if ident is not None else i)
             x1, y1, x2, y2 = map(int, bb)
             x1, x2 = max(0, x1), min(w - 1, x2)
@@ -81,7 +93,7 @@ def render(frame: np.ndarray, result, seen_ids: set[int], conf_threshold: float,
                         .55, color, 2, cv2.LINE_AA)
 
     lines = [f'Grapes visible: {n}', f'Tracked now: {track_now}',
-             f'Track IDs seen: {len(seen_ids)}' if mode == 'track' else 'Mode: detect',
+             f'Clusters so far: {clusters(seen, min_frames)}' if mode == 'track' else 'Mode: detect',
              f'Best confidence: {max(confidences) * 100:.0f}%' if confidences else 'Best confidence: --',
              f'Conf threshold: {conf_threshold * 100:.0f}%']
     scale, thick, gap, margin = .55, 2, 25, 14
@@ -166,8 +178,45 @@ def pick(rows: list[dict], fallback: int) -> int:
     return best['imgsz'] if best['top_score'] > 0 else fallback
 
 
+def model_label(weights: Path) -> str:
+    """How a weights file is named in the count table: model/best.pt → the pipeline's name; a training run's
+    weights/best.pt → the run's name."""
+    weights = Path(weights).resolve()
+    if weights == MODEL.resolve():
+        return NAME
+    return weights.parents[1].name if weights.name == 'best.pt' else weights.stem
+
+
+COUNTS = DATA / 'results' / 'cluster_counts.csv'      # one line per counted video and model; every pipeline adds to it
+
+
+def video_key(video: Path) -> str:
+    """How a video is named in the count table: its path under ../data/videos/, else its file name."""
+    videos = (DATA / 'videos').resolve()
+    return video.resolve().relative_to(videos).as_posix() if video.resolve().is_relative_to(videos) else video.name
+
+
+def record_count(video: Path, model: str, total: int, seconds: float) -> Path:
+    """Add a video's total to the count table."""
+    COUNTS.parent.mkdir(parents=True, exist_ok=True)
+    new = not COUNTS.exists() or not COUNTS.stat().st_size
+    with COUNTS.open('a', newline='', encoding='utf-8') as f:
+        if new:
+            csv.writer(f).writerow(['video', 'model', 'clusters', 'seconds', 'pipeline', 'written'])
+        csv.writer(f).writerow([video_key(video), model, total, round(seconds, 1), NAME, time.strftime('%Y-%m-%d %H:%M')])
+    return COUNTS
+
+
+def counted(model: str) -> set[str]:
+    """The videos this model has a total for already."""
+    if not COUNTS.exists():
+        return set()
+    with COUNTS.open(newline='', encoding='utf-8') as f:
+        return {row['video'] for row in csv.DictReader(f) if row['model'] == model}
+
+
 def process(video: Path, model, args, output: Path) -> None:
-    """One video → annotated video at `output` and a per-frame CSV next to it."""
+    """One video → annotated video at `output`, a per-frame CSV next to it, and with ids the total."""
     output.parent.mkdir(parents=True, exist_ok=True)
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
@@ -187,7 +236,8 @@ def process(video: Path, model, args, output: Path) -> None:
     if not writer.isOpened():
         cap.release()
         raise RuntimeError(f'Unable to create {output}')
-    seen_ids: set[int] = set()
+    seen: dict[int, int] = {}
+    min_frames = max(1, round(MIN_SECONDS * fps))
     csv_path = output.with_suffix('.csv')
     processed = found = 0
     device = 0 if torch.cuda.is_available() else 'cpu'
@@ -201,7 +251,7 @@ def process(video: Path, model, args, output: Path) -> None:
     try:
         with csv_path.open('w', newline='', encoding='utf-8') as file:
             log = csv.writer(file)
-            log.writerow(['frame', 'visible_now', 'tracked_now', 'tracker_ids_seen'])
+            log.writerow(['frame', 'visible_now', 'tracked_now', 'clusters_so_far'])
             while args.max_frames == 0 or processed < args.max_frames:
                 ok, frame = cap.read()
                 if not ok:
@@ -209,21 +259,26 @@ def process(video: Path, model, args, output: Path) -> None:
                 kwargs = dict(source=frame, conf=args.conf, imgsz=size,
                               device=device, verbose=False, retina_masks=True)
                 if args.mode == 'track':
-                    result = model.track(**kwargs, persist=True, tracker=args.tracker)[0]
+                    result = model.track(**kwargs, persist=processed > 0, tracker=args.tracker)[0]      # ids start over with each video
                 else:
                     result = model.predict(**kwargs)[0]
-                rendered, visible, tracked = render(frame, result, seen_ids, args.conf, args.mode)
+                rendered, visible, tracked = render(frame, result, seen, args.conf, args.mode, min_frames)
                 writer.write(rendered)
                 processed += 1
                 found += visible
-                log.writerow([processed, visible, tracked, len(seen_ids)])
-                if processed % 30 == 0:
-                    print(f'Frame {processed} | visible={visible}, tracked={tracked}, IDs seen={len(seen_ids)}', flush=True)
+                log.writerow([processed, visible, tracked, clusters(seen, min_frames)])
+                if processed % 300 == 0:
+                    print(f'Frame {processed} | visible={visible}, clusters so far={clusters(seen, min_frames)}', flush=True)
     finally:
         writer.release()
         cap.release()
     print(f'Saved {processed} frames: {output}')
     print(f'Per-frame CSV: {csv_path}')
+    if args.mode == 'track':
+        total = clusters(seen, min_frames)
+        print(f'Clusters counted: {total} (ids followed for at least {MIN_SECONDS:g} s)')
+        if not args.start_sec and not args.max_frames:          # a whole video: its total goes into the shared table
+            print(f'Total written to {record_count(video, model_label(args.model), total, processed / fps)}')
     if processed and not found:
         print('No clusters found. ' + ('The model is sure of nothing in this video at any input size: the footage is unlike the '
                                        'photos it was trained on. Label clips of it and fine-tune (../LABELLING.md).'
@@ -238,11 +293,12 @@ def main():
     p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
     p.add_argument('--output', type=Path, default=None,
                    help='annotated video, or with --video-dir the output folder (default: ../data/results/<pipeline>/[<folder name>/]<video name>_<mode>.mp4)')
-    p.add_argument('--mode', choices=['detect', 'track'], default='detect')
+    p.add_argument('--mode', choices=['track', 'detect'], default='track',
+                   help='track: ids across frames and a total (default); detect: only what is in each frame')
     p.add_argument('--conf', type=float, default=0.30)
     p.add_argument('--imgsz', type=lambda v: v if v == 'auto' else int(v), default='auto',
                    help='input size: auto (the size at which the model is most sure on this video) or a number')
-    p.add_argument('--max-frames', type=int, default=300, help='0 means the entire video (always 0 with --video-dir)')
+    p.add_argument('--max-frames', type=int, default=0, help='frames to process (default 0: the whole video)')
     p.add_argument('--start-sec', type=float, default=0.)
     p.add_argument('--tracker', default='bytetrack.yaml')
     p.add_argument('--overwrite', action='store_true', help='with --video-dir: redo videos that already have an output')
@@ -267,12 +323,14 @@ def main():
         if not videos:
             p.error(f'No videos under {args.video_dir}')
         out_dir = args.output or RESULTS / args.video_dir.name
-        args.max_frames = 0
+        args.max_frames, args.start_sec = 0, 0.
+        done = counted(model_label(args.model)) if args.mode == 'track' else set()
         failed = []
         for i, video in enumerate(videos, 1):
             rel = video.relative_to(args.video_dir)                      # subfolders are kept in the output
             output = out_dir / rel.parent / f'{video.stem}_{args.mode}.mp4'
-            if output.with_suffix('.csv').exists() and not args.overwrite:
+            finished = video_key(video) in done if args.mode == 'track' else output.with_suffix('.csv').exists()
+            if finished and not args.overwrite:
                 print(f'[{i}/{len(videos)}] {rel}: done already, skipping (--overwrite to redo)')
                 continue
             print(f'[{i}/{len(videos)}] {rel}')
@@ -283,7 +341,7 @@ def main():
                 failed.append(str(rel))
         if failed:
             print(f'{len(failed)} video(s) could not be read: ' + ', '.join(failed))
-    print('Track IDs seen != verified unique clusters; no yield estimate is claimed.')
+    print('A count is the number of ids the tracker followed, not a hand count, and not a yield estimate.')
 
 
 if __name__ == '__main__':

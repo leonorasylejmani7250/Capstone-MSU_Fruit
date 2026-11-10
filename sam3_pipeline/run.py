@@ -1,8 +1,13 @@
-"""Run the model with a text prompt ("grape cluster") on our labelled clips or on a video, and write its masks to ../data/.
+"""Run the model with a text prompt ("grape cluster") on our labelled clips or on a video, and write the result to ../data/.
 
     python run.py clips                                  masks for the held-out val clips → ../data/predictions/<name>/<clip>/<frame>.png
                                                          (then `python fruit.py evaluate` in ../sam2_pipeline scores them with every other model)
-    python run.py video ../data/videos/row3.mp4 --seconds 30     an overlay video and per-frame counts → ../data/results/<pipeline>/
+    python run.py video ../data/videos/row3.mp4          count the clusters in a video: overlay video, per-frame counts, the total
+    python run.py video ../data/videos/CodyKresta_1025   every video in a folder
+
+A video goes through the model in stretches of CHUNK_SECONDS that share one frame; a cluster keeps its id from one
+stretch to the next when its masks on the shared frame overlap. The total is the number of ids seen in at least
+MIN_FRAMES frames; a whole video adds it to ../data/results/cluster_counts.csv, the file every pipeline writes to.
 
 Weights: the newest .pt in model/ (a fine-tuned model from finetune.py, or the release downloaded there), else Meta's release.
 --checkpoint release forces Meta's weights; --checkpoint <file> picks a file. Needs Meta's `sam3` package and a CUDA GPU (README.md).
@@ -23,6 +28,10 @@ import numpy as np
 import pipeline as P
 
 PALETTE = [(100, 210, 85), (215, 145, 68), (180, 85, 200), (76, 185, 230), (215, 110, 165), (96, 200, 175)]
+CHUNK_SECONDS = 10      # a video goes through the model in stretches of this length
+MIN_FRAMES = 2          # an id counts as a cluster once it has been seen in this many frames
+MAX_SIDE = 1280         # frames are shrunk to this first (the model works at 1008 px)
+VIDEO_EXTS = {'.mp4', '.mov', '.m4v', '.avi', '.mkv', '.mts', '.webm'}
 
 
 def pick_checkpoint(arg: str | None) -> Path | None:
@@ -117,56 +126,146 @@ def cmd_clips(args, data: Path, checkpoint: Path | None):
     print(f'\nDone: {out_root}\nScore it: cd ../sam2_pipeline && python fruit.py evaluate   (row: {row.format(text=args.text)})')
 
 
-def cmd_video(args, data: Path, checkpoint: Path | None):
-    """A stretch of one video: an overlay video and per-frame counts in ../data/results/<pipeline>/."""
-    cap = cv2.VideoCapture(str(args.video))
-    if not cap.isOpened():
-        sys.exit(f'cannot open {args.video}')
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    cap.set(cv2.CAP_PROP_POS_MSEC, args.start * 1000)
-    frames = []
-    while len(frames) < int(args.seconds * args.fps):
-        ok, frame = cap.read()
-        if not ok:
-            break
-        frames.append(frame)
-        for _ in range(max(0, int(round(fps / args.fps)) - 1)):      # skip ahead to the next sampled frame
-            cap.grab()
-    cap.release()
-    if not frames:
-        sys.exit('no frames read')
-    h, w = frames[0].shape[:2]
-    tmp = Path(tempfile.mkdtemp(prefix=f'{P.NAME}_video_')) / 'stretch.mp4'
-    vw = cv2.VideoWriter(str(tmp), cv2.VideoWriter_fourcc(*'mp4v'), args.fps, (w, h))
-    for f in frames:
-        vw.write(f)
-    vw.release()
+def stitch(shared: np.ndarray | None, masks: np.ndarray, next_id: int) -> tuple[np.ndarray, int]:
+    """Give the objects of a new stretch their ids for the whole video. `shared` is the frame both stretches hold, as
+    the earlier one numbered it: an object whose mask on that frame overlaps an earlier object's (IoU 0.5 or more)
+    takes its id, every other object the next free id. Returns (masks with the new ids, the next free id)."""
+    lut = np.zeros(int(masks.max()) + 1, np.int64)
+    if shared is not None:
+        first = masks[0]
+        both = (shared > 0) & (first > 0)
+        if both.any():
+            pairs, inter = np.unique(np.stack([shared[both], first[both]]), axis=1, return_counts=True)
+            area_old, area_new = np.bincount(shared.ravel()), np.bincount(first.ravel(), minlength=len(lut))
+            for i in np.argsort(-inter):
+                old, new = int(pairs[0, i]), int(pairs[1, i])
+                if inter[i] / (area_old[old] + area_new[new] - inter[i]) >= 0.5 and not lut[new]:
+                    lut[new] = old
+    for k in np.unique(masks):
+        if k and not lut[k]:
+            lut[k] = next_id
+            next_id += 1
+    return lut[masks], next_id
 
-    predictor = build_predictor(args.max_objects, checkpoint)
-    masks = track_text(predictor, tmp, args.text, (h, w), len(frames), args.prob)
+
+def video_key(video: Path, data: Path) -> str:
+    """How a video is named in the count table: its path under videos/, else its file name."""
+    videos = (data / 'videos').resolve()
+    return video.resolve().relative_to(videos).as_posix() if video.resolve().is_relative_to(videos) else video.name
+
+
+def record_count(video: Path, data: Path, model: str, total: int, seconds: float) -> Path:
+    """One line per counted video in results/cluster_counts.csv, the file every pipeline adds its totals to."""
+    table = data / 'results' / 'cluster_counts.csv'
+    table.parent.mkdir(parents=True, exist_ok=True)
+    new = not table.exists() or not table.stat().st_size
+    with table.open('a', newline='', encoding='utf-8') as f:
+        if new:
+            csv.writer(f).writerow(['video', 'model', 'clusters', 'seconds', 'pipeline', 'written'])
+        csv.writer(f).writerow([video_key(video, data), model, total, round(seconds, 1), P.NAME, time.strftime('%Y-%m-%d %H:%M')])
+    return table
+
+
+def count_video(video: Path, args, data: Path, predictor, model: str) -> None:
+    """One video (or a stretch of it): overlay video, per-frame counts and the total in results/<pipeline>/."""
+    cap = cv2.VideoCapture(str(video))
+    if not cap.isOpened():
+        raise RuntimeError(f'cannot open {video}')
+    stride = max(1, int(round((cap.get(cv2.CAP_PROP_FPS) or 30) / args.fps)))
+    cap.set(cv2.CAP_PROP_POS_MSEC, args.start * 1000)
+    limit = int(args.seconds * args.fps) if args.seconds else 10**9
+    per_chunk = max(2, int(CHUNK_SECONDS * args.fps))
+
+    def read(n: int) -> list[np.ndarray]:
+        frames = []
+        while len(frames) < n:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            scale = MAX_SIDE / max(frame.shape[:2])
+            frames.append(cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1 else frame)
+            for _ in range(stride - 1):                               # skip ahead to the next sampled frame
+                cap.grab()
+        return frames
 
     out_dir = data / 'results' / P.NAME
     out_dir.mkdir(parents=True, exist_ok=True)
-    stem = f'{Path(args.video).stem}_{P.NAME}'
-    overlay = cv2.VideoWriter(str(out_dir / f'{stem}.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), args.fps, (w, h))
-    seen = set()
+    stem = f'{video.stem}_{P.NAME}'
+    tmp = Path(tempfile.mkdtemp(prefix=f'{P.NAME}_video_')) / 'stretch.mp4'
+    overlay, seen, shared, last, next_id, done = None, {}, None, None, 1, 0
     with (out_dir / f'{stem}.csv').open('w', newline='', encoding='utf-8') as f:
         log = csv.writer(f)
-        log.writerow(['frame', 'visible_now', 'ids_seen'])
-        for i, (frame, m) in enumerate(zip(frames, masks), 1):
-            ids = [k for k in np.unique(m) if k]
-            seen.update(ids)
-            tint = frame.copy()
-            for k in ids:
-                tint[m == k] = PALETTE[int(k) % len(PALETTE)]
-            frame = cv2.addWeighted(tint, 0.35, frame, 0.65, 0)
-            cv2.putText(frame, f'clusters visible: {len(ids)}  ids seen: {len(seen)}', (12, 28),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
-            overlay.write(frame)
-            log.writerow([i, len(ids), len(seen)])
+        log.writerow(['frame', 'visible_now', 'clusters_so_far'])
+        while done < limit:
+            frames = ([last] if last is not None else []) + read(min(per_chunk, limit - done))
+            if len(frames) < (2 if last is not None else 1):
+                break
+            h, w = frames[0].shape[:2]
+            vw = cv2.VideoWriter(str(tmp), cv2.VideoWriter_fourcc(*'mp4v'), args.fps, (w, h))
+            for frame in frames:
+                vw.write(frame)
+            vw.release()
+            masks, next_id = stitch(shared, track_text(predictor, tmp, args.text, (h, w), len(frames), args.prob), next_id)
+            if overlay is None:
+                overlay = cv2.VideoWriter(str(out_dir / f'{stem}.mp4'), cv2.VideoWriter_fourcc(*'mp4v'), args.fps, (w, h))
+            for frame, m in list(zip(frames, masks))[0 if last is None else 1:]:        # the shared frame was written already
+                ids = [int(k) for k in np.unique(m) if k]
+                for k in ids:
+                    seen[k] = seen.get(k, 0) + 1
+                total = sum(1 for n in seen.values() if n >= MIN_FRAMES)
+                tint = frame.copy()
+                for k in ids:
+                    tint[m == k] = PALETTE[k % len(PALETTE)]
+                frame = cv2.addWeighted(tint, 0.35, frame, 0.65, 0)
+                cv2.putText(frame, f'in view {len(ids)}  clusters so far {total}', (12, 28),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+                overlay.write(frame)
+                done += 1
+                log.writerow([done, len(ids), total])
+            shared, last = masks[-1], frames[-1]
+            print(f'  {done} frames, clusters so far {sum(1 for n in seen.values() if n >= MIN_FRAMES)}', flush=True)
+    whole = not args.start and not args.seconds and not cap.grab()
+    cap.release()
+    tmp.unlink(missing_ok=True)
+    if overlay is None:
+        raise RuntimeError(f'no frames read from {video}')
     overlay.release()
+    total = sum(1 for n in seen.values() if n >= MIN_FRAMES)
     print(f'overlay video: {out_dir / stem}.mp4\ncounts: {out_dir / stem}.csv')
-    print('ids seen != verified unique clusters, and a cluster count is not a yield estimate.')
+    print(f'Clusters counted: {total} (ids seen in at least {MIN_FRAMES} frames)')
+    if whole:
+        print(f'Total written to {record_count(video, data, model, total, done / args.fps)}')
+
+
+def cmd_video(args, data: Path, checkpoint: Path | None):
+    """Count the clusters in one video, or in every video of a folder."""
+    if not args.video.exists():
+        sys.exit(f'cannot find {args.video}')
+    model = weights_label(checkpoint)[1].format(text=args.text)
+    videos = [args.video]
+    if args.video.is_dir():
+        videos = sorted(f for f in args.video.rglob('*') if f.is_file() and f.suffix.lower() in VIDEO_EXTS
+                        and not any(part.startswith(('.', '~$')) for part in f.relative_to(args.video).parts))
+        if not videos:
+            sys.exit(f'No videos under {args.video}')
+    table, done = data / 'results' / 'cluster_counts.csv', set()
+    if args.video.is_dir() and table.exists() and not args.overwrite:      # a folder: the videos with a total are skipped
+        with table.open(newline='', encoding='utf-8') as f:
+            done = {row['video'] for row in csv.DictReader(f) if row['model'] == model}
+    predictor = build_predictor(args.max_objects, checkpoint)
+    for i, video in enumerate(videos, 1):
+        if video_key(video, data) in done:
+            print(f'[{i}/{len(videos)}] {video.name}: counted already, skipping (--overwrite to redo)')
+            continue
+        if len(videos) > 1:
+            print(f'[{i}/{len(videos)}] {video}', flush=True)
+        try:
+            count_video(video, args, data, predictor, model)
+        except RuntimeError as e:                                     # one unreadable file does not stop the folder
+            if len(videos) == 1:
+                sys.exit(str(e))
+            print(f'  skipped: {e}')
+    print('A count is the number of ids the model followed, not a hand count, and not a yield estimate.')
 
 
 def main():
@@ -182,11 +281,12 @@ def main():
     s = sub.add_parser('clips', help='masks for the labelled clips → ../data/predictions/')
     s.add_argument('--split', default='val', choices=['val', 'train'])
     s.add_argument('--name', default=None, help='folder name under predictions/ (default: from the weights)')
-    s = sub.add_parser('video', help='overlay video and counts for a stretch of one video → ../data/results/<pipeline>/')
-    s.add_argument('video', type=Path)
+    s = sub.add_parser('video', help='count the clusters in a video: overlay video, counts and the total → ../data/results/')
+    s.add_argument('video', type=Path, help='a video, or a folder: every video in it')
     s.add_argument('--start', type=float, default=0, help='seconds into the video')
-    s.add_argument('--seconds', type=float, default=10)
+    s.add_argument('--seconds', type=float, default=0, help='how much of it (default 0: to the end; 20 for a quick look)')
     s.add_argument('--fps', type=float, default=6, help='frames per second to run (lower is faster)')
+    s.add_argument('--overwrite', action='store_true', help='with a folder: count again the videos that have a total')
     args = p.parse_args()
     data = (args.data.expanduser().resolve() if args.data else P.DATA)
     checkpoint = pick_checkpoint(args.checkpoint)

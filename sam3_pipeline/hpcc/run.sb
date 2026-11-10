@@ -2,7 +2,7 @@
 # Run any script of this folder as a GPU batch job on the MSU HPCC. Submit from the sam3_pipeline folder:
 #     cd ~/Capstone-MSU_Fruit/sam3_pipeline
 #     sbatch hpcc/run.sb run.py clips                                        masks for the labelled val clips (zero-shot or fine-tuned)
-#     sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4 --seconds 60   overlay video and counts
+#     sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4                count the clusters in a video
 #     sbatch --time=08:00:00 hpcc/run.sb finetune.py --run grapes_v1         fine-tune on our clips → model/sam3_grapes_v1.pt
 # Everything after `run.sb` is run as `python <script> <args>`. Log: sam3-<job id>.out in this folder.
 # Status: squeue --me   Cancel: scancel <job id>

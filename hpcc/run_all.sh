@@ -16,9 +16,9 @@
 #   leaderboard, after all of them: every model in configs/lineup.yaml plus everything above, on the same val clips
 #             fruit.py evaluate
 #
-# Before running it: the environments exist (each pipeline's hpcc/setup_env.sh; the SAM 3 ones also need `hf auth login`
-# and the downloaded release in their model/ folder), and data/dataset holds labelled clips marked done (label in OnDemand
-# Jupyter, or import labels with fruit.py import-coco / import-yolo + approve). Nothing here needs a GPU on the node you run it from.
+# Before running it: the environments exist (hpcc/setup.sh; SAM 3 and SAM 3.1 also need `hf auth login` and the downloaded
+# release in their model/ folder), and data/dataset holds labelled clips marked done (LABELLING.md, or labels imported with
+# fruit.py import-coco / import-yolo + approve). Nothing here needs a GPU on the node you run it from.
 set -eo pipefail
 RUN="${1:-grapes_v1}"
 STEPS="${2:-3000}"
@@ -34,7 +34,7 @@ unset ENV_DIR                       # the SAM 2.1 environment; the other pipelin
 echo "repository: $REPO"
 echo "project folder (labelled clips, results): $PROJECT_DIR"
 if [ ! -f "$PROJECT_DIR/dataset/clips.json" ]; then
-    echo "No labelled clips in $PROJECT_DIR/dataset. Label clips first (sam2_pipeline/README.md, section 2)." >&2
+    echo "No labelled clips in $PROJECT_DIR/dataset. Label clips first (LABELLING.md)." >&2
     exit 1
 fi
 

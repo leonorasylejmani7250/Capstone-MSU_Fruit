@@ -6,8 +6,8 @@
 #
 # Loads conda, activates the environment setup_env.sh built, and reads hpcc/config.sh (PROJECT_DIR, by default
 # the repository's data/ folder, etc.).
-# Light commands (status, clips, import-coco, import-yolo, approve, export-yolo) are fine on a dev node;
-# send GPU work (train, evaluate, video, train-detector) to the queue with `sbatch hpcc/run.sb ...`.
+# Light commands (status, clips, counts, import-coco, import-yolo, approve, export-yolo) are fine on a dev node;
+# send GPU work (train, evaluate, video, check, train-detector) to the queue with `sbatch hpcc/run.sb ...`.
 _fruit_hpcc="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$_fruit_hpcc/config.sh"
 module purge > /dev/null 2>&1

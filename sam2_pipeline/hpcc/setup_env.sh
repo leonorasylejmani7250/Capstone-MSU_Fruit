@@ -64,8 +64,8 @@ else:
     print("No GPU on this node (normal on a CPU dev node). Jobs get one from #SBATCH --gpus.")
 PY
 echo
-echo "Setup done. Next (see README):"
-echo "  1. put videos in $PROJECT_DIR/videos   (OnDemand Files ▸ Upload, rsync or Globus)"
-echo "  2. source hpcc/activate.sh && python fruit.py clips    (cuts clips, splits train/val)"
-echo "  3. label in OnDemand Jupyter: notebooks/MSU_FRUIT_SAM2_pipeline.ipynb, kernel 'Python (fruit_sam2)'"
-echo "  4. sbatch hpcc/run.sb train --run grapes_v1 --steps 3000"
+echo "Setup done. Next (from the repository folder; hpcc/README.md has each step):"
+echo "  1. video into $PROJECT_DIR/videos              data/README.md"
+echo "  2. label clips                                 LABELLING.md"
+echo "  3. bash hpcc/run_all.sh grapes_v1              fine-tune every model and score them all"
+echo "  4. bash hpcc/count_rows.sh                     count the clusters in every row video"
