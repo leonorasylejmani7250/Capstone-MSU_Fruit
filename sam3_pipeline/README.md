@@ -16,7 +16,7 @@ SAM 3 (Meta, November 2025) segments and tracks every object that matches a text
 | `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](model/README.md)). |
-| `hpcc/` | HPCC environment (`setup_env.sh`) and batch job (`run.sb`). |
+| `hpcc/` | HPCC environment (`setup_env.sh` builds it, `activate.sh` turns it on in a terminal) and batch job (`run.sb`). |
 | `requirements.txt` | Python packages (Meta's `sam3` package with its trainer). |
 
 ## 1. What you need
@@ -27,6 +27,22 @@ SAM 3 (Meta, November 2025) segments and tracks every object that matches a text
 - Labelled clips in `../data/dataset/` from the SAM 2.1 labeller (`clips` and `finetune.py`), or a video in `../data/videos/` (`video`).
 
 ## 2. Install
+
+**On the HPCC**, once, on a development node:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_pipeline
+bash hpcc/setup_env.sh
+```
+
+Then run the `hf auth login` and `hf download` lines it prints: they put Meta's weights in `model/`, where a compute node without internet finds them. After that, in every new terminal:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_pipeline
+source hpcc/activate.sh
+```
+
+**On another Linux computer with an NVIDIA GPU.** Not on the HPCC, where `python` is the cluster's own Python 3.11 with the cluster's packages:
 
 ```bash
 cd Capstone-MSU_Fruit/sam3_pipeline
@@ -39,9 +55,7 @@ hf auth login
 hf download facebook/sam3 sam3.pt --local-dir model
 ```
 
-Use the CUDA build of PyTorch that matches the machine (`cu126` runs on the HPCC's V100s and A100s; `cu128` on newer cards). The last line keeps Meta's weights in `model/` so a compute node without internet can use them.
-
-HPCC: `bash hpcc/setup_env.sh` once on a development node, then the `hf auth login` and `hf download` lines it prints.
+Use the CUDA build of PyTorch that matches the machine (`cu126`, or `cu128` on newer cards). The last line keeps Meta's weights in `model/`.
 
 Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
 
@@ -67,7 +81,7 @@ The video goes through the model in stretches of 10 seconds that share one frame
 
 A total is the number of clusters the model followed, not a hand count, and not a yield estimate.
 
-Options for both go before the command name, as in `python run.py --text "green grapes" video …`: `--text` (one phrase per prompt), `--prob 0.4` (output threshold), `--max-objects 128` (object capacity; 16 is too few for a vine row), `--data <folder>` (project folder; default `../data` or `$PROJECT_DIR`).
+Options for both go before the command name, as in `python run.py --text "green grapes" video …`: `--text` (one phrase per prompt), `--prob 0.4` (output threshold), `--data <folder>` (project folder; default `../data` or `$PROJECT_DIR`).
 
 ## 4. Fine-tune on our clips
 
@@ -95,6 +109,8 @@ Then score it: `python run.py clips` (the new file is the newest in `model/`) an
 
 ## 5. HPCC
 
+Short runs work in a terminal on the development node `dev-amd24-h200`, after `source hpcc/activate.sh`; a development node stops a process after two hours. Longer runs are batch jobs, submitted from a development node (the gateway refuses `sbatch`):
+
 ```bash
 cd ~/Capstone-MSU_Fruit/sam3_pipeline
 sbatch hpcc/run.sb run.py clips --checkpoint release
@@ -112,7 +128,7 @@ Logs are `sam3-<jobid>.out` in this folder. [`../hpcc/run_all.sh`](../hpcc/READM
 | `401` / `GatedRepoError` on download | Access to `facebook/sam3` not approved yet, or `hf auth login` not done on this machine. |
 | `start_session` fails on a folder of frames | `run.py clips` retries with a temporary MP4 by itself. |
 | `No module named sam3.train`, `psutil`, `einops`, `pycocotools` or `pkg_resources` | `python -m pip install -r requirements.txt`: it holds the `[train]` extra and the packages `sam3` imports without declaring them. |
-| `CUDA out of memory` | `run.py`: lower `--max-objects`, shorten `--seconds`. `finetune.py`: `--resolution 768`, or a bigger GPU. |
+| `CUDA out of memory` | `run.py`: shorten `--seconds`. `finetune.py`: `--resolution 768`, or a bigger GPU. |
 | `No detector weights matched` after training | The trained checkpoint is kept in `../data/runs/<pipeline>_<run>/checkpoints/`; open an issue with the first lines of `unmatched_tensors` from the `.json`. |
 | Masks look right but the leaderboard shows 0 tracks | Check that `../data/dataset/clips.json` lists the clip as `val` and `done`. |
 

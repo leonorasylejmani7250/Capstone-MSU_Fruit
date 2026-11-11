@@ -1,6 +1,6 @@
 # hpcc/ — the workflow on the MSU HPCC
 
-Five steps, all from `~/Capstone-MSU_Fruit`. GPU work goes to the queue as batch jobs: `squeue --me` shows them, `scancel <job id>` stops one.
+Five steps, all from `~/Capstone-MSU_Fruit` on a development node (the gateway node you log in to refuses `sbatch`). GPU work goes to the queue as batch jobs: `squeue --me` shows them, `scancel <job id>` stops one.
 
 ## 1. Set up, once per person
 
@@ -88,7 +88,7 @@ cd ~/Capstone-MSU_Fruit/yolo26_pipeline
 sbatch hpcc/run.sb train.py --epochs 50 --batch 16
 ```
 
-The `sam3_1_pipeline` lines work the same in `sam3_pipeline`, the `yolo26_pipeline` line in `yolo11_pipeline`. A shell command that is not a job (`fruit.py status`, `clips`, `counts`) needs the environment first: `cd sam2_pipeline && source hpcc/activate.sh`.
+The `sam3_1_pipeline` lines work the same in `sam3_pipeline`, the `yolo26_pipeline` line in `yolo11_pipeline`. A shell command that is not a job (`fruit.py status`, `clips`, `counts`) needs the environment first: `cd sam2_pipeline && source hpcc/activate.sh`. The SAM 3 folders have their own `hpcc/activate.sh`.
 
 `fruit.py check` takes a minute or two and needs no queue. On a development node, the job script without `sbatch` runs it right there:
 

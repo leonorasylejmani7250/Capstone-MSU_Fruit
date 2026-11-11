@@ -16,7 +16,7 @@ SAM 3.1 (Meta, March 2026) segments and tracks every object that matches a text 
 | `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](model/README.md)). |
-| `hpcc/` | HPCC environment (`setup_env.sh`) and batch job (`run.sb`). |
+| `hpcc/` | HPCC environment (`setup_env.sh` builds it, `activate.sh` turns it on in a terminal) and batch job (`run.sb`). |
 | `requirements.txt` | Python packages (Meta's `sam3` package with its trainer). |
 
 ## 1. What you need
@@ -27,6 +27,22 @@ SAM 3.1 (Meta, March 2026) segments and tracks every object that matches a text 
 - Labelled clips in `../data/dataset/` from the SAM 2.1 labeller (`clips` and `finetune.py`), or a video in `../data/videos/` (`video`).
 
 ## 2. Install
+
+**On the HPCC**, once, on a development node:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
+bash hpcc/setup_env.sh
+```
+
+Then run the `hf auth login` and `hf download` lines it prints: they put Meta's weights in `model/`, where a compute node without internet finds them. After that, in every new terminal:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
+source hpcc/activate.sh
+```
+
+**On another Linux computer with an NVIDIA GPU.** Not on the HPCC, where `python` is the cluster's own Python 3.11 with the cluster's packages:
 
 ```bash
 cd Capstone-MSU_Fruit/sam3_1_pipeline
@@ -39,9 +55,7 @@ hf auth login
 hf download facebook/sam3.1 sam3.1_multiplex.pt --local-dir model
 ```
 
-Use the CUDA build of PyTorch that matches the machine (`cu126` runs on the HPCC's V100s and A100s; `cu128` on newer cards). The last line keeps Meta's weights in `model/` so a compute node without internet can use them.
-
-HPCC: `bash hpcc/setup_env.sh` once on a development node, then the `hf auth login` and `hf download` lines it prints.
+Use the CUDA build of PyTorch that matches the machine (`cu126`, or `cu128` on newer cards). The last line keeps Meta's weights in `model/`.
 
 Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_1_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
 
@@ -94,6 +108,8 @@ It exports the labelled clips as a COCO dataset (`../data/sam3_dataset/`: train 
 Then score it: `python run.py clips` (the new file is the newest in `model/`) and `python fruit.py evaluate` in `../sam2_pipeline`. The fine-tuned file is 3 GB and ignored by git; share it through a GitHub Release (`model/README.md`).
 
 ## 5. HPCC
+
+Short runs work in a terminal on the development node `dev-amd24-h200`, after `source hpcc/activate.sh`; a development node stops a process after two hours. Longer runs are batch jobs, submitted from a development node (the gateway refuses `sbatch`):
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
