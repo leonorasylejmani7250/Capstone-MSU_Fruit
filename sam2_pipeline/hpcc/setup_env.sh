@@ -34,7 +34,7 @@ python -m pip install --upgrade pip
 python -m pip install "torch==2.14.*" "torchvision==0.29.*" --index-url https://download.pytorch.org/whl/cu126
 python -m pip install -r "$CODE_DIR/requirements.txt"
 
-# 3. Meta's SAM 2 code (inference + training), pinned to the commit the pipeline was tested with
+# 3. Meta's SAM 2 code (inference + training), pinned to one commit
 mkdir -p "$FRUIT_BASE/weights"
 if [ ! -f "$FRUIT_BASE/sam2_repo/sam2/build_sam.py" ]; then
     rm -rf "$FRUIT_BASE/sam2_repo"
@@ -64,8 +64,8 @@ else:
     print("No GPU on this node (normal on a CPU dev node). Jobs get one from #SBATCH --gpus.")
 PY
 echo
-echo "Setup done. Next (see README):"
-echo "  1. put videos in $PROJECT_DIR/videos   (OnDemand Files ▸ Upload, rsync or Globus)"
-echo "  2. source hpcc/activate.sh && python fruit.py clips    (cuts clips, splits train/val)"
-echo "  3. label in OnDemand Jupyter: notebooks/MSU_FRUIT_SAM2_pipeline.ipynb, kernel 'Python (fruit_sam2)'"
-echo "  4. sbatch hpcc/run.sb train --run grapes_v1 --steps 3000"
+echo "Setup done. Next (from the repository folder; hpcc/README.md has each step):"
+echo "  1. video into $PROJECT_DIR/videos              data/README.md"
+echo "  2. label clips                                 LABELLING.md"
+echo "  3. bash hpcc/run_all.sh grapes_v1              fine-tune every model and score them all"
+echo "  4. bash hpcc/count_rows.sh                     count the clusters in every row video"

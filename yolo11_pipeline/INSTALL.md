@@ -1,219 +1,76 @@
-# Installation and Demo Guide
+# Install · YOLO11 pipeline
 
-**Project:** Scalable Fruit Yield Estimation Using Video-Based Computer Vision (CMSE 495, Michigan State University)
+On a laptop: install, test the install, score the shipped model. No GPU and no partner data needed. Every command runs from this folder, `yolo11_pipeline/`.
 
-This guide installs the **YOLO11n-seg grape-cluster segmentation** pipeline. Everything it needs is in this folder, `yolo11_pipeline/`. The repository's other pipeline, SAM 2.1, installs separately with its own environment: see [../INSTALL.md](../INSTALL.md); [../README.md](../README.md) describes both. The model detects grape clusters, not individual berries, and its counts are not validated yield estimates.
+On the MSU HPCC there is nothing to install by hand: [`../hpcc/README.md`](../hpcc/README.md), step 1, then [README.md](README.md).
 
-> **Compatibility:** Python 3.11 is required for the setup below. CPU execution is the default demo route; a GPU is not required. macOS and Windows commands are provided, but those operating systems have not been tested in this verification environment.
+## 1. What you need
 
-## 1. Prerequisites
+- Git: <https://git-scm.com/downloads>
+- Python 3.10 or newer: <https://www.python.org/downloads/>
+- 1 GB of disk for the environment (5 GB on Linux) and 2 GB for the repository; internet on the first run
+- macOS, Linux or Windows; an NVIDIA GPU is optional
 
-- Git
-- Python **3.11**
-- Internet access to install packages
-- A terminal (macOS) or PowerShell (Windows)
-- NVIDIA CUDA GPU optional; CPU inference is supported but slower
-
-Run `git --version` and `python3.11 --version` (Mac) or `py -3.11 --version` (Windows) to verify installation. If missing, install Git and Python 3.11 first.
-
-## 2. Clone the repository
-
-In Terminal or PowerShell:
+## 2. Get the code
 
 ```bash
 git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit/yolo11_pipeline
 ```
 
-The repository includes the WGISD dataset, the converted labels and the trained checkpoint (about 1.4 GB to download, 3 GB on disk), so allow time for the download. It does not need Git LFS: the large result videos are kept on the `Moe` branch only. If you already cloned the repository for the SAM 2.1 install, use that copy. Run all remaining commands from `Capstone-MSU_Fruit/yolo11_pipeline`. Use a fresh virtual environment.
+## 3. Install
 
-## 3. Install Python dependencies
-
-**Allow time for the downloads.** The largest are PyTorch (60 MB on an Apple Silicon Mac, about 200 MB on Windows and Linux) and OpenCV, the `cv2` module (`opencv-python`: 33 MB on a Mac, 38 MB on Windows, 62 MB on Linux). pip shows a progress bar for each; on a slow connection OpenCV alone can take several minutes, so let it finish. If pip stops with `ReadTimeoutError`, run the same command again with `--timeout 120` added; downloads that already finished come from pip's cache.
-
-### macOS (Terminal; CPU / Apple Silicon)
+macOS and Linux (Terminal):
 
 ```bash
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install torch==2.2.2 torchvision==0.17.2
+python -m pip install torch torchvision
 python -m pip install -r requirements.txt
-python -m pip check
 ```
 
-The macOS path has **not yet been verified** with the repository's pinned dependency versions. If PyTorch installation fails, consult the [official PyTorch installation instructions](https://pytorch.org/get-started/locally/) for the correct build for your machine, then rerun the requirements installation. Do not install the Windows-specific CUDA wheels on a Mac.
+Windows (PowerShell):
 
-### Linux (Terminal; CPU demo)
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install torch torchvision
 python -m pip install -r requirements.txt
-python -m pip check
 ```
 
-Use the macOS `python` commands in the remaining sections for Linux too.
+If PowerShell refuses `Activate.ps1`: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once. For a GPU build of PyTorch on Windows, or a smaller CPU-only build on Linux, take the install line from <https://pytorch.org/get-started/locally/> instead of `python -m pip install torch torchvision`.
 
-### Windows (PowerShell; CPU demo)
-
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cpu
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip check
-```
-
-The CPU setup above is all the demo needs. Install a different CUDA build only in a separate environment if GPU training is needed. Pinning PyTorch avoids changes in checkpoint-loading behavior in newer releases.
-
-**Check dependencies:**
-
-macOS (activated environment):
+## 4. Test the install
 
 ```bash
-python -c "import torch, ultralytics, cv2; print('Dependencies imported successfully'); print('PyTorch:', torch.__version__)"
+python -c "import torch, ultralytics, cv2; print('ok · torch', torch.__version__, '· ultralytics', ultralytics.__version__, '· CUDA', torch.cuda.is_available())"
+python -m unittest discover -s tests -v
 ```
 
-Windows:
+The first line prints the versions (`CUDA False` is fine); the second ends with `OK`.
 
-```powershell
-.\.venv\Scripts\python.exe -c "import torch, ultralytics, cv2; print('Dependencies imported successfully'); print('PyTorch:', torch.__version__)"
-```
+## 5. Score the shipped model
 
-### Download the plotting font once
-
-Ultralytics may pause while automatically fetching its plotting font. Download it explicitly before evaluation or training.
-
-macOS / Linux:
+The WGISD dataset (`../data/wgisd/`, `../data/wgisd_yolo/`) and the model (`model/best.pt`) are in the repository, so this runs at once (about a minute each on a CPU):
 
 ```bash
-python -c "from pathlib import Path; from urllib.request import urlretrieve; from ultralytics.utils import USER_CONFIG_DIR; p=Path(USER_CONFIG_DIR)/'Arial.ttf'; urlretrieve('https://github.com/ultralytics/assets/releases/download/v0.0.0/Arial.ttf', str(p)); print(p)"
+python evaluate.py
+python count_test.py
 ```
 
-Windows:
+`evaluate.py` prints box and mask mAP on the 27 held-out photos; `count_test.py` prints the count error per photo and writes `../data/results/yolo11/count_test.csv` and the annotated photos in `../data/results/yolo11/count_test/`.
 
-```powershell
-.\.venv\Scripts\python.exe -c "from pathlib import Path; from urllib.request import urlretrieve; from ultralytics.utils import USER_CONFIG_DIR; p=Path(USER_CONFIG_DIR)/'Arial.ttf'; urlretrieve('https://github.com/ultralytics/assets/releases/download/v0.0.0/Arial.ttf', str(p)); print(p)"
-```
+Training, video, tracking and fine-tuning on our own footage: [README.md](README.md). Partner video goes in `../data/videos/` ([`../data/README.md`](../data/README.md)).
 
-## 4. Prepare the public grape dataset
+## 6. If something goes wrong
 
-The project uses the public [WGISD dataset](https://github.com/thsant/wgisd). The preparation script expects `external/wgisd/train_masked.txt`, `external/wgisd/test_masked.txt`, and matching image (`.jpg`) and mask (`.npz`) files under `external/wgisd/data/`.
-
-The WGISD source data is included in the repository. If those files are missing after the clone, obtain the public dataset from the link above and place its files in `external/wgisd/` with the expected structure. **Do not use private partner data for the public demo.**
-
-From the `yolo11_pipeline` folder:
-
-macOS:
-
-```bash
-python prepare_wgisd.py
-python preview_labels.py --split val --limit 8
-```
-
-Windows:
-
-```powershell
-.\.venv\Scripts\python.exe prepare_wgisd.py
-.\.venv\Scripts\python.exe preview_labels.py --split val --limit 8
-```
-
-**This step is optional:** the converted dataset (`data/wgisd_seg/images/{train,val,test}/` with matching label folders) and `grape.yaml` are committed, and `grape.yaml` uses paths relative to the repository, so it works on any computer. Run `prepare_wgisd.py` only to rebuild the labels from the source masks; it rewrites `grape.yaml` the same way. A different OpenCV version may trace a few outlines slightly differently, so `git status` can show small changes under `data/wgisd_seg/labels` afterwards; `git checkout -- data/wgisd_seg` restores the committed labels. Dataset conversion can take several minutes and may print no progress until a split finishes. Label preview images should appear in `outputs/label_preview/`. Open those images to confirm polygons overlay grape clusters.
-
-## 5. Optional: run a training installation test
-
-Skip this section to run the existing trained model immediately in Section 6. A one-epoch training run tests the core dataset/model pipeline. It is **not** a full training run and may take many minutes on CPU. Full completion of this optional step was not verified here.
-
-macOS:
-
-```bash
-python train.py --epochs 1 --imgsz 512 --batch 2 --device cpu
-```
-
-Windows:
-
-```powershell
-.\.venv\Scripts\python.exe train.py --epochs 1 --imgsz 512 --batch 2 --device cpu
-```
-
-**Expected result:** The command completes without errors and writes a training run under `runs/`. If it fails, check the error and the troubleshooting section below. This test alone does not establish model accuracy.
-
-## 6. Demo: visualize grape-cluster segmentation
-
-The existing scripts support evaluation on public WGISD test images and annotated inference on video. The demo below uses **public WGISD data** and the trained checkpoint in the repository, so it needs no private footage and no 50-epoch training run.
-
-The team's documented trained checkpoint is:
-
-```text
-runs/yolo11_wgisd2/weights/best.pt
-```
-
-Check that this file exists after cloning. If it does not, use a locally trained checkpoint from `runs/.../weights/best.pt`; a one-epoch checkpoint is suitable only for an installation smoke test, not for reporting final accuracy.
-
-### Evaluate the existing model on the public test split
-
-macOS:
-
-```bash
-python evaluate.py --model runs/yolo11_wgisd2/weights/best.pt --imgsz 512 --batch 2
-```
-
-Windows:
-
-```powershell
-.\.venv\Scripts\python.exe evaluate.py --model "runs\yolo11_wgisd2\weights\best.pt" --imgsz 512 --batch 2
-```
-
-**Expected result:** The script prints bounding-box and mask mAP metrics and saves evaluation artifacts under `runs/`. The documented validation score is not a substitute for these held-out test metrics.
-
-### Reproducible video installation test (public image)
-
-Create a five-frame MP4 from one public WGISD image. This checks video input/output and model inference; it does not test tracking or performance on moving vineyard footage.
-
-macOS (activated environment):
-
-```bash
-python -c "from pathlib import Path; import cv2; p=next(Path('external/wgisd/data').glob('*.jpg')); im=cv2.imread(str(p)); im=cv2.resize(im,(640,480)); Path('videos').mkdir(exist_ok=True); w=cv2.VideoWriter('videos/public_demo.mp4',cv2.VideoWriter_fourcc(*'mp4v'),5,(640,480)); assert w.isOpened(); [w.write(im) for _ in range(5)]; w.release()"
-python video.py --video videos/public_demo.mp4 --model runs/yolo11_wgisd2/weights/best.pt --mode detect --imgsz 512 --max-frames 5 --output outputs/public_demo_detect.mp4
-```
-
-Windows:
-
-```powershell
-.\.venv\Scripts\python.exe -c "from pathlib import Path; import cv2; p=next(Path('external/wgisd/data').glob('*.jpg')); im=cv2.imread(str(p)); im=cv2.resize(im,(640,480)); Path('videos').mkdir(exist_ok=True); w=cv2.VideoWriter('videos/public_demo.mp4',cv2.VideoWriter_fourcc(*'mp4v'),5,(640,480)); assert w.isOpened(); [w.write(im) for _ in range(5)]; w.release()"
-.\.venv\Scripts\python.exe video.py --video videos/public_demo.mp4 --model runs/yolo11_wgisd2/weights/best.pt --mode detect --imgsz 512 --max-frames 5 --output outputs/public_demo_detect.mp4
-```
-
-**Expected result:** `outputs/public_demo_detect.mp4` contains five annotated frames, and `outputs/public_demo_detect.csv` contains a header and five data rows. These visible-cluster counts are not unique-cluster totals or yield estimates. For a real video demonstration, substitute an authorized public or team-owned sample and increase `--max-frames`.
-
-## 7. Troubleshooting
-
-| Problem | Suggested fix |
+| Problem | Fix |
 | --- | --- |
-| `python3.11` or `py -3.11` not found | Install Python 3.11 and reopen the terminal. |
-| `grape.yaml` was edited to an absolute path | Run `prepare_wgisd.py` again from the `yolo11_pipeline` folder; it writes relative paths. |
-| Missing `best.pt` | Check the actual run folder; update the model path. |
-| Out of memory | Reduce `--batch` for training or `--imgsz` for inference. |
-| CUDA not available | Use CPU or install the platform-compatible PyTorch build. |
-| pip stops with `ReadTimeoutError` | Run the same command again with `--timeout 120` added; downloads that already finished come from pip's cache. |
-| macOS dependency errors | Install the PyTorch build that the [PyTorch site](https://pytorch.org/get-started/locally/) gives for your Mac, then rerun `python -m pip install -r requirements.txt` (see Section 3). |
-
-## 8. Verification notes
-
-Checked against the public `Moe` branch at commit `b5a70a66d69bc3883cf09eea4105189de664b830` on October 17, 2026. The trained `runs/yolo11_wgisd2/weights/best.pt` checkpoint is included directly in Git. The dataset-only Git LFS pull succeeded.
-
-On October 18, 2026 the YOLO11 files were merged into `main`, with the result videos left on the `Moe` branch and the one dataset file that was in Git LFS stored directly, so `main` needs no Git LFS. The evaluation command above was re-run from `main` on Linux (CPU) with the same test scores. Later that day the pipeline moved into the `yolo11_pipeline/` folder (this guide was `INSTALL_Moe_YOLO.md` at the repository root) and every command in this guide was re-run from the folder.
-
-A fresh Linux CPU environment using Python 3.11.17, PyTorch 2.2.2, torchvision 0.17.2 and the repository requirements passed dependency compatibility checks, both existing smoke tests, full dataset preparation (94 training / 16 validation / 27 test images), eight label previews, evaluation on all 27 test images, and the five-frame public-image video test. The optional training command initialized and processed its first batch; a complete epoch was not verified. Windows and macOS still require a separate clean-machine test. Observed test mAP50 was 0.8103 for boxes and 0.8192 for masks. These are execution checks on the included checkpoint and split, not an independent audit of training provenance or yield accuracy.
-
-## 9. Sharing and reproducibility
-
-- Use **relative paths** within the repository; `grape.yaml` is committed with paths relative to the repository, so do not replace them with personal absolute paths.
-- Do not commit confidential partner data, raw private videos, or other NDA/IP-protected assets.
-- Review WGISD, pretrained model, and project license terms before redistribution.
-- Keep `.venv/`, local footage, and other machine-specific files out of Git.
-
-For advanced options (full training, tracking, DJI frame extraction, and processing many videos), see [README.md](README.md) in this folder.
+| `python3` / `py` not found | Install Python from python.org and open a new terminal. |
+| `Activate.ps1 cannot be loaded` | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, or use `.\.venv\Scripts\python.exe` instead of `python`. |
+| pip stops with `ReadTimeoutError` | Run the same command again with `--timeout 120`. |
+| `No module named cv2` or `ultralytics` | Activate the environment (section 3). |
+| `Missing weights: …/model/best.pt` | Incomplete clone: `git status`. |
+| Out of memory | Lower `--batch` (training) or `--imgsz` (video). |

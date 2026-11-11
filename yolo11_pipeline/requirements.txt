@@ -1,5 +1,4 @@
-ultralytics==8.3.70
-numpy==1.26.4
-opencv-python==4.8.1.78
-PyYAML>=6.0,<7
-lapx==0.10.0
+# Python packages for the YOLO11 pipeline. Install PyTorch first (INSTALL.md says how), then:
+#   python -m pip install -r requirements.txt
+ultralytics>=8.4,<9
+lap>=0.5.12

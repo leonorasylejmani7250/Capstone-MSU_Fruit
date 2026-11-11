@@ -1,0 +1,4 @@
+# Python packages for the YOLO26 pipeline. Install PyTorch first (INSTALL.md says how), then:
+#   python -m pip install -r requirements.txt
+ultralytics>=8.4,<9
+lap>=0.5.12

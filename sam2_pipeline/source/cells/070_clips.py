@@ -8,10 +8,9 @@ MAX_SIDE        = 1280   #@param [960, 1280, 1920] {type:"raw"}
 VAL_FRACTION    = 0.25   #@param {type:"slider", min:0.1, max:0.5, step:0.05}
 
 if not DEMO:
-    for _p in sorted(VIDEOS.iterdir()):
-        if _p.suffix.lower() in VIDEO_EXTS:
-            _made = cut_clips(_p, CLIPS_PER_VIDEO, CLIP_FRAMES, CLIP_FPS, MAX_SIDE)
-            print(f"{_p.name}: {len(_made)} clip(s)")
+    for _p in find_videos():                       # every video under videos/, any depth; still-syncing files wait
+        _made = cut_clips(_p, CLIPS_PER_VIDEO, CLIP_FRAMES, CLIP_FPS, MAX_SIDE)
+        print(f"{video_key(_p)}: {len(_made)} clip(s)")
     if len(clips_table()):
         print("split:", split_clips(VAL_FRACTION))
         display(clips_table())

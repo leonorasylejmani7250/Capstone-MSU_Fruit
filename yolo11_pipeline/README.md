@@ -1,338 +1,157 @@
-# Scalable Fruit Yield Estimation Using Video-Based Computer Vision
+# YOLO11 pipeline
 
-A **CMSE 495 — Experiential Learning in Data Science** project at **Michigan State University**.
+YOLO11n-seg finds and outlines grape clusters in a photo or a video frame; it is the model the team shipped in October. This folder trains it, scores it and counts the clusters in a video with it. It reads everything from `../data/` and writes training runs to `../data/runs/yolo11/` and everything else to `../data/results/yolo11/`. The model it ships is `model/best.pt`.
 
-This repository develops a computer-vision workflow for detecting and segmenting fruit in field imagery and video. The current implementation focuses on **grape-cluster instance segmentation** with **YOLO11n-seg**, using the [WGISD (Wine Grape Instance Segmentation Dataset)](https://github.com/thsant/wgisd) for training and evaluation. Video inference supports optional object tracking, visual overlays, and per-frame CSV diagnostics.
-
-The broader capstone aims to investigate scalable yield estimation and transfer to other fruits (including blueberries, apples, and peaches) and capture devices. **Those broader goals are not yet validated by the current grape-only implementation.** This folder, `yolo11_pipeline/`, holds the whole YOLO11 pipeline; install it with [INSTALL.md](INSTALL.md) here. The repository also holds a separate SAM 2.1 pipeline (`../sam2_pipeline/`, `../INSTALL.md`, `../demo.ipynb`; see `../README.md`). It is not a dependency of the scripts described here.
-
-## Features
-
-- Convert WGISD instance masks into YOLO segmentation polygon labels.
-- Preview training, validation, or test annotations before training.
-- Fine-tune a pretrained YOLO11n-seg model on grape clusters.
-- Evaluate bounding-box and segmentation performance on a held-out WGISD test split.
-- Run segmentation on a video, displaying masks, boxes, and confidence scores.
-- Optionally track detected clusters across frames using ByteTrack.
-- Save annotated `.mp4` videos and frame-by-frame `.csv` statistics.
-- Extract frames from DJI footage for manual annotation and later fine-tuning.
-
-> **Important:** The model detects **grape clusters**, not individual grape berries. `visible_now` counts detections in a single frame. Tracker IDs are not verified unique clusters or a yield estimate; repeated views, missed detections, and ID switches can cause errors.
-
-## Repository layout
-
-```text
-Capstone-MSU_Fruit/yolo11_pipeline/
-├── INSTALL.md                # Install and demo guide (macOS, Linux, Windows)
-├── prepare_wgisd.py          # Convert WGISD instance masks into YOLO labels
-├── preview_labels.py         # Visual quality check for converted labels
-├── train.py                  # Train YOLO11n-seg
-├── evaluate.py               # Evaluate on the WGISD test split
-├── video.py                  # Annotated video inference and optional tracking
-├── extract_dji_frames.py    # Sample DJI frames for manual labeling
-├── requirements.txt         # Python dependencies
-├── grape.yaml                # Dataset configuration (paths relative to this folder)
-├── external/wgisd/           # WGISD source data
-├── data/wgisd_seg/           # Converted images and segmentation labels
-├── runs/                     # Training checkpoints, plots, evaluation artifacts
-├── outputs/                  # Annotated results, CSVs, label previews
-├── tests/                    # Project smoke test(s)
-└── videos/                   # Local source videos; NOT committed to GitHub
-
-The SAM 2.1 pipeline is in `../sam2_pipeline/` with its own install guide at `../INSTALL.md` (separate environment).
+```
+../data/wgisd_yolo ──▶ train.py ──▶ ../data/runs/yolo11/<run>/weights/best.pt ──▶ model/best.pt ──▶ evaluate.py · count_test.py · video.py
 ```
 
-**Repository storage:** `main` includes the WGISD dataset, the converted labels, model checkpoints and label previews (about 1.4 GB to download, 3 GB on disk with git history). The annotated result videos (9.5 GB in Git LFS) are kept on the `Moe` branch only, so `main` needs no Git LFS. The `videos/` and `.venv/` directories are intentionally excluded.
+On a laptop: [INSTALL.md](INSTALL.md).
 
-## 1. Clone and set up the environment
+## On the MSU HPCC
 
-### Prerequisites
+Set up once: [`../hpcc/README.md`](../hpcc/README.md), step 1. The SAM 2.1 environment it builds runs this folder too. Every block below can be pasted as it is into a terminal on a development node: log in, then `ssh dev-amd24-h200`.
 
-- Python **3.11** (the version used for the documented Windows run).
-- Git. [Git LFS](https://git-lfs.com/) is only needed to fetch the result videos from the `Moe` branch.
-- A CUDA-capable NVIDIA GPU is recommended for training; CPU execution is also supported, but slower.
-- Windows PowerShell for the commands below. Adjust activation and path separators on macOS/Linux.
+### 1. Score the shipped model
 
-### Clone the repository
-
-```powershell
-git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
-cd Capstone-MSU_Fruit\yolo11_pipeline
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python evaluate.py
+python count_test.py
 ```
 
-If you already cloned the repository for the SAM 2.1 install (`../INSTALL.md`), use that copy and `cd` into `yolo11_pipeline`. The YOLO11 environment below is separate from the conda environment in `./envs`.
+About a minute each. `evaluate.py` prints box and mask mAP on the 27 held-out WGISD test photos. `count_test.py` compares cluster counts with hand counts on the same photos and writes `../data/results/yolo11/count_test.csv` and the annotated photos in `../data/results/yolo11/count_test/`. These are scores on WGISD photos; the leaderboard of the SAM 2.1 pipeline scores this model on our own labelled clips.
 
-### Create a virtual environment (Windows)
+### 2. Count the clusters in a video
 
-```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python video.py --video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
 ```
 
-**NVIDIA CUDA installation (tested project configuration):**
+Every cluster gets an id that follows it from frame to frame (ByteTrack). The total is the number of ids followed for at least a second. It writes `../data/results/yolo11/<video>_track.mp4` (masks, boxes, ids, the count so far) and `<video>_track.csv`, and adds the total to `../data/results/cluster_counts.csv`, the file every pipeline adds to. A total is the number of clusters the tracker followed, not a hand count, and not a yield estimate.
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install torch==2.2.2 torchvision==0.17.2 --index-url https://download.pytorch.org/whl/cu121
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Every video of a folder, as a batch job (videos that have a total are skipped):
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+sbatch hpcc/run.sb video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
 ```
 
-These downloads are large, PyTorch and OpenCV (`cv2`) especially, and can take a while on a slow connection. If one stops with `ReadTimeoutError`, run the same command again with `--timeout 120` added ([INSTALL.md](INSTALL.md#3-install-python-dependencies) has the sizes).
+### 3. Train on WGISD
 
-**CPU-only setup:** Install an appropriate CPU build of PyTorch for your platform, then install `requirements.txt`. See the [official PyTorch installation selector](https://pytorch.org/get-started/locally/) for platform-specific instructions.
-
-Check whether PyTorch detects your GPU:
-
-```powershell
-.\.venv\Scripts\python.exe -c "import torch; print('PyTorch:', torch.__version__); print('CUDA:', torch.cuda.is_available())"
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python train.py
 ```
 
-The project uses Ultralytics `8.3.70` with the **YOLO11n-seg** checkpoint. The Ultralytics package version and the model generation are different things.
+Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo11/`, which also holds `results.csv`, the curves and the confusion matrix.
 
-## 2. Prepare the WGISD dataset
+A stronger model (bigger network, larger images, more epochs), as a batch job:
 
-The preprocessing script expects the WGISD data in `external/wgisd/`, including `train_masked.txt`, `test_masked.txt`, and the corresponding `.jpg` and `.npz` files under `external/wgisd/data/`.
-
-The converted labels and `grape.yaml` are committed, and `grape.yaml` uses paths relative to this folder, so this step is **optional**. Run it to rebuild the labels from the source masks (the conversion takes a few minutes):
-
-```powershell
-.\.venv\Scripts\python.exe prepare_wgisd.py
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+sbatch hpcc/run.sb train.py --model yolo11s-seg.pt --imgsz 1024 --batch 8 --epochs 150 --name wgisd_s1024
 ```
 
-This creates or refreshes:
+When `squeue --me` no longer lists it, score that run:
 
-```text
-data/wgisd_seg/images/{train,val,test}/
-data/wgisd_seg/labels/{train,val,test}/
-grape.yaml
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python evaluate.py --model ../data/runs/yolo11/wgisd_s1024/weights/best.pt
 ```
 
-**What it does:** `prepare_wgisd.py` rebuilds the labels from the source masks and rewrites `grape.yaml`. A different OpenCV version may trace a few outlines slightly differently, so `git status` can show small changes under `data/wgisd_seg/labels` afterwards; `git checkout -- data/wgisd_seg` restores the committed labels. The conversion uses the WGISD masked train/test lists, then splits part of training data into validation data with seed 42 and a default validation fraction of 0.15.
+To ship a run, copy its `weights/best.pt` over `model/best.pt` and update [model/README.md](model/README.md).
 
-In the documented run, this produced **94 training, 16 validation, and 27 test images** with usable segmentation masks. Results can differ if the underlying dataset or conversion settings change.
+### 4. Fine-tune on our own clips
 
-### Preview the polygon labels
+The labels live in the SAM 2.1 pipeline, so this is one of its jobs. It starts from the shipped model:
 
-```powershell
-.\.venv\Scripts\python.exe preview_labels.py --split val --limit 8
-Start-Process ".\outputs\label_preview"
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+sbatch hpcc/run.sb train-detector --base ../yolo11_pipeline/model/best.pt --name yolo11_grapes_v1
 ```
 
-The preview images show the annotation polygons over grape clusters. Check these before running a long training job.
+When `squeue --me` no longer lists it, the leaderboard scores it next to every other model:
 
-## 3. Train YOLO11n-seg
-
-A short one-epoch smoke test:
-
-```powershell
-.\.venv\Scripts\python.exe train.py --epochs 1 --imgsz 512 --batch 2
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+bash --login hpcc/run.sb evaluate
 ```
 
-Full training configuration used in the project:
+Count a video with it:
 
-```powershell
-.\.venv\Scripts\python.exe train.py --epochs 50 --imgsz 512 --batch 2
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python video.py --video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4 --model ../data/runs/yolo11_grapes_v1/weights/best.pt
 ```
 
-Useful arguments:
+## Reference
+
+### `train.py`
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `--epochs` | `50` | Maximum number of training epochs |
-| `--imgsz` | `512` | Training image size |
-| `--batch` | `2` | Training batch size |
-| `--model` | `yolo11n-seg.pt` | Pretrained segmentation checkpoint |
-| `--device` | `auto` | `auto`, a CUDA device (e.g., `0`), or `cpu` |
+| `--data` | `../data/wgisd_yolo/grape.yaml` | Dataset ([`../data/README.md`](../data/README.md)) |
+| `--model` | `yolo11n-seg.pt` | Starting weights: an Ultralytics name (downloaded) or a file such as `model/best.pt` |
+| `--epochs` | `50` | Epochs (stops early after 20 without improvement) |
+| `--imgsz` | `512` | Image size |
+| `--batch` | `2` | Batch size; raise it on a GPU with more than 4 GB |
+| `--name` | `wgisd` | Run folder `../data/runs/yolo11/<name>/`; a number is added when it exists |
+| `--device` | `auto` | `auto`, `cpu`, or a CUDA device such as `0` |
 
-Training output is written beneath `runs/yolo11_wgisd/`; if that name already exists, Ultralytics generates a numbered directory such as `runs/yolo11_wgisd2/`. Use the corresponding `weights/best.pt` checkpoint for inference.
+### `evaluate.py` and `count_test.py`
 
-The 50-epoch run in this repository used:
+`evaluate.py`: `--model <weights>` scores another checkpoint, `--split val` the validation split; several `--model` weights write a side-by-side table to `../data/results/yolo11/evaluate_<split>.csv`; the plots are in `../data/runs/yolo11/eval_test_<name>/`. `count_test.py`: `--conf` (default 0.25) trades missed clusters for false ones. Both score a model at the image size it was trained at.
 
-```text
-runs/yolo11_wgisd2/weights/best.pt
-```
+### `video.py`
 
-On a 4 GB NVIDIA GPU, keep the batch size small. If you get a CUDA out-of-memory error, lower `--batch` or `--imgsz`.
-
-## 4. Evaluate the trained model
-
-The evaluation script uses the **held-out WGISD test split**, not DJI video footage:
-
-```powershell
-.\.venv\Scripts\python.exe evaluate.py --model "runs\yolo11_wgisd2\weights\best.pt" --imgsz 512 --batch 2
-```
-
-It prints bounding-box and segmentation **mAP@0.50** and **mAP@0.50:0.95**. Additional Ultralytics evaluation artifacts are saved under `runs/`.
-
-The documented 50-epoch run reached approximately **83.3% validation mask mAP@0.50** on 16 WGISD validation images. That is **not** a test-set score or proof of accuracy on new DJI videos; run `evaluate.py` for test-set metrics.
-
-## 5. Run inference on a video
-
-Place source footage in a local directory, for example:
-
-```text
-videos/CodyKresta_1025/input.mp4
-```
-
-The source `videos/` folder is excluded from GitHub and must be supplied separately.
-
-### Run an entire video (detection + segmentation)
-
-```powershell
-.\.venv\Scripts\python.exe video.py `
-    --video "videos\CodyKresta_1025\input.mp4" `
-    --model "runs\yolo11_wgisd2\weights\best.pt" `
-    --mode detect `
-    --conf 0.30 `
-    --imgsz 768 `
-    --max-frames 0 `
-    --output "outputs\input_detect.mp4"
-```
-
-**Use `--max-frames 0` to process the entire video.** Without it, `video.py` processes at most 300 frames by default.
-
-### Track objects across frames
-
-```powershell
-.\.venv\Scripts\python.exe video.py `
-    --video "videos\CodyKresta_1025\input.mp4" `
-    --model "runs\yolo11_wgisd2\weights\best.pt" `
-    --mode track `
-    --tracker bytetrack.yaml `
-    --conf 0.30 `
-    --imgsz 768 `
-    --max-frames 0 `
-    --output "outputs\input_track.mp4"
-```
-
-Tracking is experimental. IDs can change or disappear, and `tracker_ids_seen` must not be interpreted as a validated unique-cluster count.
-
-### Video arguments
-
-| Argument | Default | Description |
+| Argument | Default | Meaning |
 | --- | --- | --- |
-| `--video` | Required | Input video path |
-| `--model` | Required | Path to `.pt` model weights |
-| `--output` | `outputs/grapes.mp4` | Annotated MP4 destination |
-| `--mode` | `detect` | `detect` or `track` |
-| `--conf` | `0.30` | Minimum confidence (greater than 0, at most 1) |
-| `--imgsz` | `768` | Inference image size (at least 160) |
-| `--max-frames` | `300` | Number of frames to process; `0` = full video |
-| `--start-sec` | `0` | Starting timestamp in seconds |
-| `--tracker` | `bytetrack.yaml` | Tracker configuration for track mode |
+| `--video` / `--video-dir` | one required | One video, or every video under a folder at any depth (subfolders kept in the output; unreadable and still-syncing files skipped; videos that have a total skipped unless `--overwrite`) |
+| `--model` | `model/best.pt` | Weights |
+| `--conf` | `0.30` | Minimum confidence |
+| `--imgsz` | `auto` | The size a frame is shrunk to before the model sees it. `auto` tries every size on five frames of the video, prints what it finds at each and uses the one at which the model is most sure; a number fixes it |
+| `--max-frames`, `--start-sec` | the whole video | With `--video`: a stretch of it, e.g. `--max-frames 300` for a quick look. Only a whole video adds its total to the table; a folder is always counted whole |
+| `--mode` | `track` | `detect` draws what is in each frame, without ids or a total |
+| `--output` | `../data/results/yolo11/<video>_<mode>.mp4` | Output video; the CSV gets the same name. A folder's videos go to `../data/results/yolo11/<folder>/` |
 
-### Process all videos in a directory (PowerShell)
+The input size matters because a model trained on photos only sees clusters of about the size they had in those photos: this one, about 40 to 100 px tall in the image it is given. Footage shot closer needs a smaller size, wider shots a larger one.
 
-```powershell
-$python = ".\.venv\Scripts\python.exe"
-$model = "runs\yolo11_wgisd2\weights\best.pt"
-$inputDir = "videos\CodyKresta_1025"
-$outputDir = "outputs\CodyKresta_1025\detect"
+### Files
 
-New-Item -ItemType Directory -Force $outputDir | Out-Null
+| File | What it does |
+|---|---|
+| `train.py` | Trains the model: on the public WGISD photos by default, on our own labels with `--data`. |
+| `evaluate.py` | Box and mask mAP on the WGISD test photos; several weights make a table. |
+| `count_test.py` | Cluster counts against hand counts on the 27 WGISD test photos. |
+| `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
+| `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
+| `model/` | The model this pipeline ships ([model/README.md](model/README.md)). |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. |
+| `tests/` | `python -m unittest discover -s tests` |
+| `requirements.txt` | Python packages. |
 
-$videos = @(Get-ChildItem $inputDir -File |
-    Where-Object { $_.Extension -in '.mp4', '.mov', '.avi', '.mkv' } |
-    Sort-Object Name)
+The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on our own labels is two commands: `python fruit.py export-yolo` in `../sam2_pipeline/` writes `../data/yolo_dataset/`, then `python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard` here. Labels made in Roboflow work the same way: export them as a YOLO segmentation dataset and point `--data` at its `data.yaml`.
 
-foreach ($video in $videos) {
-    $output = Join-Path $outputDir "$($video.BaseName)_yolo11.mp4"
-    Write-Host "Processing $($video.Name)"
+## If something goes wrong
 
-    & $python video.py `
-        --video $video.FullName `
-        --model $model `
-        --mode detect `
-        --conf 0.30 `
-        --imgsz 768 `
-        --max-frames 0 `
-        --output $output
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to process $($video.Name)"
-    }
-}
-```
-
-### Output files and CSV columns
-
-For an output named `outputs/input_detect.mp4`, the script also creates `outputs/input_detect.csv`.
-
-| CSV column | Meaning |
+| Symptom | Fix |
 | --- | --- |
-| `frame` | Processed frame number, starting at 1 |
-| `visible_now` | Detected grape clusters in the current frame |
-| `tracked_now` | Detections with an assigned tracking ID in the current frame |
-| `tracker_ids_seen` | Number of distinct tracker ID values observed so far (not ground-truth unique clusters) |
+| `You are currently using a gateway node`, or `module(s) could not be loaded` | You are on a gateway node: `ssh dev-amd24-h200`, then paste the block again. |
+| `can't open file …/train.py`, or `No module named 'ultralytics'` | Paste the whole block: it starts with the `cd` and `source hpcc/activate.sh` lines this folder needs. |
+| `Killed` in the middle of a run in the terminal | The process used up the two hours of CPU time it gets on a development node. Submit the run as a batch job: `sbatch hpcc/run.sb` and then the command without `python`. |
+| A job log says a download failed | Fetch the base weights once on the development node: `source hpcc/activate.sh`, then `python -c "from ultralytics import YOLO; YOLO('yolo11s-seg.pt')"` in this folder, and submit again. |
+| `Missing weights: …/model/best.pt` | Incomplete clone (`git status`), or train a model (step 3) and copy it there. |
+| `Missing …/wgisd_yolo/grape.yaml` | `python ../data/wgisd_yolo/prepare_wgisd.py` |
+| CUDA out of memory | Lower `--batch` (training) or `--imgsz` (video). |
+| CUDA unavailable | The CPU is used. For a GPU, install a CUDA build of PyTorch (INSTALL.md). |
+| `… is a base model` | A base model such as `yolo11n-seg.pt` has no grape class. Use `model/best.pt` or a trained run. |
+| `No clusters found` | The table printed at the start shows what the model saw at every input size. Nothing at any size, or false positives and missed clusters: the model has only seen WGISD photos, so label our footage ([`../LABELLING.md`](../LABELLING.md)) and fine-tune (step 4). |
 
-The annotated video includes translucent instance masks, bounding boxes, confidence percentages, and a frame-level statistics panel.
-
-## 6. Extract DJI frames for future labeling
-
-Use this utility to sample images for a manually annotated domain-adaptation dataset:
-
-```powershell
-.\.venv\Scripts\python.exe extract_dji_frames.py `
-    --video "videos\CodyKresta_1025\input.mp4" `
-    --every-sec 5 `
-    --max-images 60
-```
-
-Frames are written to `data/dji_to_label/<video_stem>/`. This script only extracts images: it does **not** automatically label them or retrain the model. Manually annotate grape **clusters**, and keep an independent evaluation set when fine-tuning on new footage.
-
-## 7. Large result videos stored in Git LFS
-
-These videos are kept on the `Moe` branch only (`git lfs install`, then `git clone --branch Moe …`); `main` does not carry them, so a normal clone never downloads them.
-
-Some generated MP4 files exceeded the single-file limit of the project's Git LFS storage configuration and were split into binary chunks such as:
-
-```text
-outputs/CodyKresta_1025/detect/example.mp4.part001
-outputs/CodyKresta_1025/detect/example.mp4.part002
-outputs/CodyKresta_1025/detect/example.mp4.parts.txt
-```
-
-The `.parts.txt` file records the original name and byte length. **A `.part001` file is not necessarily playable on its own.** To reconstruct a split video, create a temporary file named `reassemble.py` with the following content, replacing the example path:
-
-```python
-from pathlib import Path
-import shutil
-
-output = Path("outputs/CodyKresta_1025/detect/example.mp4")
-parts = sorted(output.parent.glob(output.name + ".part[0-9][0-9][0-9]"))
-if not parts:
-    raise FileNotFoundError("No video chunks found")
-
-with output.open("wb") as destination:
-    for part in parts:
-        with part.open("rb") as source:
-            shutil.copyfileobj(source, destination)
-print(f"Reconstructed {output} from {len(parts)} parts")
-```
-
-Run `python reassemble.py`. Make sure there is enough disk space for the reconstructed MP4. This is a byte-for-byte concatenation, not video transcoding.
-
-## 8. Troubleshooting
-
-| Symptom | Suggested fix |
-| --- | --- |
-| `Missing grape.yaml` or incorrect dataset path | Run `prepare_wgisd.py` on your machine. |
-| CUDA is unavailable | Check your PyTorch build, NVIDIA driver, and CUDA-compatible installation. CPU inference remains available. |
-| CUDA out of memory | Reduce `--batch` when training or `--imgsz` during inference. |
-| `Missing trained model` | Use the actual `weights/best.pt` path in your local `runs/` directory; numbered run directories may differ. |
-| Only 300 frames processed | Specify `--max-frames 0`. |
-| `tracked_now` / IDs remain zero | You may be in `--mode detect`; tracking requires `--mode track`, and tracks are not always assigned. |
-| Missing MP4 after clone | The result videos are only on the `Moe` branch: clone it with Git LFS installed (`git lfs pull` fetches them), and reassemble `.partNNN` chunks if applicable. |
-| Inference video contains false positives or missed clusters | Validate on footage from your camera; consider annotating real-video frames for fine-tuning. WGISD validation scores do not guarantee field-video accuracy. |
-
-## Dataset and acknowledgments
-
-- **WGISD:** [thsant/wgisd](https://github.com/thsant/wgisd). Review its original license and citation guidance before redistributing or publishing dataset-derived artifacts.
-- **Ultralytics YOLO:** [ultralytics/ultralytics](https://github.com/ultralytics/ultralytics).
-- **PyTorch:** [pytorch.org](https://pytorch.org/).
-
-Repository license: see [`LICENSE.txt`](../LICENSE.txt). Dataset and third-party model licenses may differ from the repository's own license.
-
-## Course
-
-**CMSE 495 — Experiential Learning in Data Science**  
-**Michigan State University**
+Licences: [WGISD](https://github.com/thsant/wgisd) CC BY-NC 4.0, [Ultralytics](https://github.com/ultralytics/ultralytics) AGPL-3.0. Repository: [`../LICENSE.txt`](../LICENSE.txt).

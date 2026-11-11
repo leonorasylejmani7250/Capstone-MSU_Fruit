@@ -71,10 +71,32 @@ class Clip:
             if stale.name not in keep: stale.unlink()
 
 # ---- the clip table (one small JSON next to the data keeps split + origin of every clip) ----
+@contextlib.contextmanager
+def _meta_lock():
+    """One writer at a time on clips.json, so several people can label in one shared dataset folder."""
+    try:
+        import fcntl
+    except ImportError:                                    # Windows: one user
+        yield; return
+    lock = str(_META) + ".lock"
+    try:
+        f = open(lock, "a")
+    except PermissionError:                                # made by a teammate before the folder was group-writable
+        f = open(lock)
+    with f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
 def _load_meta(): return json.loads(_META.read_text()) if _META.exists() else {}
-def _save_meta(m): _META.write_text(json.dumps(m, indent=1))
+def _save_meta(m):
+    tmp = _META.with_name(f"{_META.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(m, indent=1)); os.replace(tmp, _META)      # a reader never sees a half-written file
 def set_meta(clip, **kw):
-    m = _load_meta(); m.setdefault(clip, {}).update(kw); _save_meta(m)
+    with _meta_lock():
+        m = _load_meta(); m.setdefault(clip, {}).update(kw); _save_meta(m)
 
 _count_cache = {}
 def _count_objects(files):
@@ -176,31 +198,71 @@ def probe_video(path):
     cap.release()
     return dict(fps=float(fps), frames=n, width=w, height=h, seconds=(n / fps if fps else 0.0))
 
+SETTLE_MINUTES = 2        # a video written this recently may still be arriving (Globus, a sync, an upload): skipped until the next run
+
+def _is_junk(p):
+    """Files a sync or a camera leaves next to the videos: hidden files, Office and macOS sidecars, partial downloads."""
+    return p.name.startswith((".", "~$")) or p.name.lower().endswith((".partial", ".tmp", ".part", ".crdownload"))
+
+def find_videos(root=None, settle_minutes=SETTLE_MINUTES, quiet=False):
+    """Every video under videos/ (any depth, any name). Skips hidden and partial files, hidden folders, and
+    anything written in the last `settle_minutes` (still syncing). Safe to run again and again."""
+    root = Path(root) if root else VIDEOS
+    found, syncing, now = [], [], time.time()
+    for p in sorted(root.rglob("*")):
+        if not p.is_file() or _is_junk(p) or p.suffix.lower() not in VIDEO_EXTS:
+            continue
+        if any(part.startswith(".") for part in p.relative_to(root).parts[:-1]):
+            continue
+        (syncing if settle_minutes and now - p.stat().st_mtime < settle_minutes * 60 else found).append(p)
+    if syncing and not quiet:
+        for p in syncing:
+            print(f"  · {video_key(p)}: written less than {settle_minutes} min ago, still syncing? skipped this time")
+    return found
+
+def video_key(p):
+    """How a video is named in clips.json: its path under videos/, e.g. 'CodyKresta_1025/DJI_0001.MP4'."""
+    p = Path(p)
+    try:
+        return p.resolve().relative_to(VIDEOS.resolve()).as_posix()
+    except ValueError:
+        return p.name
+
+def clip_stem(p):
+    """Start of the names of the clips cut from a video: its path under videos/ without the suffix, made safe
+    ('CodyKresta_1025__DJI_0001'), so the same camera file name in two folders never collides."""
+    return _safe(Path(video_key(p)).with_suffix("").as_posix().replace("/", "__"))
+
 def list_videos():
-    rows = []
-    for p in sorted(VIDEOS.iterdir()):
-        if p.suffix.lower() in VIDEO_EXTS:
-            info = probe_video(p)
-            rows.append(dict(video=p.name, MB=round(p.stat().st_size / 2**20, 1), **(info or {"fps": None})))
+    """One row per video under videos/: path, size, length, frame rate, clips cut from it, clips labelled and done."""
+    rows, meta = [], _load_meta()
+    for p in find_videos(quiet=True):
+        key = video_key(p)
+        clips = [n for n, m in meta.items() if m.get("source") in (key, p.name)]
+        info = probe_video(p) or {}
+        rows.append(dict(video=key, MB=round(p.stat().st_size / 2**20, 1), seconds=round(info.get("seconds") or 0),
+                         fps=info.get("fps"), clips=len(clips),
+                         done=sum(1 for n in clips if meta[n].get("status") == "done")))
     return pd.DataFrame(rows)
 
 def cut_clips(video, clips_per_video=6, clip_frames=16, clip_fps=6.0, max_side=1280, starts=None):
     """Extract evenly spaced, non-overlapping clips from one video. Safe to re-run: existing clips are kept."""
     video = Path(video); info = probe_video(video)
     if not info or not info["fps"] or not info["frames"]:
-        print(f"  ✗ cannot read {video.name}"); return []
+        print(f"  ✗ cannot read {video_key(video)}"); return []
     stride = max(1, round(info["fps"] / clip_fps))          # keep every stride-th frame
     span = clip_frames * stride / info["fps"]               # seconds of video one clip covers
     dur = info["seconds"]
     if starts is None:
         k = min(clips_per_video, max(1, int(dur // span)))
         starts = [(i + 0.5) * dur / k - span / 2 for i in range(k)]
+    key, stem = video_key(video), clip_stem(video)
     taken = {n: (m.get("start_s") or 0, (m.get("start_s") or 0) + m.get("span_s", 0)) for n, m in _load_meta().items()
-             if m.get("source") == video.name and (IMG / n).exists()}
+             if m.get("source") in (key, video.name) and (IMG / n).exists()}
     made, cap = [], cv2.VideoCapture(str(video))
     for s in starts:
         s = max(0.0, min(s, max(0.0, dur - span)))
-        name = f"{_safe(video.stem)}_t{int(round(s * 1000)):07d}"
+        name = f"{stem}_t{int(round(s * 1000)):07d}"
         out = IMG / name
         if name in taken:
             made.append(name); continue
@@ -223,7 +285,7 @@ def cut_clips(video, clips_per_video=6, clip_frames=16, clip_fps=6.0, max_side=1
         out.mkdir(parents=True, exist_ok=True)
         for j, f in enumerate(frames):
             cv2.imwrite(str(out / f"{j:05d}.jpg"), f, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        set_meta(name, source=video.name, start_s=round(s, 3), span_s=round(span, 3),
+        set_meta(name, source=key, start_s=round(s, 3), span_s=round(span, 3),
                  fps=round(info["fps"] / stride, 2))
         taken[name] = (s, s + span); made.append(name)
     cap.release()
@@ -233,30 +295,31 @@ def split_clips(val_fraction=0.25, reset=False):
     """Give every clip without a split a 'train' or 'val' tag.
     3+ source videos: whole videos are held out. Fewer: the last clips (in time) of each video are held out.
     Clips that already have a split keep it, so adding videos later never moves a val clip into train."""
-    meta = _load_meta()
-    names = [d.name for d in sorted(IMG.iterdir()) if d.is_dir()]
-    for n in names:
-        meta.setdefault(n, {})
-        if reset: meta[n]["split"] = ""
-    by_src = {}
-    for n in names:
-        by_src.setdefault(meta[n].get("source") or n, []).append(n)
-    count = lambda s: sum(1 for n in names if meta[n].get("split") == s)
-    whole_videos = len(by_src) >= 3                 # a source = one video (clips cut here, or imported frames)
-    for src in sorted(by_src):
-        cl = sorted(by_src[src], key=lambda n: (meta[n].get("start_s") or 0, n))
-        todo = [n for n in cl if not meta[n].get("split")]
-        if not todo: continue
-        already = {meta[n]["split"] for n in cl if meta[n].get("split")}
-        if whole_videos and len(already) <= 1:
-            s = already.pop() if already else (
-                "val" if count("val") < val_fraction * (count("train") + count("val") + len(todo)) else "train")
-            for n in todo: meta[n]["split"] = s
-        else:
-            k = max(1, round(len(cl) * val_fraction)) if len(cl) > 1 else 0
-            for i, n in enumerate(cl):
-                if n in todo: meta[n]["split"] = "val" if i >= len(cl) - k else "train"
-    _save_meta(meta)
+    with _meta_lock():
+        meta = _load_meta()
+        names = [d.name for d in sorted(IMG.iterdir()) if d.is_dir()]
+        for n in names:
+            meta.setdefault(n, {})
+            if reset: meta[n]["split"] = ""
+        by_src = {}
+        for n in names:
+            by_src.setdefault(meta[n].get("source") or n, []).append(n)
+        count = lambda s: sum(1 for n in names if meta[n].get("split") == s)
+        whole_videos = len(by_src) >= 3                 # a source = one video (clips cut here, or imported frames)
+        for src in sorted(by_src):
+            cl = sorted(by_src[src], key=lambda n: (meta[n].get("start_s") or 0, n))
+            todo = [n for n in cl if not meta[n].get("split")]
+            if not todo: continue
+            already = {meta[n]["split"] for n in cl if meta[n].get("split")}
+            if whole_videos and len(already) <= 1:
+                s = already.pop() if already else (
+                    "val" if count("val") < val_fraction * (count("train") + count("val") + len(todo)) else "train")
+                for n in todo: meta[n]["split"] = s
+            else:
+                k = max(1, round(len(cl) * val_fraction)) if len(cl) > 1 else 0
+                for i, n in enumerate(cl):
+                    if n in todo: meta[n]["split"] = "val" if i >= len(cl) - k else "train"
+        _save_meta(meta)
     return "whole videos held out" if whole_videos else "last clips of each video held out"
 
 def set_split(clip, split):
@@ -265,7 +328,8 @@ def set_split(clip, split):
 def delete_clip(clip):
     for d in (IMG / clip, ANN / clip):
         if d.exists(): shutil.rmtree(d)
-    m = _load_meta(); m.pop(clip, None); _save_meta(m)
+    with _meta_lock():
+        m = _load_meta(); m.pop(clip, None); _save_meta(m)
 
 VAL_FRACTION = 0.25          # share of clips (or of whole videos) held out for scoring; Step 2 can change it
 
@@ -300,18 +364,21 @@ def make_demo_clips(names=None, frames=12, fps=6, hw=(640, 960)):
     """Turn WGISD photos into short panning clips with exact labels, through the same code path as real videos
     (written as .mp4 into videos/, cut by cut_clips). Gives every step something to run on before you have
     labelled anything. Returns the clip names; existing demo clips are kept."""
-    raw = BASE / "demo_download"; raw.mkdir(parents=True, exist_ok=True)
+    local = REPO_DIR / "data" / "wgisd" / "data" if REPO_DIR else None     # the copy of WGISD in the repository
+    raw = BASE / "demo_download"; raw.mkdir(parents=True, exist_ok=True)  # otherwise: fetched once from GitHub
     made = []
     for name in names or DEMO_IMAGES:
         clip_name = f"demo_{name}_t0000000"
         if (ANN / clip_name).exists():
             made.append(clip_name); continue
+        files = {}
         for ext in ("jpg", "npz"):
-            f = raw / f"{name}.{ext}"
+            f = local / f"{name}.{ext}" if local and (local / f"{name}.{ext}").exists() else raw / f"{name}.{ext}"
             if not f.exists():
                 torch.hub.download_url_to_file(_WGISD + f.name, str(f), progress=False)
-        img = np.asarray(Image.open(raw / f"{name}.jpg").convert("RGB"))
-        masks = np.load(raw / f"{name}.npz")["arr_0"]                        # [H, W, N], one layer per cluster
+            files[ext] = f
+        img = np.asarray(Image.open(files["jpg"]).convert("RGB"))
+        masks = np.load(files["npz"])["arr_0"]                               # [H, W, N], one layer per cluster
         ids = np.zeros(img.shape[:2], np.uint16)
         for k in np.argsort(-masks.reshape(-1, masks.shape[2]).sum(0)):      # large first, small ones on top
             ids[masks[..., k] > 0] = k + 1

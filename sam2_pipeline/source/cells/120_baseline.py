@@ -2,8 +2,9 @@
 #@markdown Add or remove lines in `LINEUP` to compare whatever you like: other SAM 2.1 sizes, your own YOLO
 #@markdown weights, predictions written by another notebook (`FromFolder`), SAM 3 (see Appendix B).
 #@markdown
-#@markdown The *automatic* rows use a YOLOE detector steered by a text prompt. Wording matters: in the team's earlier
-#@markdown YOLO test "green grapes" scored higher than "grape cluster" on the sample clip. Try both; the table decides.
+#@markdown The *automatic* rows use a detector: YOLOE steered by a text prompt (wording matters: in the team's earlier
+#@markdown test "green grapes" scored higher than "grape cluster" on the sample clip), or any YOLO weights you put in
+#@markdown `DETECTOR_WEIGHTS`, e.g. `yolo26_pipeline/model/best.pt` (the text is then not used).
 INCLUDE_AUTOMATIC = True          #@param {type:"boolean"}
 DETECTOR_WEIGHTS  = "yoloe-26m-seg.pt"   #@param {type:"string"}
 DETECTOR_TEXT     = "grape cluster"      #@param {type:"string"}

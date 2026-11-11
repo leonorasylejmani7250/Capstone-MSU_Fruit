@@ -1,5 +1,5 @@
 #@title B · Install and set up (about a minute)  { display-mode: "form" }
-import os, sys, subprocess, json, time, math, random, shutil, re, glob, io, base64, warnings, functools
+import os, sys, subprocess, json, time, math, random, shutil, re, glob, io, base64, warnings, functools, contextlib, getpass
 from pathlib import Path
 from dataclasses import dataclass, field
 
@@ -23,7 +23,7 @@ def _missing(*mods):
     import importlib.util
     return [m for m in mods if importlib.util.find_spec(m) is None]
 
-# --- SAM 2 code, pinned to the exact commit this pipeline was tested with -------------------
+# --- SAM 2 code, pinned to one commit ------------------------------------------------------
 SAM2_COMMIT = "2b90b9f5ceec907a1c18123530e92e794ad901a4"   # facebookresearch/sam2, 2024-12-15 (latest)
 SAM2_REPO = Path(os.environ.get("FRUIT_SAM2_REPO") or BASE / "sam2_repo")
 if not (SAM2_REPO / "sam2" / "build_sam.py").exists():
@@ -77,7 +77,8 @@ def _safe(name):
 
 def use_project(root):
     """Point every tool at one project folder: videos/, dataset/ (frames + labels), predictions/,
-    models/, results/, runs/. The notebook and the HPCC command line both go through here."""
+    models/, results/, runs/. In the team repository that folder is data/. The notebook and the
+    command line both go through here."""
     global ROOT, VIDEOS, DATA, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS, _META, PROMPTS
     ROOT = Path(root).expanduser().resolve()
     VIDEOS, DATA      = ROOT / "videos", ROOT / "dataset"
@@ -85,6 +86,8 @@ def use_project(root):
     PRED, RUNS        = ROOT / "predictions", ROOT / "runs"
     WEIGHTS, RESULTS  = ROOT / "models", ROOT / "results"
     _META, PROMPTS    = DATA / "clips.json", DATA / "prompts"
+    if DATA.exists() and DATA.stat().st_mode & 0o020:      # a dataset folder its group may write to is shared by a team
+        os.umask(0o002)                                     # (hpcc/share_data.sh): what we create, the others can change
     for _d in (VIDEOS, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS):
         _d.mkdir(parents=True, exist_ok=True)
     return ROOT
@@ -92,11 +95,26 @@ def use_project(root):
 CKPT_DIR = Path(os.environ.get("FRUIT_CHECKPOINTS") or BASE / "checkpoints")
 CKPT_DIR.mkdir(parents=True, exist_ok=True)
 
+def _repo_dir():
+    """The team repository (the folder that holds sam2_pipeline/ and data/), when this code runs from inside it.
+    None in a standalone notebook, e.g. the pipeline notebook opened in Colab from the Open-in-Colab badge."""
+    starts = [Path(globals()["__file__"]).resolve().parent] if "__file__" in globals() else []
+    starts.append(Path.cwd())
+    for start in starts:
+        for d in (start, *start.parents):
+            if (d / "sam2_pipeline" / "fruit.py").exists():
+                return d
+    return None
+
+REPO_DIR = _repo_dir()
+# The fine-tuned SAM 2.1 the team ships: sam2_pipeline/model/ (see its README). Scored and used by default.
+MODEL_DIR = REPO_DIR / "sam2_pipeline" / "model" if REPO_DIR else None
+
 if not globals().get("_DEFER_PROJECT"):           # the command-line module picks its folder later
     _project = _safe(PROJECT_NAME) or "fruit_sam2"
     _parent = Path(os.environ.get("FRUIT_PROJECTS") or ("/content" if IN_COLAB else Path.home()))
-    if DEMO:        # the demo always gets its own folder, never your real project
-        _root = (Path(PROJECT_DIR).expanduser().parent if PROJECT_DIR else _parent) / f"{_project}_demo"
+    if DEMO:        # the demo always gets its own folder, never your real project: <PROJECT_DIR>/<name>_demo, or ~/<name>_demo
+        _root = (Path(PROJECT_DIR).expanduser() if PROJECT_DIR else _parent) / f"{_project}_demo"
     elif PROJECT_DIR:
         _root = PROJECT_DIR
     elif IN_COLAB and SAVE_TO_DRIVE:

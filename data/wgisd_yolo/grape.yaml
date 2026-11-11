@@ -1,0 +1,7 @@
+# The public WGISD grape dataset as YOLO segmentation labels: images/ and labels/, split train 94 / val 16 / test 27.
+# Written by prepare_wgisd.py. Paths are relative to this file.
+train: images/train
+val: images/val
+test: images/test
+names:
+  0: grape_cluster

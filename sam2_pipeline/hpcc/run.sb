@@ -4,7 +4,7 @@
 #     cd ~/Capstone-MSU_Fruit/sam2_pipeline
 #     sbatch hpcc/run.sb train --run grapes_v1 --steps 3000        fine-tune SAM 2.1
 #     sbatch hpcc/run.sb evaluate                                   leaderboard of every model in configs/lineup.yaml
-#     sbatch hpcc/run.sb video videos/row3.mp4 --seconds 60 --weights models/sam2.1_base_plus_grapes_v1.pt
+#     sbatch hpcc/run.sb video videos/row3.mp4                      count the clusters in a video (YOLO26 → SAM 2.1)
 #     sbatch hpcc/run.sb train-detector                             YOLO-seg on the same labels
 #
 # Everything after `run.sb` is passed to fruit.py (python fruit.py --help lists all commands). Options that

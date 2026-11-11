@@ -188,15 +188,20 @@ def plot_training(run="grapes_v1"):
     else:                                  # command line / batch job: keep the picture next to the run
         plt.savefig(f.parent / "loss.png", dpi=120); plt.close(); print("loss curve:", f.parent / "loss.png")
 
-def train_detector(base="yolo26n-seg.pt", epochs=100, imgsz=1280, name="yolo_detector", every=2):
+def train_detector(base="yolo26n-seg.pt", epochs=100, imgsz=1280, name="yolo_detector", every=2, batch=16):
     """Train a YOLO segmentation model on the labelled clips (same train / val split). Returns the path of its
-    best weights. `every`: use every n-th frame of each clip (neighbouring frames are near-copies)."""
+    best weights. `every`: use every n-th frame of each clip (neighbouring frames are near-copies); `batch`: lower
+    it when the GPU (or a CPU test) runs out of memory."""
     ul = _ultralytics()
     best = RUNS / name / "weights" / "best.pt"
     if best.exists():
         print(f"{best} already exists, reusing it. Pick a new name to train again."); return best
     data = export_yolo_seg(every=every)
     model = ul.YOLO(base)
-    model.train(data=str(data), epochs=int(epochs), imgsz=int(imgsz), project=str(RUNS),
+    model.train(data=str(data), epochs=int(epochs), imgsz=int(imgsz), batch=int(batch), project=str(RUNS),
                 name=name, exist_ok=True, device=0 if DEVICE == "cuda" else "cpu", workers=2, plots=False)
-    return Path(model.trainer.best)
+    best = Path(model.trainer.best)
+    (best.parents[1] / "recipe.json").write_text(json.dumps(dict(            # what this detector started from and learned on
+        base=str(base), epochs=int(epochs), imgsz=int(imgsz), batch=int(batch), every=int(every), data=str(data),
+        clips=[c.name for c in get_clips("train", labelled=True)]), indent=1))
+    return best

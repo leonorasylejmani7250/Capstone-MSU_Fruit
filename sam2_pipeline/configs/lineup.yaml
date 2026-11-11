@@ -1,12 +1,17 @@
-# The models to score: `python fruit.py evaluate --lineup configs/lineup.yaml`
+# The models to score: `python fruit.py evaluate` (this file is the default lineup)
 #
 # Every model below runs on the same labelled val clips and is graded by the same rules. Two leaderboards:
 #   prompted  (type sam2): shown each grape cluster once (a box or a click), must follow it through the clip
 #   automatic (everything else): gets only pixels, must find every cluster itself
 #
-# Fine-tuned SAM 2.1 weights in the project's models/ folder are added automatically (box and click rows),
-# so they do not need to be listed here. Paths are relative to the project folder unless absolute.
-# To leave a model out, comment it out or add `skip: true`.
+# Models found in the project are added automatically and do not need to be listed here: SAM 2.1 weights in
+# sam2_pipeline/model/ (shipped) and in the project's models/ (box and click rows), the YOLO-seg detectors that
+# `train-detector` wrote to the project's runs/, and the SAM 3 / SAM 3.1 masks that sam3_pipeline and
+# sam3_1_pipeline wrote to the project's predictions/ (each folder has a recipe.json). Paths are relative to the
+# project folder (data/); a path that is not there is tried relative to the repository, which is how
+# `yolo26_pipeline/model/best.pt` works.
+# An entry whose files are not on this computer is skipped with a note. To leave a model out, comment it
+# out or add `skip: true`.
 
 models:
   - name: SAM 2.1 base_plus · pretrained · box
@@ -19,36 +24,43 @@ models:
     size: base_plus
     prompt: point
 
-  - name: YOLOE-26m 'grape cluster'
-    type: ultralytics          # any Ultralytics weights: YOLOE with a text prompt, or YOLO you trained
+  - name: yolo26 · trained on WGISD        # yolo26_pipeline/model/best.pt, no fine-tuning on our clips yet
+    type: ultralytics          # any Ultralytics weights: YOLO you trained, or YOLOE with a text prompt
+    weights: yolo26_pipeline/model/best.pt
+    conf: 0.25                 # keep boxes that score at least this
+    # imgsz: 768               # the detector's input size. Left out: auto, the size at which it is most sure on each clip
+
+  - name: yolo11 · trained on WGISD        # yolo11_pipeline/model/best.pt, the October model
+    type: ultralytics
+    weights: yolo11_pipeline/model/best.pt
+    conf: 0.25
+
+  - name: yolo26 · trained on WGISD → SAM 2.1 base_plus pretrained      # what `python fruit.py video` runs
+    type: detect_then_sam2     # the detector finds clusters every 4th frame, SAM 2.1 segments and follows them
+    size: base_plus
+    detector: {type: ultralytics, weights: yolo26_pipeline/model/best.pt, conf: 0.25}
+
+  - name: YOLOE-26m 'grape cluster' · zero-shot
+    type: ultralytics
     weights: yoloe-26m-seg.pt
     text: grape cluster        # wording matters; "green grapes" scored higher on the team's sample clip
     conf: 0.2
 
-  - name: YOLOE-26m 'grape cluster' → SAM 2.1 base_plus
-    type: detect_then_sam2     # the detector finds clusters every 4th frame, SAM 2.1 segments and follows them
+  - name: YOLOE-26m 'grape cluster' → SAM 2.1 base_plus pretrained
+    type: detect_then_sam2
     size: base_plus
     detector: {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster, conf: 0.2}
 
   # ---- more you can switch on --------------------------------------------------------------------------
+  # - name: yolo26 fine-tuned on our clips → SAM 2.1 fine-tuned on our clips     # the full pipeline, once both exist
+  #   type: detect_then_sam2
+  #   checkpoint: sam2_pipeline/model/sam2.1_base_plus_grapes_v1.pt
+  #   detector: {type: ultralytics, weights: runs/yolo26_grapes_v1/weights/best.pt, conf: 0.25, imgsz: 1280}
+
   # - name: SAM 2.1 large · pretrained · box
   #   type: sam2
   #   size: large
   #   prompt: box
-
-  # - name: my YOLO-seg                          # from `python fruit.py train-detector`
-  #   type: ultralytics
-  #   weights: runs/yolo_detector/weights/best.pt
-
-  # - name: my YOLO-seg → SAM 2.1 fine-tuned
-  #   type: detect_then_sam2
-  #   checkpoint: models/sam2.1_base_plus_grapes_v1.pt
-  #   detector: {type: ultralytics, weights: runs/yolo_detector/weights/best.pt}
-
-  # - name: SAM 3.1 · text 'grape cluster'       # masks written by the SAM 3.1 notebook (README, Appendix B)
-  #   type: folder
-  #   path: predictions/sam3_text
-  #   tracks: true
 
   # - name: my own model                          # any Python class with predict(clip, prompts) → id masks
   #   type: python

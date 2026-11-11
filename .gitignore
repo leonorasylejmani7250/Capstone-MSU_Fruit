@@ -1,78 +1,75 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*.egg-info/
+build/
+dist/
 
-# Virtual environments
+# Environments (sam2_pipeline/envs; .venv in the other pipeline folders)
+envs/
 .venv/
 venv/
 env/
 
-# Python package/build files
-build/
-dist/
-*.egg-info/
-
-# Jupyter Notebook
+# Jupyter, editors, operating systems
 .ipynb_checkpoints/
-
-# IDE / Editor
 .vscode/
 .idea/
-
-# Operating System
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Environment / Secrets
+# Secrets
 .env
 .env.*
 *.key
 
-# Project Data
-# note: Large datasets should not be committed to GitHub
-data/raw/
-data/processed/
-datasets/
+# data/ (data/README.md): in git only the WGISD dataset, its YOLO labels, the YOLO11 training run, and the
+# per-frame counts of the YOLO11 and YOLO26 runs on the partner's DJI videos
+data/videos
+data/dataset
+data/predictions/
+data/models/
+data/runs/*
+!data/runs/yolo11/
+data/runs/yolo11/*
+!data/runs/yolo11/wgisd/
+data/demo/
+data/*_demo/
+data/count_test/
+data/yolo_dataset/
+data/sam3_dataset/
+data/wgisd_yolo/preview/
+data/results/*
+!data/results/yolo11/
+data/results/yolo11/*
+!data/results/yolo11/CodyKresta_1025/
+!data/results/yolo26/
+data/results/yolo26/*
+!data/results/yolo26/CodyKresta_1025/
+*.cache
 
-# Raw video files
-videos/
-*.mp4
-*.mov
-*.avi
-*.mkv
-
-# Model Weights / Checkpoints
-weights/
-checkpoints/
-models/
+# Model weights: only the two small committed YOLO models; SAM 2.1, SAM 3 and SAM 3.1 weights go on a GitHub Release
 *.pt
 *.pth
 *.ckpt
 *.onnx
+!yolo26_pipeline/model/best.pt
+!yolo11_pipeline/model/best.pt
 
-# YOLO / Training Outputs
-runs/
-outputs/
-results/
+# Videos
+*.[mM][pP]4
+*.[mM][oO][vV]
+*.[aA][vV][iI]
+*.[mM][kK][vV]
+*.[mM]4[vV]
+*.[mM][tT][sS]
+*.webm
 
-# Temporary Files / Logs
+# Logs (HPCC job logs are <job>-<id>.out in the pipeline folders)
 *.log
 *.tmp
-*.temp
-.cache/
+*.out
 
-# SAM 2.1 pipeline (sam2_pipeline/, demo.ipynb): conda env from INSTALL.md, local project folders, job logs
-envs/
-data/demo_project/
-data/msu_fruit_project/
-sam2_pipeline/*.out
-
-# Additional cache rule from Moe
-*.cache
-
-# test_yolo.py outputs
-test_predictions/
-yolo_test_results.csv
+# Ultralytics downloads the YOLOE text encoder into the working folder
+mobileclip*.ts

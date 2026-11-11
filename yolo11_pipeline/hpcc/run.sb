@@ -1,0 +1,39 @@
+#!/bin/bash --login
+# Run any script of this folder as a GPU batch job on the MSU HPCC. Submit from the yolo11_pipeline folder:
+#     cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+#     sbatch hpcc/run.sb train.py --epochs 50 --imgsz 512 --batch 16          train YOLO11n-seg on WGISD (minutes on a GPU)
+#     sbatch hpcc/run.sb evaluate.py                                           box and mask mAP on the WGISD test split
+#     sbatch hpcc/run.sb video.py --video ../data/videos/row3.mp4                 count the clusters in a video
+# Everything after `run.sb` is run as `python <script> <args>`. Log: yolo11-<job id>.out in this folder.
+# Status: squeue --me   Cancel: scancel <job id>   Bigger GPU: sbatch --gpus=a100:1 hpcc/run.sb ...
+#
+#SBATCH --job-name=yolo11
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --gpus=v100:1
+#SBATCH --mem=16G
+#SBATCH --time=02:00:00
+#SBATCH --output=%x-%j.out
+set -eo pipefail
+CODE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
+if [ ! -f "$CODE_DIR/train.py" ]; then
+    echo "Submit from the yolo11_pipeline folder: cd ~/Capstone-MSU_Fruit/yolo11_pipeline && sbatch hpcc/run.sb ..." >&2
+    exit 1
+fi
+YOLO11_ENV_DIR="${YOLO11_ENV_DIR:-$HOME/envs/fruit_yolo11}"     # its own name: ENV_DIR belongs to the SAM 2.1 scripts
+if [ ! -x "$YOLO11_ENV_DIR/bin/python" ]; then     # not built: the SAM 2.1 environment runs the YOLO scripts too
+    YOLO11_ENV_DIR="$(source "$CODE_DIR/../sam2_pipeline/hpcc/config.sh" && echo "$ENV_DIR")"
+fi
+module purge
+module load Miniforge3
+eval "$(conda shell.bash hook)"
+conda activate "$YOLO11_ENV_DIR"
+# At most 8 CPU threads, unless set already: a development node stops a process after two hours of CPU time, and a
+# thread on each of its 192 cores uses that up in minutes.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$(n=$(nproc); echo $((n < 8 ? n : 8)))}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
+echo "job $SLURM_JOB_ID on $(hostname) · $(date)"
+nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
+cd "$CODE_DIR"
+echo "command: python $*"
+python "$@"

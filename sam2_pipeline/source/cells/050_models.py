@@ -34,25 +34,71 @@ def _ultralytics(text=False):
     torch.set_num_threads(threads)                # importing ultralytics lowers the CPU thread count; put it back
     return ultralytics
 
+DETECTOR_SIZES = (256, 384, 512, 768, 1024, 1280, 1536, 1920, 2560, 3840)   # input sizes tried by imgsz="auto" and by check_detectors
+SURE = 0.25                                                                # a box the detector is sure of scores at least this
+KNOWS = 0.8                                                                # on footage a detector knows, its clearest box scores at least this
+NOTHING_FOUND = ("`python fruit.py check <video>` shows what every detector sees in a video at every input size. "
+                 "If none of them finds the clusters, label clips of this footage and fine-tune (LABELLING.md).")
+
+def weights_card(model, weights, text=None):
+    """What an Ultralytics weights file is, read from the file itself: (one line, warnings, the size it was trained at).
+    Two files find no grape cluster however they are run. A base model, which has no grape class, is refused;
+    a training run that was only a test (an epoch or two) gets a warning."""
+    ck = getattr(model, "ckpt", None) or {}
+    ta, tm, tr = ck.get("train_args") or {}, ck.get("train_metrics") or {}, ck.get("train_results") or {}
+    names = [str(n) for n in (getattr(model, "names", None) or {}).values()]
+    label = "/".join(Path(weights).parts[-3:]) if "/" in str(weights) else str(weights)
+    if text:
+        return f"{label}: text prompt '{text if isinstance(text, str) else ', '.join(text)}'", [], None
+    epochs = len(tr.get("epoch") or []) or ta.get("epochs")
+    score = tm.get("metrics/mAP50(M)", tm.get("metrics/mAP50(B)"))
+    ours = len(names) == 1 or any(w in n.lower() for n in names for w in OBJECT_NAME.lower().split())
+    card = f"{label}: " + " · ".join(x for x in (
+        Path(str(ta.get("model") or "")).stem or None,
+        f"{epochs} epoch(s) at {ta.get('imgsz')} px" if epochs and ta.get("imgsz") else None,
+        f"val mAP50 {score:.2f}" if score is not None and ours else None,
+        f"class: {names[0]}" if len(names) == 1 else f"{len(names)} classes") if x)
+    warn = []
+    if not ours:
+        raise ValueError(f"{label} is a base model: it knows {len(names)} classes ({', '.join(names[:3])}, …), none of them a "
+                         f"{OBJECT_NAME}, so whatever it finds is not a {OBJECT_NAME}. Use a trained model "
+                         "(yolo26_pipeline/model/best.pt) or train one (train-detector).")
+    if (epochs and epochs < 5) or (score is not None and score < 0.2):
+        warn.append(f"⚠️  {label} is a test run, not a trained model ({epochs or '?'} epoch(s)"
+                    + (f", val mAP50 {score:.2f}" if score is not None else "") + "): it finds little or nothing on any "
+                    "footage. The trained models are yolo26_pipeline/model/best.pt and yolo11_pipeline/model/best.pt.")
+    return card, warn, (int(ta["imgsz"]) if ours and isinstance(ta.get("imgsz"), (int, float)) else None)
+
 class UltralyticsModel(Model):
-    """Any Ultralytics weights: a YOLO-seg model you trained, or YOLOE with a text prompt (text='grape cluster').
-    Used on its own it is an automatic model (ByteTrack ids); it can also feed boxes to SAM 2 (DetectThenSAM2)."""
+    """Any Ultralytics weights: a YOLO-seg model you trained, or YOLOE with a text prompt (text='grape cluster';
+    only YOLOE weights use a text). `weights` is a file (absolute, or inside the project folder or the repository,
+    e.g. 'yolo26_pipeline/model/best.pt') or a bare Ultralytics name, which is downloaded. Used on its own it is an
+    automatic model (ByteTrack ids); it can also feed boxes to SAM 2 (DetectThenSAM2).
+
+    imgsz is the size the frame is shrunk to before the detector sees it, so it sets how big a cluster looks to
+    the detector. A YOLO trained on photos only finds clusters in a band of sizes (the WGISD models: about 40 to
+    100 px tall; at 250 px they find 3 in 100). imgsz='auto' tries DETECTOR_SIZES on three frames of each clip and
+    uses the size at which the detector is most sure; a number fixes it."""
     tracks = True
-    def __init__(self, weights, text=None, conf=0.25, imgsz=1280, tracker="bytetrack.yaml"):
-        self.weights, self.text, self.conf, self.imgsz, self.tracker = str(weights), text, conf, imgsz, tracker
-        self._m = None
+    def __init__(self, weights, text=None, conf=0.25, imgsz="auto", tracker="bytetrack.yaml"):
+        here = _project_path(weights) if "ROOT" in globals() else Path(weights)
+        self.weights, self.text, self.conf, self.tracker = str(here if here.exists() else weights), text, conf, tracker
+        self.imgsz = imgsz if imgsz == "auto" else int(imgsz)
+        self._m, self._size, self.trained_size, self.card, self.warn, self.tried = None, None, None, "", [], None
     @property
     def model(self):
         if self._m is None:
             ul = _ultralytics(text=bool(self.text))
-            print(f"loading {Path(self.weights).name} (downloaded on first use) …")
             with contextlib.redirect_stdout(io.StringIO()):          # hides the download progress bars
-                if self.text:
+                m = ul.YOLOE(self.weights) if self.text else ul.YOLO(self.weights)
+                if self.text and hasattr(m.model, "get_text_pe"):
                     names = [self.text] if isinstance(self.text, str) else list(self.text)
-                    self._m = ul.YOLOE(self.weights)
-                    self._m.set_classes(names, self._m.get_text_pe(names))
-                else:
-                    self._m = ul.YOLO(self.weights)
+                    m.set_classes(names, m.get_text_pe(names))
+                elif self.text:                                      # trained weights have their own class: no text
+                    m, self.text = ul.YOLO(self.weights), None
+            self.card, self.warn, self.trained_size = weights_card(m, self.weights, self.text)
+            self._m = m
+            print("\n".join(["detector " + self.card, *self.warn]))
         return self._m
     def prepare(self):
         self.model
@@ -81,15 +127,47 @@ class UltralyticsModel(Model):
             for i, (x0, y0, x1, y1) in enumerate(boxes.round().astype(int)):
                 masks[i, max(y0, 0):y1, max(x0, 0):x1] = True
         return boxes, scores, masks, ids
-    def detect(self, img):
+    def sweep(self, frames, sizes=None, conf=None):
+        """The detector on a few RGB frames at several input sizes. One row per size: boxes per frame at `conf`,
+        the top score, how tall those boxes are in the pixels the detector sees, and `sure`: the summed scores of
+        the boxes it is sure of (SURE or more), which is what imgsz='auto' maximises. Only the 60 most confident
+        boxes of a frame are looked at: every box costs a full-size mask, and a weak model makes hundreds."""
+        conf = self.conf if conf is None else conf
+        full = int(math.ceil(max(max(f.shape[:2]) for f in frames) / 32) * 32)
+        rows = []
+        for size in sorted(set(sizes or [s for s in DETECTOR_SIZES if s < full] + [full])):
+            scores, tall = [], []
+            for f in frames:
+                r = self.model.predict(f[..., ::-1], conf=min(conf, 0.05), imgsz=size, max_det=60, verbose=False)[0]
+                if r.boxes is None or not len(r.boxes): continue
+                sc, b = r.boxes.conf.cpu().numpy(), r.boxes.xyxy.cpu().numpy()
+                scores.append(sc); tall.append((b[:, 3] - b[:, 1])[sc >= conf] * size / max(f.shape[:2]))
+            sc, tall = np.concatenate(scores or [np.zeros(0)]), np.concatenate(tall or [np.zeros(0)])
+            rows.append(dict(imgsz=size, boxes_per_frame=float((sc >= conf).sum()) / len(frames),
+                             top_score=float(sc.max()) if len(sc) else 0.0, sure=float(sc[sc >= max(conf, SURE)].sum()),
+                             box_height_px=float(np.median(tall)) if len(tall) else np.nan))
+        return pd.DataFrame(rows)
+    def fit(self, clip):
+        """The input size for this clip (a Clip, or a list of RGB frames). A number in imgsz: that number.
+        imgsz='auto': the size at which the detector is most sure on three frames of the clip (the first, the
+        middle, the last); sure of nothing at any size: the size with the highest score."""
+        if self.imgsz != "auto":
+            self._size = int(self.imgsz); return self._size
+        frames = clip if isinstance(clip, (list, tuple)) else [clip.image(t) for t in sorted({0, len(clip) // 2, len(clip) - 1})]
+        t = self.tried = self.sweep(frames)
+        best = t.loc[(t["sure"] if t["sure"].max() > 0 else t["top_score"]).idxmax()]
+        self._size = int(best["imgsz"]) if best["top_score"] > 0 else int(self.trained_size or 1280)
+        return self._size
+    def detect(self, img, conf=None, imgsz=None):
         """One RGB frame → (boxes [N,4] x0,y0,x1,y1, scores [N], masks [N,H,W])."""
-        r = self.model.predict(img[..., ::-1], conf=self.conf, imgsz=self.imgsz, retina_masks=True, verbose=False)[0]
+        size = imgsz or self._size or self.fit([img])
+        r = self.model.predict(img[..., ::-1], conf=self.conf if conf is None else conf, imgsz=size, retina_masks=True, verbose=False)[0]
         return self._unpack(r, img.shape[:2])[:3]
     def predict(self, clip, prompts=None):
         T = len(clip); H, W = clip.hw
-        out, remap, tracker = np.zeros((T, H, W), np.uint16), {}, self._tracker_file()
+        out, remap, tracker, size = np.zeros((T, H, W), np.uint16), {}, self._tracker_file(), self.fit(clip)
         for t in range(T):
-            r = self.model.track(clip.image(t)[..., ::-1], persist=t > 0, conf=self.conf, imgsz=self.imgsz,
+            r = self.model.track(clip.image(t)[..., ::-1], persist=t > 0, conf=self.conf, imgsz=size,
                                  tracker=tracker, retina_masks=True, verbose=False)[0]
             boxes, scores, masks, ids = self._unpack(r, (H, W))
             if ids is None: continue
@@ -113,23 +191,45 @@ class DetectThenSAM2(Model):
         self.last_prompts = []
     def prepare(self):
         self.detector.prepare(); load_sam2(self.size, self.ckpt)
-    def predict(self, clip, prompts=None):
+    def predict(self, clip, prompts=None, carry=None, first_id=1):
+        """carry: the id map of this clip's first frame from the run before it (run_on_video hands over the last
+        frame of the previous chunk). Those objects go on under the same ids, whether or not the detector sees
+        them again; objects that are new here are numbered from `first_id`."""
         sess = Sam2Session(load_sam2(self.size, self.ckpt), clip)
         ids = np.zeros((sess.T, sess.H, sess.W), np.uint16); best = np.zeros(ids.shape, np.float16)
-        made = []
+        made, n_carried = [], 0
+        if carry is not None:
+            k, area = np.unique(carry, return_counts=True)
+            seeds = [dict(obj=int(o), frame=0, mask=carry == o) for o, a in zip(k, area) if o and a >= MIN_OBJECT_AREA]
+            if seeds:
+                sess.add(seeds[:self.max_objects], ids, best, backward=False)
+                n_carried, first_id = len(seeds), max(first_id, int(k.max()) + 1)
+        if hasattr(self.detector, "fit"): self.detector.fit(clip)          # imgsz="auto": the input size for this clip
         for t in range(0, sess.T, self.every):
             boxes, scores, _ = self.detector.detect(clip.image(t))
             known = [(s[1].start, s[0].start, s[1].stop, s[0].stop) for s in ndimage.find_objects(ids[t]) if s is not None]
             new = []
             for b in boxes[np.argsort(-scores)]:
-                if len(made) + len(new) >= self.max_objects: break
+                if n_carried + len(made) + len(new) >= self.max_objects: break
                 if any(_same_box(b, k, self.match_iou) for k in known): continue
                 known.append(tuple(b))
-                new.append(dict(obj=len(made) + len(new) + 1, frame=t, box=[float(v) for v in b]))
+                new.append(dict(obj=first_id + len(made) + len(new), frame=t, box=[float(v) for v in b]))
             if new:
                 sess.add(new, ids, best, backward=self.backward); made += new
         self.last_prompts = made
         return ids
+
+def model_label(model):
+    """A short name for a model in result tables: its weights; for detector → SAM 2.1, both."""
+    if isinstance(model, DetectThenSAM2):
+        return f"{model_label(model.detector)} → SAM 2.1 " + (Path(model.ckpt).stem.replace("sam2.1_", "") if model.ckpt
+                                                             else f"{model.size} pretrained")
+    if isinstance(model, UltralyticsModel):
+        model.prepare()                                     # loading settles whether the weights use a text prompt
+        w = Path(model.weights)                             # yolo26_pipeline/model/best.pt → yolo26; runs/<name>/weights/best.pt → <name>
+        return (w.parents[1].name.replace("_pipeline", "") if w.name == "best.pt" and len(w.parts) > 2 else w.stem) \
+            + (f" '{model.text if isinstance(model.text, str) else ', '.join(model.text)}'" if model.text else "")
+    return type(model).__name__
 
 class FromFolder(Model):
     """Score predictions written by any other program: <folder>/<clip>/<frame>.png, pixel value = object id."""
@@ -142,22 +242,23 @@ class FromFolder(Model):
         return lab
 
 class SAM3Text(Model):
-    """SAM 3.1 (or SAM 3) with a text prompt, through Meta's own `sam3` package. Needs that package installed
-    and Hugging Face access to the gated weights. NOT run while this pipeline was tested. See Appendix B."""
+    """SAM 3.1 (or SAM 3) with a text prompt, through Meta's `sam3` package. Needs that package installed and
+    the gated Hugging Face weights. The sam3_1_pipeline and sam3_pipeline folders run these models in their own
+    environments and write predictions/<name>/ with a recipe.json instead, which `evaluate` scores as folders."""
     tracks = True
-    def __init__(self, text=None, version="sam3.1", max_num_objects=64, **builder_args):
+    def __init__(self, text=None, version="sam3.1", max_num_objects=64, checkpoint=None, **builder_args):
         self.text, self._p = text or OBJECT_NAME, None
-        self.args = dict(version=version, **builder_args)
-        if version == "sam3.1":
-            self.args["max_num_objects"] = max_num_objects      # Meta's default of 16 is too few for a vine row
+        self.version, self.max_num_objects, self.checkpoint, self.builder_args = version, max_num_objects, checkpoint, builder_args
     def prepare(self):
         if self._p is None:
             import sam3.model_builder as mb
-            if hasattr(mb, "build_sam3_predictor"):              # March 2026 and later: SAM 3 and SAM 3.1
-                self._p = mb.build_sam3_predictor(**self.args)
-            else:                                                # original SAM 3 release
-                self._p = mb.build_sam3_video_predictor(**{k: v for k, v in self.args.items()
-                                                            if k not in ("version", "max_num_objects")})
+            args = dict(self.builder_args)
+            if self.checkpoint:
+                args["checkpoint_path"] = str(self.checkpoint)
+            if self.version == "sam3.1":          # SAM 3.1 (March 2026): Object Multiplex, many objects per clip
+                self._p = mb.build_sam3_multiplex_video_predictor(max_num_objects=self.max_num_objects, **args)
+            else:                                  # the original SAM 3 (November 2025)
+                self._p = mb.build_sam3_video_predictor(**args)
     def predict(self, clip, prompts=None):
         self.prepare()
         T = len(clip); H, W = clip.hw
@@ -165,7 +266,8 @@ class SAM3Text(Model):
         sid = self._p.handle_request(dict(type="start_session", resource_path=str(clip.dir)))["session_id"]
         try:
             self._p.handle_request(dict(type="add_prompt", session_id=sid, frame_index=0, text=self.text))
-            for resp in self._p.handle_stream_request(dict(type="propagate_in_video", session_id=sid)):
+            for resp in self._p.handle_stream_request(dict(type="propagate_in_video", session_id=sid,
+                                                           propagation_direction="forward")):
                 o = resp["outputs"]
                 for k, m in zip(np.asarray(o["out_obj_ids"]).tolist(), np.asarray(o["out_binary_masks"])):
                     m = np.asarray(m, bool)
@@ -178,17 +280,22 @@ class SAM3Text(Model):
 
 # ---- describing models in plain data (used by the HPCC jobs and the lineup files) ------------------------
 def _project_path(p):
-    """A path written in a lineup file: absolute, ~/…, or relative to the project folder."""
+    """A path written in a lineup file: absolute, ~/…, or relative to the project folder; if nothing is there,
+    relative to the team repository (so `yolo26_pipeline/model/best.pt` works from any project folder)."""
     p = Path(os.path.expandvars(str(p))).expanduser()
-    return p if p.is_absolute() else ROOT / p
+    if p.is_absolute():
+        return p
+    if not (ROOT / p).exists() and REPO_DIR and (REPO_DIR / p).exists():
+        return REPO_DIR / p
+    return ROOT / p
 
 def build_model(spec):
     """Make a model from a plain dict, e.g. one entry of a lineup YAML file:
       {type: sam2, size: base_plus, checkpoint: models/x.pt, prompt: box}      SAM 2.1, pretrained or fine-tuned
       {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster}      YOLO / YOLOE (automatic)
       {type: detect_then_sam2, detector: {...}, checkpoint: models/x.pt}       a detector finds, SAM 2.1 follows
-      {type: folder, path: predictions/sam3_text, tracks: true}                masks written by any other program
-      {type: sam3, text: grape cluster}                                        SAM 3.1 (untested, gated weights)
+      {type: folder, path: predictions/sam3_1_text, tracks: true}              masks written by any other program
+      {type: sam3, text: grape cluster}                                        SAM 3.1 in this environment (gated weights)
       {type: python, class: my_models.py:MyModel, args: {...}}                 your own Model subclass"""
     spec = dict(spec); kind = spec.pop("type").lower()
     ckpt = spec.pop("checkpoint", None)
@@ -204,7 +311,7 @@ def build_model(spec):
     if kind == "folder":
         return FromFolder(_project_path(spec["path"]), tracks=bool(spec.get("tracks", False)))
     if kind == "sam3":
-        return SAM3Text(**spec)
+        return SAM3Text(checkpoint=ckpt, **spec)
     if kind == "python":
         target, args = spec.pop("class"), spec.pop("args", {}) or {}
         mod_name, cls_name = target.rsplit(":", 1)
@@ -221,9 +328,25 @@ def build_model(spec):
         return getattr(mod, cls_name)(**args)
     raise ValueError(f"unknown model type '{kind}' (sam2, ultralytics, detect_then_sam2, folder, sam3, python)")
 
+def _needed_files(model):
+    """The local files a lineup model reads (a bare Ultralytics name such as yoloe-26m-seg.pt is a download, not a file)."""
+    files = []
+    if isinstance(model, UltralyticsModel) and "/" in model.weights:
+        files.append(model.weights)
+    if isinstance(model, DetectThenSAM2):
+        files += _needed_files(model.detector)
+    if getattr(model, "ckpt", None):
+        files.append(model.ckpt)
+    if getattr(model, "checkpoint", None):            # SAM3Text
+        files.append(model.checkpoint)
+    if isinstance(model, FromFolder):
+        files.append(model.folder)
+    return [str(f) for f in files]
+
 def load_lineup(path):
     """Read a lineup YAML file → {name: Model}. See configs/lineup.yaml for a commented example.
-    A `python` model's file may be given relative to the lineup file itself."""
+    A `python` model's file may be given relative to the lineup file itself. An entry whose weights or
+    folder are not on this computer is skipped with a note, so the rest of the lineup still runs."""
     import yaml
     path = Path(path).expanduser()
     entries = yaml.safe_load(path.read_text())["models"] or []
@@ -237,7 +360,12 @@ def load_lineup(path):
             if not Path(f).expanduser().is_absolute() and (path.parent / f).exists():
                 e["class"] = f"{(path.parent / f).resolve()}:{cls}"
         name = e.pop("name")                 # (popped before build_model sees the entry)
-        out[name] = build_model(e)
+        model = build_model(e)
+        missing = [f for f in _needed_files(model) if not Path(f).exists()]
+        if missing:
+            print(f"skipping '{name}': {missing[0]} is not here")
+            continue
+        out[name] = model
     return out
 
 # ---- run + score ------------------------------------------------------------------------------------
@@ -330,6 +458,9 @@ def benchmark(models, split="val", clips=None):
         new.to_csv(fd, index=False)
     print(f"scored on {len(clips)} {split} clip(s), {sum(len(c) for c in clips)} frames · table saved to {f}")
     show_board(board)
+    silent = [n for n, d in details.items() if "n_pred" in d and not d["n_pred"].sum()]
+    if silent:
+        print("\n⚠️  found nothing on any clip: " + "; ".join(silent) + ".\n" + NOTHING_FOUND)
     own = [c.name for c in clips if _load_prompts(c.name)]
     if own and len(board) and (board["kind"] == "prompted").any():
         print(f"\n⚠️  {len(own)} of these {len(clips)} clips were labelled with SAM 2.1's help (labelling screen or box imports), so SAM 2.1 is partly being "

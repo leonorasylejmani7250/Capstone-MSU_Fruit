@@ -1,5 +1,0 @@
-train: data/wgisd_seg/images/train
-val: data/wgisd_seg/images/val
-test: data/wgisd_seg/images/test
-names:
-  0: grape_cluster
