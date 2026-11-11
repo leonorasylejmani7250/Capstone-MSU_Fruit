@@ -15,5 +15,9 @@ module purge > /dev/null 2>&1
 module load Miniforge3
 eval "$(conda shell.bash hook)"
 conda activate "$ENV_DIR"
+# At most 8 CPU threads, unless set already: a development node stops a process after two hours of CPU time, and a
+# thread on each of its 192 cores uses that up in minutes.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$(n=$(nproc); echo $((n < 8 ? n : 8)))}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
 echo "fruit_sam2 environment active · project folder: $PROJECT_DIR"
 unset _fruit_hpcc

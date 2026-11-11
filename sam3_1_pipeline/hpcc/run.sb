@@ -3,7 +3,7 @@
 #     cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
 #     sbatch hpcc/run.sb run.py clips                                        masks for the labelled val clips (zero-shot or fine-tuned)
 #     sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4                count the clusters in a video
-#     sbatch --time=08:00:00 hpcc/run.sb finetune.py --run grapes_v1         fine-tune on our clips → model/sam3_1_grapes_v1.pt
+#     sbatch --time=04:00:00 hpcc/run.sb finetune.py --run grapes_v1         fine-tune on our clips → model/sam3_1_grapes_v1.pt
 # Everything after `run.sb` is run as `python <script> <args>`. Log: sam3_1-<job id>.out in this folder.
 # Status: squeue --me   Cancel: scancel <job id>
 #
@@ -25,6 +25,10 @@ module purge
 module load Miniforge3
 eval "$(conda shell.bash hook)"
 conda activate "$SAM31_ENV_DIR"
+# At most 8 CPU threads, unless set already: a development node stops a process after two hours of CPU time, and a
+# thread on each of its 192 cores uses that up in minutes.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$(n=$(nproc); echo $((n < 8 ? n : 8)))}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
 echo "job $SLURM_JOB_ID on $(hostname) · $(date)"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
 cd "$CODE_DIR"

@@ -21,10 +21,17 @@ if [ ! -f "$CODE_DIR/train.py" ]; then
     exit 1
 fi
 YOLO11_ENV_DIR="${YOLO11_ENV_DIR:-$HOME/envs/fruit_yolo11}"     # its own name: ENV_DIR belongs to the SAM 2.1 scripts
+if [ ! -x "$YOLO11_ENV_DIR/bin/python" ]; then     # not built: the SAM 2.1 environment runs the YOLO scripts too
+    YOLO11_ENV_DIR="$(source "$CODE_DIR/../sam2_pipeline/hpcc/config.sh" && echo "$ENV_DIR")"
+fi
 module purge
 module load Miniforge3
 eval "$(conda shell.bash hook)"
 conda activate "$YOLO11_ENV_DIR"
+# At most 8 CPU threads, unless set already: a development node stops a process after two hours of CPU time, and a
+# thread on each of its 192 cores uses that up in minutes.
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$(n=$(nproc); echo $((n < 8 ? n : 8)))}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
 echo "job $SLURM_JOB_ID on $(hostname) · $(date)"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true
 cd "$CODE_DIR"

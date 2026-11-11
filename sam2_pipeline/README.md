@@ -66,16 +66,19 @@ source hpcc/activate.sh
 python fruit.py status
 ```
 
-**GPU work goes to the queue**, submitted from `sam2_pipeline/`:
+**GPU work goes to the queue**, submitted from `sam2_pipeline/` on a development node. Training first:
 
 ```bash
 sbatch hpcc/run.sb train --run grapes_v1 --steps 3000
 sbatch hpcc/run.sb train-detector --base ../yolo26_pipeline/model/best.pt --name yolo26_grapes_v1
-sbatch hpcc/run.sb evaluate
-sbatch hpcc/run.sb video videos/row3.mp4
 ```
 
-In order: fine-tune SAM 2.1 from Meta's pretrained weights on our clips (→ `data/models/sam2.1_base_plus_grapes_v1.pt`); fine-tune the YOLO26 WGISD model on the same clips (→ `data/runs/yolo26_grapes_v1/weights/best.pt`); the leaderboard (→ `data/results/leaderboard_val.csv`); the cluster count of one video (section 5).
+The first fine-tunes SAM 2.1 from Meta's pretrained weights on our clips (→ `data/models/sam2.1_base_plus_grapes_v1.pt`), the second the YOLO26 WGISD model on the same clips (→ `data/runs/yolo26_grapes_v1/weights/best.pt`). When `squeue --me` no longer lists them, the leaderboard (→ `data/results/leaderboard_val.csv`) and the cluster count of one video (section 5):
+
+```bash
+sbatch hpcc/run.sb evaluate
+sbatch hpcc/run.sb video videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
+```
 
 `squeue --me` shows jobs; `tail -f fruit-<jobid>.out` follows a log. `run.sb` asks for one A100 for 4 hours; override per job: `sbatch --gpus=v100:1 --time=02:00:00 hpcc/run.sb evaluate`. A training run that hits the time limit resumes when you submit the same command again. Options for every command go before the command name: `sbatch hpcc/run.sb --size large evaluate`. The project folder and the SAM 2.1 size are set in `hpcc/config.sh`.
 
@@ -111,7 +114,7 @@ To add a model, add an entry under `models:` in `configs/lineup.yaml`. Paths are
 ## 5. Count the clusters in a video
 
 ```bash
-python fruit.py video videos/row3.mp4
+python fruit.py video videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
 python fruit.py video videos/2026
 python fruit.py counts
 ```
@@ -129,7 +132,7 @@ One video; every video in a folder; every model's total for every video. A detec
 ## 6. A model finds nothing
 
 ```bash
-python fruit.py check videos/row3.mp4
+python fruit.py check videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
 ```
 
 It runs every detector on six frames of the video at every input size, prints a table (boxes per frame and top score), writes one picture per detector to `data/results/check/<video>/`, and says which detector and size to use, or that none works.

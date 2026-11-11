@@ -71,30 +71,54 @@ A video that has its total is skipped, so run the script again when new video ar
 
 ## Single jobs
 
-Each pipeline folder has `hpcc/run.sb`, submitted from that folder. Logs are `<job name>-<job id>.out` there.
+Each pipeline folder has `hpcc/run.sb`, submitted from that folder. Logs are `<job name>-<job id>.out` there. Each line below is one job. A job that uses what another one makes (the leaderboard, a count with a new detector, `run.py clips` after `finetune.py`) is submitted when `squeue --me` no longer lists that other job.
+
+Training, in `sam2_pipeline`:
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
 sbatch hpcc/run.sb train --run grapes_v2 --steps 5000
 sbatch hpcc/run.sb train-detector --base ../yolo26_pipeline/model/best.pt --epochs 100 --name yolo26_grapes_v2
+```
+
+Then the leaderboard, and one video counted with the new detector:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
 sbatch hpcc/run.sb evaluate
-sbatch hpcc/run.sb video videos/row3.mp4 --detector runs/yolo26_grapes_v2/weights/best.pt
+sbatch hpcc/run.sb video videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4 --detector runs/yolo26_grapes_v2/weights/best.pt
+```
 
+Fine-tuning SAM 3.1:
+
+```bash
 cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
-sbatch --time=08:00:00 hpcc/run.sb finetune.py --run grapes_v2
-sbatch hpcc/run.sb run.py clips
+sbatch --time=04:00:00 hpcc/run.sb finetune.py --run grapes_v2
+```
 
+Then its masks for the leaderboard:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
+sbatch hpcc/run.sb run.py clips
+```
+
+YOLO26 on WGISD:
+
+```bash
 cd ~/Capstone-MSU_Fruit/yolo26_pipeline
 sbatch hpcc/run.sb train.py --epochs 50 --batch 16
 ```
 
-The `sam3_1_pipeline` lines work the same in `sam3_pipeline`, the `yolo26_pipeline` line in `yolo11_pipeline`. A shell command that is not a job (`fruit.py status`, `clips`, `counts`) needs the environment first: `cd sam2_pipeline && source hpcc/activate.sh`. The SAM 3 folders have their own `hpcc/activate.sh`.
+The `sam3_1_pipeline` lines work the same in `sam3_pipeline`, the `yolo26_pipeline` line in `yolo11_pipeline`.
+
+**In a terminal.** A command that is not a job needs its folder's environment first, once per terminal: `source hpcc/activate.sh` in `sam2_pipeline`, in a SAM 3 folder or in a YOLO folder. Do this on a development node, and keep it to runs of a few minutes: a process there gets two hours of CPU time. The activate scripts and the job scripts keep a program to 8 CPU threads so that this lasts; with a thread on each of the node's 192 cores it is used up in minutes and the process ends with `Killed`.
 
 `fruit.py check` takes a minute or two and needs no queue. On a development node, the job script without `sbatch` runs it right there:
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
-bash --login hpcc/run.sb check videos/row3.mp4
+bash --login hpcc/run.sb check videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
 ```
 
 ## Getting a better model

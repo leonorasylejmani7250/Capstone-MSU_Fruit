@@ -16,7 +16,7 @@ New here: [INSTALL.md](INSTALL.md). Every command runs from this folder with its
 | `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
 | `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
 | `model/` | The model this pipeline ships ([model/README.md](model/README.md)). |
-| `hpcc/` | HPCC environment (`setup_env.sh`) and batch job (`run.sb`). |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. |
 | `tests/` | `python -m unittest discover -s tests` |
 | `requirements.txt` | Python packages. |
 
@@ -63,11 +63,11 @@ These are scores on WGISD photos. The leaderboard in `../sam2_pipeline` (`python
 ## 3. Count the clusters in a video
 
 ```bash
-python video.py --video ../data/videos/row3.mp4
-python video.py --video-dir ../data/videos/CodyKresta_1025
+python video.py --video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
+python video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
 ```
 
-Every cluster gets an id that follows it from frame to frame (ByteTrack). The total is the number of ids followed for at least a second; shorter ones are mostly a cluster the tracker lost and found again. Writes `../data/results/yolo11/row3_track.mp4` (masks, boxes, ids, the count so far) and `row3_track.csv` (`frame`, `visible_now`, `tracked_now`, `clusters_so_far`), and adds the video's total to `../data/results/cluster_counts.csv`, the file every pipeline adds to.
+Every cluster gets an id that follows it from frame to frame (ByteTrack). The total is the number of ids followed for at least a second; shorter ones are mostly a cluster the tracker lost and found again. Writes `../data/results/yolo11/<video>_track.mp4` (masks, boxes, ids, the count so far) and `<video>_track.csv` (`frame`, `visible_now`, `tracked_now`, `clusters_so_far`), and adds the video's total to `../data/results/cluster_counts.csv`, the file every pipeline adds to.
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
@@ -95,12 +95,21 @@ On the HPCC the same fine-tuning is one job of the SAM 2.1 pipeline, scored by t
 
 ## 5. HPCC
 
-Once, on a development node (`ssh dev-amd20-v100`): `bash hpcc/setup_env.sh`. Then any script of this folder runs as a GPU job, submitted from this folder; the log is `yolo11-<jobid>.out` here.
+The environment is the SAM 2.1 one, which `bash hpcc/setup.sh` in the repository folder builds ([`../hpcc/README.md`](../hpcc/README.md)) and which runs this folder too. `bash hpcc/setup_env.sh` here builds one for this folder alone; it is used when it exists.
+
+In every new terminal, on a development node (`ssh dev-amd24-h200`):
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+```
+
+Then the commands of sections 1 to 3 run as they are written there. A development node is for runs of a few minutes. Longer runs are batch jobs, submitted from this folder on a development node; the log is `yolo11-<jobid>.out` here.
 
 ```bash
 sbatch hpcc/run.sb train.py --epochs 50 --batch 16
 sbatch hpcc/run.sb evaluate.py
-sbatch hpcc/run.sb video.py --video-dir ../data/videos/CodyKresta_1025
+sbatch hpcc/run.sb video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
 ```
 
 [`../hpcc/count_rows.sh`](../hpcc/README.md) submits the last one for every pipeline at once.
@@ -111,6 +120,7 @@ sbatch hpcc/run.sb video.py --video-dir ../data/videos/CodyKresta_1025
 | --- | --- |
 | `Missing weights: …/model/best.pt` | Incomplete clone (`git status`), or train a model (section 1) and copy it there. |
 | `Missing …/wgisd_yolo/grape.yaml` | `python ../data/wgisd_yolo/prepare_wgisd.py` |
+| `Killed` in the middle of a run on a development node | The process used up the two hours of CPU time it gets there. Start from `source hpcc/activate.sh`, which limits the CPU threads, or submit the run as a batch job (section 5). |
 | CUDA out of memory | Lower `--batch` (training) or `--imgsz` (video). |
 | CUDA unavailable | The CPU is used. For a GPU, install a CUDA build of PyTorch (INSTALL.md). |
 | `… is a base model` | A base model such as `yolo11n-seg.pt` has no grape class. Use `model/best.pt` or a trained run. |

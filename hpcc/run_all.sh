@@ -67,7 +67,7 @@ sam3_jobs() {   # sam3_jobs <label> <folder> <environment> : zero-shot masks, fi
     local j_zero j_ft j_clips
     j_zero=$(submit "$folder" hpcc/run.sb run.py clips --checkpoint release)
     echo "job $j_zero: $label  zero-shot masks for the val clips (Meta's release, no training) → $PROJECT_DIR/predictions/${name}_text"
-    j_ft=$(submit "$folder" --time=08:00:00 hpcc/run.sb finetune.py --run "$RUN" --epochs "$SAM3_EPOCHS")
+    j_ft=$(submit "$folder" --time=04:00:00 hpcc/run.sb finetune.py --run "$RUN" --epochs "$SAM3_EPOCHS")
     echo "job $j_ft: $label  fine-tune on our clips from Meta's release ($SAM3_EPOCHS epochs) → $folder/model/${name}_$RUN.pt"
     j_clips=$(submit "$folder" --dependency=afterok:$j_ft --kill-on-invalid-dep=yes hpcc/run.sb run.py clips)
     echo "job $j_clips: $label  masks for the val clips with the fine-tuned model, after job $j_ft → $PROJECT_DIR/predictions/${name}_$RUN"

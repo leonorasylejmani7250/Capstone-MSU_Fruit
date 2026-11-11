@@ -73,11 +73,11 @@ cd ../sam2_pipeline && python fruit.py evaluate
 Count the clusters in a video, or in every video of a folder:
 
 ```bash
-python run.py video ../data/videos/row3.mp4
-python run.py video ../data/videos/CodyKresta_1025
+python run.py video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
+python run.py video ../data/videos/2026/Grape--DJIOsmo
 ```
 
-The video goes through the model in stretches of 10 seconds that share one frame; a cluster keeps its id from one stretch to the next when its masks on the shared frame overlap. The total is the number of ids seen in at least two frames. Writes `../data/results/sam3/row3_sam3.mp4` and `.csv` (`frame`, `visible_now`, `clusters_so_far`), and adds the video's total to `../data/results/cluster_counts.csv`, the file every pipeline adds to. `--start 60 --seconds 30` runs a stretch for a quick look; only a whole video adds its total. In a folder, videos that have a total are skipped unless `--overwrite`.
+The video goes through the model in stretches of 10 seconds that share one frame; a cluster keeps its id from one stretch to the next when its masks on the shared frame overlap. The total is the number of ids seen in at least two frames. Writes `../data/results/sam3/<video>_sam3.mp4` and `.csv` (`frame`, `visible_now`, `clusters_so_far`), and adds the video's total to `../data/results/cluster_counts.csv`, the file every pipeline adds to. `--start 60 --seconds 30` runs a stretch for a quick look; only a whole video adds its total. In a folder, videos that have a total are skipped unless `--overwrite`.
 
 A total is the number of clusters the model followed, not a hand count, and not a yield estimate.
 
@@ -89,7 +89,7 @@ Options for both go before the command name, as in `python run.py --text "green 
 python finetune.py --run grapes_v1
 ```
 
-On the HPCC: `sbatch --time=08:00:00 hpcc/run.sb finetune.py --run grapes_v1`.
+On the HPCC: `sbatch --time=04:00:00 hpcc/run.sb finetune.py --run grapes_v1`. A job of 4 hours or less usually starts within minutes; one that runs out of time continues from its last finished epoch when the same line is submitted again.
 
 It exports the labelled clips as a COCO dataset (`../data/sam3_dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released.
 
@@ -105,23 +105,28 @@ It exports the labelled clips as a COCO dataset (`../data/sam3_dataset/`: train 
 | `--dry-run` | | Export the dataset and write the recipe without training |
 | `--merge-only <checkpoint>` | | Merge an already trained `checkpoints/checkpoint.pt` into the released weights |
 
-With the defaults that is 2,000 training steps or more; a step takes about 1.3 s on an H200.
+With the defaults that is 2,000 training steps or more, about a second each on an A100 or H200: 40 minutes for a few labelled clips.
 
 Then score it: `python run.py clips` (the new file is the newest in `model/`) and `python fruit.py evaluate` in `../sam2_pipeline`. The fine-tuned file is 3 GB and ignored by git; share it through a GitHub Release (`model/README.md`).
 
 ## 5. HPCC
 
-Short runs work in a terminal on the development node `dev-amd24-h200`, after `source hpcc/activate.sh`; a development node stops a process after two hours. Longer runs are batch jobs, submitted from a development node (the gateway refuses `sbatch`):
+Short runs work in a terminal on the development node `dev-amd24-h200`, after `source hpcc/activate.sh`; a development node stops a process after two hours of CPU time. Longer runs are batch jobs, submitted from a development node (the gateway refuses `sbatch`):
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam3_pipeline
 sbatch hpcc/run.sb run.py clips --checkpoint release
-sbatch --time=08:00:00 hpcc/run.sb finetune.py --run grapes_v1
-sbatch hpcc/run.sb run.py clips
-sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4
+sbatch --time=04:00:00 hpcc/run.sb finetune.py --run grapes_v1
 ```
 
-Logs are `sam3-<jobid>.out` in this folder. [`../hpcc/run_all.sh`](../hpcc/README.md) submits the first three together with every other model's jobs and the leaderboard; [`../hpcc/count_rows.sh`](../hpcc/README.md) submits the last one for every video and every pipeline.
+When `squeue --me` no longer lists the fine-tuning job, the masks and a video count with the fine-tuned model:
+
+```bash
+sbatch hpcc/run.sb run.py clips
+sbatch hpcc/run.sb run.py video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
+```
+
+Logs are `sam3-<jobid>.out` in this folder. [`../hpcc/run_all.sh`](../hpcc/README.md) submits the first three jobs together with every other model's jobs and the leaderboard; [`../hpcc/count_rows.sh`](../hpcc/README.md) submits the last one for every video and every pipeline.
 
 ## 6. If something goes wrong
 
@@ -130,6 +135,7 @@ Logs are `sam3-<jobid>.out` in this folder. [`../hpcc/run_all.sh`](../hpcc/READM
 | `401` / `GatedRepoError` on download | Access to `facebook/sam3` not approved yet, or `hf auth login` not done on this machine. |
 | `start_session` fails on a folder of frames | `run.py clips` retries with a temporary MP4 by itself. |
 | `No module named sam3.train`, `psutil`, `einops`, `pycocotools` or `pkg_resources` | `python -m pip install -r requirements.txt`: it holds the `[train]` extra and the packages `sam3` imports without declaring them. |
+| `Killed` in the middle of a run on a development node | The process used up the two hours of CPU time it gets there. Start from `source hpcc/activate.sh`, which limits the CPU threads, or submit the run as a batch job (section 5). |
 | `CUDA out of memory` | `run.py`: shorten `--seconds`. `finetune.py`: `--resolution 768`, or a bigger GPU. |
 | `No detector weights matched` after training | The trained checkpoint is kept in `../data/runs/<pipeline>_<run>/checkpoints/`; open an issue with the first lines of `unmatched_tensors` from the `.json`. |
 | Masks look right but the leaderboard shows 0 tracks | Check that `../data/dataset/clips.json` lists the clip as `val` and `done`. |
