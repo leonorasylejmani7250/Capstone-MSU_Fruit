@@ -5,8 +5,9 @@
 What it does:
   1. our labelled clips (../data/dataset, from the SAM 2.1 labeller) → a COCO dataset in ../data/sam3_dataset/
      (train clips → train/, val clips → test/, one annotation per cluster with its outline)
-  2. Meta's trainer (python -m sam3.train.train) fine-tunes the detector, the part of the model that finds clusters from the
-     text prompt, starting from the released weights; log and checkpoint in ../data/runs/<pipeline>_<run>/
+  2. Meta's trainer (sam3.train.train, started through meta_trainer.py, which corrects one layer so that it can be
+     trained) fine-tunes the detector, the part of the model that finds clusters from the text prompt, starting from
+     the released weights; log and checkpoint in ../data/runs/<pipeline>_<run>/
   3. the fine-tuned detector is merged into the released video checkpoint → model/<pipeline>_<run>.pt (+ .json recipe)
 Then `python run.py clips` uses the new weights (the newest .pt in model/) and `python fruit.py evaluate` in
 ../sam2_pipeline scores them as "<model> · text '…' → fine-tuned on our clips (<run>)".
@@ -179,7 +180,7 @@ def main():
         counts = export_coco(data, dataset_root, args.text, args.every)
         base = base_checkpoint()
         config = write_config(args.run, dataset_root, log_dir, base, args)
-        cmd = [sys.executable, '-m', 'sam3.train.train', '-c', config, '--use-cluster', '0', '--num-gpus', '1']
+        cmd = [sys.executable, str(P.ROOT / 'meta_trainer.py'), '-c', config, '--use-cluster', '0', '--num-gpus', '1']
         print('training command:', ' '.join(cmd))
         if args.dry_run:
             print(f'dry run: dataset in {dataset_root}, recipe in {log_dir}; nothing trained.')

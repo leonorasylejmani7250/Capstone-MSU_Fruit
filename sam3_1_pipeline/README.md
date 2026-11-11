@@ -13,6 +13,7 @@ SAM 3.1 (Meta, March 2026) segments and tracks every object that matches a text 
 | `run.py` | `clips`: masks for the labelled val clips. `video`: counts the clusters in a video, or in every video of a folder. |
 | `finetune.py` | Fine-tunes the model on our labelled clips with Meta's trainer and writes the result to `model/`. |
 | `finetune.yaml` | Meta's fine-tuning recipe with our dataset and settings (filled in by `finetune.py`). |
+| `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](model/README.md)). |
 | `hpcc/` | HPCC environment (`setup_env.sh`) and batch job (`run.sb`). |
