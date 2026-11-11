@@ -1,0 +1,3 @@
+model,split,imagesz,mask_precision,mask_recall,mask_map50,mask_map50_95,box_map50,box_map50_95,inference_ms_per_image
+YOLO11n-seg,val,512,0.78892,0.73789,0.82908,0.47037,0.83869,0.4632,36.303
+YOLO26n-seg,val,512,0.79816,0.74676,0.83246,0.47579,0.82783,0.48224,18.015
