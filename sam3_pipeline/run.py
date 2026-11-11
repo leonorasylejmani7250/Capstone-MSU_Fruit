@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import inspect
 import json
 import sys
 import tempfile
@@ -57,12 +58,21 @@ def weights_label(checkpoint: Path | None) -> tuple[str, str]:
 
 
 def build_predictor(max_num_objects: int, checkpoint: Path | None):
-    """Meta's video predictor. SAM 3.1 adds Object Multiplex (many objects per clip); SAM 3 is the original."""
+    """Meta's video predictor. SAM 3.1 adds Object Multiplex (many objects per clip); SAM 3 is the original.
+    Two things are set for SAM 3.1, so that it runs with the packages of requirements.txt and with Meta's code as it is:
+      - use_fa3=False: its attention layers use PyTorch's own attention. Meta's default calls FlashAttention 3 (the
+        module flash_attn_interface), a separate package.
+      - a session starts without the arguments the SAM 3.1 model does not take. Meta's predictor passes
+        offload_state_to_cpu to every model, and only the SAM 3 model accepts it."""
     import sam3.model_builder as mb
     args = {'checkpoint_path': str(checkpoint)} if checkpoint else {}
-    if P.VERSION == 'sam3.1':
-        return mb.build_sam3_multiplex_video_predictor(max_num_objects=max_num_objects, **args)
-    return mb.build_sam3_video_predictor(**args)
+    if P.VERSION != 'sam3.1':
+        return mb.build_sam3_video_predictor(**args)
+    predictor = mb.build_sam3_multiplex_video_predictor(max_num_objects=max_num_objects, use_fa3=False, **args)
+    init_state = predictor.model.init_state
+    known = inspect.signature(init_state).parameters
+    predictor.model.init_state = lambda **kwargs: init_state(**{k: v for k, v in kwargs.items() if k in known})
+    return predictor
 
 
 def track_text(predictor, resource: Path, text: str, hw: tuple[int, int], n_frames: int, prob_thresh: float) -> np.ndarray:
