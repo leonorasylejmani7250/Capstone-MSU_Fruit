@@ -151,6 +151,8 @@ scratch:
   val_norm_std: [0.5, 0.5, 0.5]
   num_train_workers: __WORKERS__
   num_val_workers: 0
+  # Meta's trainer reads neither of the next two: an epoch is one pass over the images listed in train/.
+  # finetune.py lists the training images several times there to reach --epoch-size.
   max_data_epochs: __EPOCHS__
   target_epoch_size: __EPOCH_SIZE__
   hybrid_repeats: 1

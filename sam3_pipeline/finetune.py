@@ -9,6 +9,9 @@ What it does:
      trained) fine-tunes the detector, the part of the model that finds clusters from the text prompt, starting from
      the released weights; log and checkpoint in ../data/runs/<pipeline>_<run>/
   3. the fine-tuned detector is merged into the released video checkpoint → model/<pipeline>_<run>.pt (+ .json recipe)
+An epoch of Meta's trainer is one pass over the images in train/. With few training images, step 1 lists each of them
+several times, so that an epoch has at least --epoch-size images. The trainer runs on at most 8 CPU threads: on a
+many-core development node it otherwise uses up the two hours of CPU time a process gets there within minutes.
 Then `python run.py clips` uses the new weights (the newest .pt in model/) and `python fruit.py evaluate` in
 ../sam2_pipeline scores them as "<model> · text '…' → fine-tuned on our clips (<run>)".
 
@@ -18,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -53,8 +57,25 @@ def polygons(mask: np.ndarray) -> list[list[float]]:
     return polys
 
 
-def export_coco(data: Path, out_root: Path, text: str, every: int) -> dict:
-    """Labelled clips → <out_root>/train and <out_root>/test (our val clips), each with _annotations.coco.json."""
+def repeat(images: list[dict], annotations: list[dict], times: int) -> tuple[list[dict], list[dict]]:
+    """The same images and outlines listed `times` times, each entry with its own id (the image files are not copied)."""
+    by_image: dict[int, list[dict]] = {}
+    for a in annotations:
+        by_image.setdefault(a['image_id'], []).append(a)
+    out_images, out_annotations = [], []
+    for _ in range(times):
+        for image in images:
+            image_id = len(out_images) + 1
+            out_images.append({**image, 'id': image_id})
+            for a in by_image.get(image['id'], []):
+                out_annotations.append({**a, 'id': len(out_annotations) + 1, 'image_id': image_id})
+    return out_images, out_annotations
+
+
+def export_coco(data: Path, out_root: Path, text: str, every: int, epoch_size: int) -> dict:
+    """Labelled clips → <out_root>/train and <out_root>/test (our val clips), each with _annotations.coco.json.
+    The train list repeats its images until it has at least `epoch_size` entries: Meta's trainer shows every entry
+    once per epoch."""
     clips = json.loads((data / 'dataset' / 'clips.json').read_text())
     counts = {}
     for split, folder in (('train', 'train'), ('val', 'test')):
@@ -89,13 +110,18 @@ def export_coco(data: Path, out_root: Path, text: str, every: int) -> dict:
                     annotations.append({'id': len(annotations) + 1, 'image_id': image_id, 'category_id': 1,
                                         'bbox': [x0, y0, x1 - x0, y1 - y0], 'area': area, 'segmentation': polys,
                                         'iscrowd': 0})
+        n_images, n_clusters, times = len(images), len(annotations), 1
+        if split == 'train' and 0 < n_images < epoch_size:
+            times = -(-epoch_size // n_images)                       # rounded up
+            images, annotations = repeat(images, annotations, times)
         coco = {'info': {'description': f'MSU FRUIT labelled clips, {split} split, every {every}. frame',
                          'date_created': time.strftime('%Y-%m-%d')},
                 'images': images, 'annotations': annotations,
                 'categories': [{'id': 1, 'name': text, 'supercategory': text}]}
         (out / '_annotations.coco.json').write_text(json.dumps(coco))
-        counts[folder] = {'clips': len(done), 'images': len(images), 'clusters': len(annotations)}
-        print(f'{folder}: {len(done)} clips → {len(images)} images, {len(annotations)} cluster outlines → {out}')
+        counts[folder] = {'clips': len(done), 'images': n_images, 'clusters': n_clusters, 'times_per_epoch': times}
+        print(f'{folder}: {len(done)} clips → {n_images} images, {n_clusters} cluster outlines → {out}'
+              + (f'\n       each image {times} times per epoch: {n_images * times} images per epoch' if times > 1 else ''))
     if counts['train']['images'] == 0 or counts['test']['images'] == 0:
         sys.exit('Need labelled clips marked done in both splits (python fruit.py status in ../sam2_pipeline).')
     return counts
@@ -129,6 +155,20 @@ def write_config(run: str, dataset_root: Path, log_dir: Path, base: Path, args) 
     return name
 
 
+def trainer_env() -> dict:
+    """The environment for Meta's trainer: at most 8 CPU threads, unless OMP_NUM_THREADS / MKL_NUM_THREADS are set already.
+    By default PyTorch starts one thread per core. On a development node of the HPCC (192 cores, two hours of CPU time
+    per process) that ends the trainer after a few minutes; in a batch job the cores of the job are the limit anyway."""
+    try:
+        cores = len(os.sched_getaffinity(0))
+    except AttributeError:                                           # not on Linux
+        cores = os.cpu_count() or 1
+    env = dict(os.environ)
+    for key in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS'):
+        env.setdefault(key, str(max(1, min(8, cores))))
+    return env
+
+
 def merge(base: Path, trained: Path, out: Path) -> tuple[int, list[str]]:
     """Put the fine-tuned detector weights into the released video checkpoint (detector + tracker)."""
     import torch
@@ -154,7 +194,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--run', required=True, help='name of this fine-tuning run, e.g. grapes_v1')
     p.add_argument('--epochs', type=int, default=20)
-    p.add_argument('--epoch-size', type=int, default=1500, help='images sampled per epoch')
+    p.add_argument('--epoch-size', type=int, default=100,
+                   help='at least this many images per epoch; with fewer training images, each is shown several times')
     p.add_argument('--resolution', type=int, default=1008, help="the model's input size; lower it if the GPU runs out of memory")
     p.add_argument('--batch', type=int, default=1)
     p.add_argument('--workers', type=int, default=4, help='data-loading processes')
@@ -177,7 +218,7 @@ def main():
         sys.exit(f"Meta's trainer is not installed in this environment ({e}). Install: python -m pip install -r requirements.txt")
 
     if not args.merge_only:
-        counts = export_coco(data, dataset_root, args.text, args.every)
+        counts = export_coco(data, dataset_root, args.text, args.every, args.epoch_size)
         base = base_checkpoint()
         config = write_config(args.run, dataset_root, log_dir, base, args)
         cmd = [sys.executable, str(P.ROOT / 'meta_trainer.py'), '-c', config, '--use-cluster', '0', '--num-gpus', '1']
@@ -185,7 +226,9 @@ def main():
         if args.dry_run:
             print(f'dry run: dataset in {dataset_root}, recipe in {log_dir}; nothing trained.')
             return
-        subprocess.run(cmd, check=True)
+        env = trainer_env()
+        print(f"trainer CPU threads: {env['OMP_NUM_THREADS']}")
+        subprocess.run(cmd, check=True, env=env)
         trained = log_dir / 'checkpoints' / 'checkpoint.pt'
         if not trained.is_file():
             sys.exit(f'training finished but {trained} is missing; see {log_dir}/logs')

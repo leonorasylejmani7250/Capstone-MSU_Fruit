@@ -96,14 +96,16 @@ It exports the labelled clips as a COCO dataset (`../data/sam3_dataset/`: train 
 | Argument | Default | Meaning |
 |---|---|---|
 | `--run` | required | Name of the run |
-| `--epochs` | `20` | Training epochs |
-| `--epoch-size` | `1500` | Images sampled per epoch |
+| `--epochs` | `20` | Training epochs; an epoch is one pass over the training images |
+| `--epoch-size` | `100` | At least this many images per epoch; with fewer training images, each is shown several times |
 | `--resolution` | `1008` | Input size; lower it if the GPU runs out of memory |
 | `--batch` | `1` | Batch size |
 | `--every` | `2` | Use every n-th frame of a clip |
 | `--text` | `grape cluster` | The category name, which is the text prompt the model learns |
 | `--dry-run` | | Export the dataset and write the recipe without training |
 | `--merge-only <checkpoint>` | | Merge an already trained `checkpoints/checkpoint.pt` into the released weights |
+
+With the defaults that is 2,000 training steps or more; a step takes about 1.3 s on an H200.
 
 Then score it: `python run.py clips` (the new file is the newest in `model/`) and `python fruit.py evaluate` in `../sam2_pipeline`. The fine-tuned file is 3 GB and ignored by git; share it through a GitHub Release (`model/README.md`).
 
