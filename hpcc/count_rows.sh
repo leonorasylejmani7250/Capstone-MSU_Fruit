@@ -13,7 +13,8 @@
 #   SAM 3.1   the same                                             run.py video      (needs ~/envs/fruit_sam3_1)
 # and then the table. Totals land in data/results/cluster_counts.csv (one line per video and model) and
 # cluster_counts_by_video.csv (one row per video, one column per model). A video that has its total is skipped,
-# so run the script again after new video arrives or when a job ran out of time.
+# so run the script again after new video arrives or when a job ran out of time. Each job asks for 4 hours: jobs of
+# that length usually start within minutes, longer ones wait.
 set -eo pipefail
 WHAT="${1:-}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -34,7 +35,7 @@ submit() {    # submit <folder> <sbatch options...> <job script and arguments...
     echo "${out%%;*}"
 }
 
-J=$(submit "$REPO/sam2_pipeline" --time=12:00:00 hpcc/run.sb video "$VIDEOS")
+J=$(submit "$REPO/sam2_pipeline" --time=04:00:00 hpcc/run.sb video "$VIDEOS")
 echo "job $J: SAM 2.1  YOLO26 finds the clusters, SAM 2.1 follows them"
 DEPS="$J"
 
@@ -43,7 +44,7 @@ for name in yolo26 yolo11; do
     env="$HOME/envs/fruit_$name"
     [ -x "$env/bin/python" ] || env="$SAM2_ENV"        # the SAM 2.1 environment runs the YOLO scripts too
     flag=--video-dir; [ -f "$VIDEOS" ] && flag=--video
-    J=$(submit "$REPO/${name}_pipeline" --time=12:00:00 --export="ALL,$var=$env" hpcc/run.sb video.py "$flag" "$VIDEOS")
+    J=$(submit "$REPO/${name}_pipeline" --time=04:00:00 --export="ALL,$var=$env" hpcc/run.sb video.py "$flag" "$VIDEOS")
     echo "job $J: ${name^^}   tracker ids"
     DEPS="$DEPS:$J"
 done
@@ -55,7 +56,7 @@ for name in sam3 sam3_1; do
         echo "$label  NOT submitted: no environment at $env (${name}_pipeline/hpcc/setup_env.sh)"
         continue
     fi
-    J=$(submit "$REPO/${name}_pipeline" --time=12:00:00 hpcc/run.sb run.py video "$VIDEOS")
+    J=$(submit "$REPO/${name}_pipeline" --time=04:00:00 hpcc/run.sb run.py video "$VIDEOS")
     echo "job $J: $label  text prompt \"grape cluster\""
     DEPS="$DEPS:$J"
 done

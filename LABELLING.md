@@ -19,7 +19,7 @@ On the MSU HPCC, after `bash hpcc/setup.sh` ([hpcc/README.md](hpcc/README.md)) a
 3. In cell **A · Settings** untick `DEMO` and set `PROJECT_DIR` to `~/Capstone-MSU_Fruit/data`.
 4. Click the cell **Step 3b · Label**, choose *Run ▸ Run All Above Selected Cell*, then run the cell itself. The cells above it cut the videos into clips (16 frames each) the first time.
 
-On a laptop or in Colab the same notebook works: [sam2_pipeline/README.md](sam2_pipeline/README.md).
+On a laptop or in Colab the same notebook works: [sam2_pipeline/INSTALL.md](sam2_pipeline/INSTALL.md).
 
 ## Label a clip
 
@@ -40,25 +40,25 @@ Every change is saved at once. Only clips marked done are used.
 
 The `val` clips first (they are at the top of the menu): at least 8, from at least 2 videos. Every model is scored on them. Then as many `train` clips as you can.
 
+How many clips are done, in a terminal on a development node ([hpcc/README.md](hpcc/README.md), "Log in"):
+
 ```bash
 cd ~/Capstone-MSU_Fruit/sam2_pipeline
 source hpcc/activate.sh
 python fruit.py status
 ```
 
-shows how many clips are done.
-
 ## A head start
 
-When a model already finds the clusters in this footage (`python fruit.py check <video>` shows its boxes on them), let it draft the labels. In **Step 3a** tick `DRAFT_LABELS` and run the cell: the model boxes the clusters in every clip that has no labels yet. Then open each clip in Step 3b, add the clusters it missed, fix the wrong ones and mark it done.
+When a model already finds the clusters in this footage ([sam2_pipeline/README.md](sam2_pipeline/README.md), step 6, shows its boxes on them), let it draft the labels. In **Step 3a** tick `DRAFT_LABELS` and run the cell: the model boxes the clusters in every clip that has no labels yet. Then open each clip in Step 3b, add the clusters it missed, fix the wrong ones and mark it done.
 
 Footage no model has learned, such as early-season video, has no head start at first. Label the val clips and a first batch of train clips by hand and fine-tune (next section). Then set `DRAFT_WEIGHTS` in Step 3a to the fine-tuned detector, `runs/yolo26_grapes_v1/weights/best.pt`, and let it draft the rest.
 
 ## Then
 
+Fine-tune every model on the labelled clips and score them all ([hpcc/README.md](hpcc/README.md), step 4):
+
 ```bash
 cd ~/Capstone-MSU_Fruit
 bash hpcc/run_all.sh grapes_v1
 ```
-
-fine-tunes every model on the labelled clips and scores them all ([hpcc/README.md](hpcc/README.md)).

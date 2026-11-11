@@ -1,6 +1,8 @@
 # Install · YOLO26 pipeline
 
-Install, test the install, score the shipped model. No GPU and no partner data needed. Every command runs from this folder, `yolo26_pipeline/`.
+On a laptop: install, test the install, score the shipped model. No GPU and no partner data needed. Every command runs from this folder, `yolo26_pipeline/`.
+
+On the MSU HPCC there is nothing to install by hand: [`../hpcc/README.md`](../hpcc/README.md), step 1, then [README.md](README.md).
 
 ## 1. What you need
 

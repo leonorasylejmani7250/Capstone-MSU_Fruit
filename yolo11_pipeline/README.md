@@ -6,27 +6,94 @@ YOLO11n-seg finds and outlines grape clusters in a photo or a video frame; it is
 ../data/wgisd_yolo ──▶ train.py ──▶ ../data/runs/yolo11/<run>/weights/best.pt ──▶ model/best.pt ──▶ evaluate.py · count_test.py · video.py
 ```
 
-New here: [INSTALL.md](INSTALL.md). Every command runs from this folder with its environment active.
+On a laptop: [INSTALL.md](INSTALL.md).
 
-| File | What it does |
-|---|---|
-| `train.py` | Trains the model: on the public WGISD photos by default, on our own labels with `--data`. |
-| `evaluate.py` | Box and mask mAP on the WGISD test photos; several weights make a table. |
-| `count_test.py` | Cluster counts against hand counts on the 27 WGISD test photos. |
-| `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
-| `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
-| `model/` | The model this pipeline ships ([model/README.md](model/README.md)). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. |
-| `tests/` | `python -m unittest discover -s tests` |
-| `requirements.txt` | Python packages. |
+## On the MSU HPCC
 
-The model detects grape clusters, not berries. A count is the number of clusters the tracker followed, not a hand count, and not a yield estimate.
+Set up once: [`../hpcc/README.md`](../hpcc/README.md), step 1. The SAM 2.1 environment it builds runs this folder too. Every block below can be pasted as it is into a terminal on a development node: log in, then `ssh dev-amd24-h200`.
 
-## 1. Train on WGISD
+### 1. Score the shipped model
 
 ```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python evaluate.py
+python count_test.py
+```
+
+About a minute each. `evaluate.py` prints box and mask mAP on the 27 held-out WGISD test photos. `count_test.py` compares cluster counts with hand counts on the same photos and writes `../data/results/yolo11/count_test.csv` and the annotated photos in `../data/results/yolo11/count_test/`. These are scores on WGISD photos; the leaderboard of the SAM 2.1 pipeline scores this model on our own labelled clips.
+
+### 2. Count the clusters in a video
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python video.py --video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
+```
+
+Every cluster gets an id that follows it from frame to frame (ByteTrack). The total is the number of ids followed for at least a second. It writes `../data/results/yolo11/<video>_track.mp4` (masks, boxes, ids, the count so far) and `<video>_track.csv`, and adds the total to `../data/results/cluster_counts.csv`, the file every pipeline adds to. A total is the number of clusters the tracker followed, not a hand count, and not a yield estimate.
+
+Every video of a folder, as a batch job (videos that have a total are skipped):
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+sbatch hpcc/run.sb video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
+```
+
+### 3. Train on WGISD
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
 python train.py
 ```
+
+Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo11/`, which also holds `results.csv`, the curves and the confusion matrix.
+
+A stronger model (bigger network, larger images, more epochs), as a batch job:
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+sbatch hpcc/run.sb train.py --model yolo11s-seg.pt --imgsz 1024 --batch 8 --epochs 150 --name wgisd_s1024
+```
+
+When `squeue --me` no longer lists it, score that run:
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python evaluate.py --model ../data/runs/yolo11/wgisd_s1024/weights/best.pt
+```
+
+To ship a run, copy its `weights/best.pt` over `model/best.pt` and update [model/README.md](model/README.md).
+
+### 4. Fine-tune on our own clips
+
+The labels live in the SAM 2.1 pipeline, so this is one of its jobs. It starts from the shipped model:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+sbatch hpcc/run.sb train-detector --base ../yolo11_pipeline/model/best.pt --name yolo11_grapes_v1
+```
+
+When `squeue --me` no longer lists it, the leaderboard scores it next to every other model:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+bash --login hpcc/run.sb evaluate
+```
+
+Count a video with it:
+
+```bash
+cd ~/Capstone-MSU_Fruit/yolo11_pipeline
+source hpcc/activate.sh
+python video.py --video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4 --model ../data/runs/yolo11_grapes_v1/weights/best.pt
+```
+
+## Reference
+
+### `train.py`
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
@@ -35,39 +102,14 @@ python train.py
 | `--epochs` | `50` | Epochs (stops early after 20 without improvement) |
 | `--imgsz` | `512` | Image size |
 | `--batch` | `2` | Batch size; raise it on a GPU with more than 4 GB |
-| `--name` | `wgisd` | Run folder `../data/runs/yolo11/<name>/` |
+| `--name` | `wgisd` | Run folder `../data/runs/yolo11/<name>/`; a number is added when it exists |
 | `--device` | `auto` | `auto`, `cpu`, or a CUDA device such as `0` |
 
-The run folder holds `weights/best.pt`, `results.csv`, `results.png`, the PR and F1 curves and the confusion matrix. 50 epochs take about 12 minutes on a 4 GB GPU and 80 minutes on a 2-core CPU.
+### `evaluate.py` and `count_test.py`
 
-A stronger WGISD model on a GPU: a bigger model, a larger image size, more epochs.
+`evaluate.py`: `--model <weights>` scores another checkpoint, `--split val` the validation split; several `--model` weights write a side-by-side table to `../data/results/yolo11/evaluate_<split>.csv`; the plots are in `../data/runs/yolo11/eval_test_<name>/`. `count_test.py`: `--conf` (default 0.25) trades missed clusters for false ones. Both score a model at the image size it was trained at.
 
-```bash
-python train.py --model yolo11s-seg.pt --imgsz 1024 --batch 8 --epochs 150 --name wgisd_s1024
-python evaluate.py --model ../data/runs/yolo11/wgisd_s1024/weights/best.pt
-```
-
-To ship a run: `cp ../data/runs/yolo11/<name>/weights/best.pt model/best.pt`, then update `model/README.md`.
-
-## 2. Score it
-
-```bash
-python evaluate.py
-python count_test.py
-```
-
-`evaluate.py` prints box and mask mAP@0.50 and mAP@0.50:0.95 on the 27 held-out test photos (plots in `../data/runs/yolo11/eval_test_<name>/`); `--model <weights>` scores another checkpoint, `--split val` the validation split, several `--model` weights write a side-by-side table to `../data/results/yolo11/evaluate_<split>.csv`. `count_test.py` compares cluster counts with hand counts on the same photos (`--conf`, default 0.25, trades missed clusters for false ones) and writes `../data/results/yolo11/count_test.csv` plus the annotated photos in `../data/results/yolo11/count_test/`. Both score a model at the image size it was trained at.
-
-These are scores on WGISD photos. The leaderboard in `../sam2_pipeline` (`python fruit.py evaluate`, in its own environment) scores this model on our own labelled clips next to every other model.
-
-## 3. Count the clusters in a video
-
-```bash
-python video.py --video ../data/videos/2026/Grape--DJIOsmo/DJI_20010319022815_0391_D.MP4
-python video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
-```
-
-Every cluster gets an id that follows it from frame to frame (ByteTrack). The total is the number of ids followed for at least a second; shorter ones are mostly a cluster the tracker lost and found again. Writes `../data/results/yolo11/<video>_track.mp4` (masks, boxes, ids, the count so far) and `<video>_track.csv` (`frame`, `visible_now`, `tracked_now`, `clusters_so_far`), and adds the video's total to `../data/results/cluster_counts.csv`, the file every pipeline adds to.
+### `video.py`
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
@@ -81,49 +123,35 @@ Every cluster gets an id that follows it from frame to frame (ByteTrack). The to
 
 The input size matters because a model trained on photos only sees clusters of about the size they had in those photos: this one, about 40 to 100 px tall in the image it is given. Footage shot closer needs a smaller size, wider shots a larger one.
 
-## 4. Fine-tune on our own video
+### Files
 
-Labels come from the SAM 2.1 labeller: label clips there, then export them as a YOLO dataset (`python fruit.py export-yolo`, from `../sam2_pipeline/`, writes `../data/yolo_dataset/`). Then start from the shipped model:
+| File | What it does |
+|---|---|
+| `train.py` | Trains the model: on the public WGISD photos by default, on our own labels with `--data`. |
+| `evaluate.py` | Box and mask mAP on the WGISD test photos; several weights make a table. |
+| `count_test.py` | Cluster counts against hand counts on the 27 WGISD test photos. |
+| `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
+| `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
+| `model/` | The model this pipeline ships ([model/README.md](model/README.md)). |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. |
+| `tests/` | `python -m unittest discover -s tests` |
+| `requirements.txt` | Python packages. |
 
-```bash
-python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard
-```
+The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on our own labels is two commands: `python fruit.py export-yolo` in `../sam2_pipeline/` writes `../data/yolo_dataset/`, then `python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard` here. Labels made in Roboflow work the same way: export them as a YOLO segmentation dataset and point `--data` at its `data.yaml`.
 
-Labels made in Roboflow work the same way: export them as a YOLO segmentation dataset and point `--data` at its `data.yaml`.
-
-On the HPCC the same fine-tuning is one job of the SAM 2.1 pipeline, scored by the leaderboard afterwards: `sbatch hpcc/run.sb train-detector --base ../yolo11_pipeline/model/best.pt` from `../sam2_pipeline/` ([`../hpcc/README.md`](../hpcc/README.md)).
-
-## 5. HPCC
-
-The environment is the SAM 2.1 one, which `bash hpcc/setup.sh` in the repository folder builds ([`../hpcc/README.md`](../hpcc/README.md)) and which runs this folder too. `bash hpcc/setup_env.sh` here builds one for this folder alone; it is used when it exists.
-
-In every new terminal, on a development node (`ssh dev-amd24-h200`):
-
-```bash
-cd ~/Capstone-MSU_Fruit/yolo11_pipeline
-source hpcc/activate.sh
-```
-
-Then the commands of sections 1 to 3 run as they are written there. A development node is for runs of a few minutes. Longer runs are batch jobs, submitted from this folder on a development node; the log is `yolo11-<jobid>.out` here.
-
-```bash
-sbatch hpcc/run.sb train.py --epochs 50 --batch 16
-sbatch hpcc/run.sb evaluate.py
-sbatch hpcc/run.sb video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
-```
-
-[`../hpcc/count_rows.sh`](../hpcc/README.md) submits the last one for every pipeline at once.
-
-## 6. If something goes wrong
+## If something goes wrong
 
 | Symptom | Fix |
 | --- | --- |
-| `Missing weights: …/model/best.pt` | Incomplete clone (`git status`), or train a model (section 1) and copy it there. |
+| `You are currently using a gateway node`, or `module(s) could not be loaded` | You are on a gateway node: `ssh dev-amd24-h200`, then paste the block again. |
+| `can't open file …/train.py`, or `No module named 'ultralytics'` | Paste the whole block: it starts with the `cd` and `source hpcc/activate.sh` lines this folder needs. |
+| `Killed` in the middle of a run in the terminal | The process used up the two hours of CPU time it gets on a development node. Submit the run as a batch job: `sbatch hpcc/run.sb` and then the command without `python`. |
+| A job log says a download failed | Fetch the base weights once on the development node: `source hpcc/activate.sh`, then `python -c "from ultralytics import YOLO; YOLO('yolo11s-seg.pt')"` in this folder, and submit again. |
+| `Missing weights: …/model/best.pt` | Incomplete clone (`git status`), or train a model (step 3) and copy it there. |
 | `Missing …/wgisd_yolo/grape.yaml` | `python ../data/wgisd_yolo/prepare_wgisd.py` |
-| `Killed` in the middle of a run on a development node | The process used up the two hours of CPU time it gets there. Start from `source hpcc/activate.sh`, which limits the CPU threads, or submit the run as a batch job (section 5). |
 | CUDA out of memory | Lower `--batch` (training) or `--imgsz` (video). |
 | CUDA unavailable | The CPU is used. For a GPU, install a CUDA build of PyTorch (INSTALL.md). |
 | `… is a base model` | A base model such as `yolo11n-seg.pt` has no grape class. Use `model/best.pt` or a trained run. |
-| `No clusters found` | The table printed at the start shows what the model saw at every input size. Nothing at any size, or false positives and missed clusters: the model has only seen WGISD photos, so label our footage ([`../LABELLING.md`](../LABELLING.md)) and fine-tune (section 4). |
+| `No clusters found` | The table printed at the start shows what the model saw at every input size. Nothing at any size, or false positives and missed clusters: the model has only seen WGISD photos, so label our footage ([`../LABELLING.md`](../LABELLING.md)) and fine-tune (step 4). |
 
 Licences: [WGISD](https://github.com/thsant/wgisd) CC BY-NC 4.0, [Ultralytics](https://github.com/ultralytics/ultralytics) AGPL-3.0. Repository: [`../LICENSE.txt`](../LICENSE.txt).

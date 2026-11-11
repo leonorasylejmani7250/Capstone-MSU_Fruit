@@ -19,9 +19,9 @@ On WGISD photos it is scored at `imgsz` 512, the size it was trained at; on vide
 
 ## Replacing it
 
-From `yolo26_pipeline/`: train, score the run, and if it is better, copy it here and update the table above.
+Train and score a run ([`../README.md`](../README.md), step 3). If it is better, copy it here and update the table above; with a run named `wgisd_s1024`:
 
 ```bash
-python evaluate.py --model ../data/runs/yolo26/<run>/weights/best.pt
-cp ../data/runs/yolo26/<run>/weights/best.pt model/best.pt
+cd ~/Capstone-MSU_Fruit/yolo26_pipeline
+cp ../data/runs/yolo26/wgisd_s1024/weights/best.pt model/best.pt
 ```

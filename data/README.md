@@ -40,7 +40,7 @@ To bring in new video:
 
 1. **OneDrive on the web.** Open the shared SharePoint folder, select the new videos, *Copy to* a folder of your own such as *My files / FRUIT_videos*. Globus cannot open a folder that is only shared with you.
 2. **Globus**, <https://app.globus.org/file-manager>. Left panel: `msu#onedrive`, *My files / FRUIT_videos*, select all. Right panel: `msuhpcc`, path `/mnt/ufs18/rs/MSU-Fruit/videos/`. In *Transfer & Timer Options* tick *sync - only transfer new or changed files* (*modification time is newer*) and *preserve source file modification times*; leave *delete files on destination* off. *Start*.
-3. **On the HPCC**, when the transfer is done:
+3. **On the HPCC**, when the transfer is done, in a terminal on a development node ([`hpcc/README.md`](../hpcc/README.md), "Log in"):
 
    ```bash
    chmod -R g+rwX /mnt/research/MSU-Fruit/videos
@@ -51,7 +51,7 @@ To bring in new video:
 
 Any folder structure and any file names work: every video under `videos/` is read, at any depth. Clips are named after the video's path, so two cameras' `DJI_0001.MP4` in different folders do not collide. A second `fruit.py clips` cuts clips only from new videos and never moves a clip between train and val. Footage that should not be used goes into a folder whose name starts with a dot, such as `videos/.unused/`.
 
-A single video from a laptop: OnDemand (*Files ▸ Upload*, under 1 GB) or `rsync -av <file> <netid>@rsync.hpcc.msu.edu:/mnt/research/MSU-Fruit/videos/`.
+A single video from a laptop: OnDemand (*Files ▸ Upload*, under 1 GB), or `rsync -av row3.mp4 netid@rsync.hpcc.msu.edu:/mnt/research/MSU-Fruit/videos/` with your file and your NetID.
 
 ## Licences
 

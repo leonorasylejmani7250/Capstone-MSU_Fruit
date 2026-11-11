@@ -10,7 +10,8 @@ stretch to the next when its masks on the shared frame overlap. The total is the
 MIN_FRAMES frames; a whole video adds it to ../data/results/cluster_counts.csv, the file every pipeline writes to.
 
 Weights: the newest .pt in model/ (a fine-tuned model from finetune.py, or the release downloaded there), else Meta's release.
---checkpoint release forces Meta's weights; --checkpoint <file> picks a file. Needs Meta's `sam3` package and a CUDA GPU (README.md).
+--checkpoint release forces Meta's weights; --checkpoint <file> picks a file. Options go before or after the command name.
+Needs Meta's `sam3` package and a CUDA GPU (README.md).
 """
 from __future__ import annotations
 
@@ -278,20 +279,29 @@ def cmd_video(args, data: Path, checkpoint: Path | None):
     print('A count is the number of ids the model followed, not a hand count, and not a yield estimate.')
 
 
+def general_options(parser: argparse.ArgumentParser, defaults: bool) -> None:
+    """The options of both commands. The main parser gets them with their defaults, each command without, so that they
+    work before or after the command name: `run.py --checkpoint release clips` and `run.py clips --checkpoint release`."""
+    d = (lambda value: value) if defaults else (lambda value: argparse.SUPPRESS)
+    parser.add_argument('--text', default=d('grape cluster'), help='the text prompt (one concept phrase)')
+    parser.add_argument('--checkpoint', default=d(None),
+                        help="weights: a .pt file, or 'release' for Meta's (default: the newest .pt in model/, else the release)")
+    parser.add_argument('--max-objects', type=int, default=d(64), help='object capacity per clip; 16 is too few for a vine row')
+    parser.add_argument('--prob', type=float, default=d(0.5), help='output probability threshold')
+    parser.add_argument('--data', type=Path, default=d(None),
+                        help="the project folder with dataset/ and videos/ (default: $PROJECT_DIR, else the repository's data/)")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('--text', default='grape cluster', help='the text prompt (one concept phrase)')
-    p.add_argument('--checkpoint', default=None,
-                   help="weights: a .pt file, or 'release' for Meta's (default: the newest .pt in model/, else the release)")
-    p.add_argument('--max-objects', type=int, default=64, help='object capacity per clip; 16 is too few for a vine row')
-    p.add_argument('--prob', type=float, default=0.5, help='output probability threshold')
-    p.add_argument('--data', type=Path, default=None,
-                   help="the project folder with dataset/ and videos/ (default: $PROJECT_DIR, else the repository's data/)")
+    general_options(p, defaults=True)
+    after = argparse.ArgumentParser(add_help=False)
+    general_options(after, defaults=False)
     sub = p.add_subparsers(dest='cmd', required=True)
-    s = sub.add_parser('clips', help='masks for the labelled clips → ../data/predictions/')
+    s = sub.add_parser('clips', parents=[after], help='masks for the labelled clips → ../data/predictions/')
     s.add_argument('--split', default='val', choices=['val', 'train'])
     s.add_argument('--name', default=None, help='folder name under predictions/ (default: from the weights)')
-    s = sub.add_parser('video', help='count the clusters in a video: overlay video, counts and the total → ../data/results/')
+    s = sub.add_parser('video', parents=[after], help='count the clusters in a video: overlay video, counts and the total → ../data/results/')
     s.add_argument('video', type=Path, help='a video, or a folder: every video in it')
     s.add_argument('--start', type=float, default=0, help='seconds into the video')
     s.add_argument('--seconds', type=float, default=0, help='how much of it (default 0: to the end; 20 for a quick look)')

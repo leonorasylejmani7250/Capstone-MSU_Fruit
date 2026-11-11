@@ -1,6 +1,8 @@
 # Install · SAM 2.1 pipeline
 
-Install, test the install, get the data, run the demo. No GPU and no partner data needed. Every command runs from this folder, `sam2_pipeline/`.
+On a laptop: install, test the install, get the data, run the demo. No GPU and no partner data needed. Every command runs from this folder, `sam2_pipeline/`.
+
+On the MSU HPCC there is nothing to install by hand: [`../hpcc/README.md`](../hpcc/README.md), step 1, then [README.md](README.md).
 
 No install: open [`demo.ipynb` in Google Colab](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam2_pipeline/demo.ipynb), *Runtime ▸ Run all*, approve the warning that the notebook is not from Google.
 
@@ -63,13 +65,22 @@ Second notebook: `count_test.ipynb` runs our YOLO26 → SAM 2.1 on 27 WGISD phot
 
 ## 7. The full pipeline on our videos
 
-| Where | How |
-|---|---|
-| Google Colab (free GPU) | Open [the pipeline notebook in Colab](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb); videos go to Google Drive. |
-| This computer | `cd notebooks && jupyter notebook`, open the pipeline notebook, untick `DEMO`, set `PROJECT_DIR = "../../data"`. Command line: `python fruit.py status`. |
-| MSU HPCC | `bash hpcc/setup_env.sh` once, then `sbatch hpcc/run.sb train …` |
+**MSU HPCC:** [README.md](README.md).
 
-[README.md](README.md) walks through all three.
+**This computer:** `cd notebooks && jupyter notebook`, open the pipeline notebook, untick `DEMO`, set `PROJECT_DIR = "../../data"`. Command line: `python fruit.py status`.
+
+**Google Colab** (free GPU; videos go to Google Drive):
+
+1. Open [the pipeline notebook in Colab](https://colab.research.google.com/github/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam2_pipeline/notebooks/MSU_FRUIT_SAM2_pipeline.ipynb), or upload `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` at colab.research.google.com.
+2. **Runtime ▸ Change runtime type ▸ T4 GPU**.
+3. Demo run first: leave `DEMO` ticked in cell A, **Runtime ▸ Run all** (15–25 minutes on a T4).
+4. Real run: untick `DEMO`, keep `SAVE_TO_DRIVE` ticked, **Run all**, approve the Drive prompt. The project folder is *My Drive / msu_fruit_sam2*.
+   - **Step 1**: tick `UPLOAD_NOW` to upload videos, or copy big files into *My Drive / msu_fruit_sam2 / videos* and re-run the step.
+   - **Step 2** cuts clips and splits train/val by video.
+   - **Step 3**: drag a box around each cluster once; SAM 2.1 draws and follows the mask. Fix frames with *Re-box selected*, then *Clip checked: mark done*. Only clips marked done are used.
+   - **Steps 4–7**: **Runtime ▸ Run after** from Step 3c: score, fine-tune, score again, run on new video.
+
+Everything is on Drive, so after a disconnect **Run all** picks up where you were.
 
 ## 8. If something goes wrong
 

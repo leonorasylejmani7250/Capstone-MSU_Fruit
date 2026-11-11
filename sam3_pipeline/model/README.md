@@ -4,12 +4,7 @@
 
 ## Meta's release
 
-Gated: request access at [facebook/sam3](https://huggingface.co/facebook/sam3), wait for the approval, then once on the machine that runs the pipeline:
-
-```bash
-hf auth login
-hf download facebook/sam3 sam3.pt --local-dir model
-```
+Gated: request access at [facebook/sam3](https://huggingface.co/facebook/sam3), wait for the approval, then once on the machine that runs the pipeline: [`../../hpcc/README.md`](../../hpcc/README.md), step 1, has the blocks for the HPCC; [`../README.md`](../README.md), "On another computer", for any other machine. The file is `sam3.pt`.
 
 ## Fine-tuned on our clips
 
