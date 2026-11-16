@@ -46,6 +46,7 @@ hf download facebook/sam3.1 sam3.1_multiplex.pt --local-dir ../sam3_1_pipeline/m
 ```
 
 **2. Bring in the video:** [`data/README.md`](data/README.md).
+
 **3. Label clips:** [`LABELLING.md`](LABELLING.md).
 
 **4. Fine-tune every model and score them all.**
