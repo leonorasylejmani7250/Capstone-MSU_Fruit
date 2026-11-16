@@ -23,8 +23,30 @@ git clone [github.com](https://github.com/leonorasylejmani7250/Capstone-MSU_Frui
 cd ~/Capstone-MSU_Fruit
 bash hpcc/setup.sh
 ```
+It does two things:
 
-**2. Bring in the video:** [`data/README.md`](data/README.md). **3. Label clips:** [`LABELLING.md`](LABELLING.md).
+- **Shared data**: `data/videos` and `data/dataset` become links to `/mnt/research/MSU-Fruit/videos` and `/mnt/research/MSU-Fruit/dataset`, so the team has one copy of the video and one set of clips and labels. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results.
+- **Environments**: SAM 2.1, which also runs the YOLO pipelines, then SAM 3 and SAM 3.1.
+
+**Meta's weights for SAM 3 and SAM 3.1.** Request access at [facebook/sam3](https://huggingface.co/facebook/sam3) and [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) with one Hugging Face account and wait for the two approval emails. Then log in, once. It asks for a token: make one at <https://huggingface.co/settings/tokens> and paste it.
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_pipeline
+source hpcc/activate.sh
+hf auth login
+```
+
+Then download the two files, 3 to 4 GB each:
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_pipeline
+source hpcc/activate.sh
+hf download facebook/sam3 sam3.pt --local-dir model
+hf download facebook/sam3.1 sam3.1_multiplex.pt --local-dir ../sam3_1_pipeline/model
+```
+
+**2. Bring in the video:** [`data/README.md`](data/README.md).
+**3. Label clips:** [`LABELLING.md`](LABELLING.md).
 
 **4. Fine-tune every model and score them all.**
 
