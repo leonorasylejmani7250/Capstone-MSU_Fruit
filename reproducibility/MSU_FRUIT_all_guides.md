@@ -1,5 +1,5 @@
 # MSU FRUIT: HPCC instructions, labelling guide and pipeline guide
-The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `2487232`) as one file, in this order:
+The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `20ad307`) as one file, in this order:
 
 1. [HPCC instructions](#hpcc-instructions): the whole workflow on the MSU HPCC, from logging in to the cluster counts
 2. [Labelling guide](#labelling-guide)
@@ -37,10 +37,16 @@ cd ~/Capstone-MSU_Fruit
 bash hpcc/setup.sh
 ```
 
-It does two things:
+The first line copies this repository into your HPCC home folder. `hpcc/setup.sh` then gets your HPCC account ready for the pipelines. It runs on the HPCC only: nothing is installed or changed on your own computer. It takes 30 to 60 minutes, prints each step as it starts, and ends with `Next: LABELLING.md`.
 
-- **Shared data**: `data/videos` and `data/dataset` become links to `/mnt/research/MSU-Fruit/videos` and `/mnt/research/MSU-Fruit/dataset`, so the team has one copy of the video and one set of clips and labels. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results.
-- **Environments**: SAM 2.1, which also runs the YOLO pipelines, then SAM 3 and SAM 3.1.
+It does four things, in this order:
+
+1. **Shared data.** `data/videos` and `data/dataset` become links to `/mnt/research/MSU-Fruit/videos` and `/mnt/research/MSU-Fruit/dataset`, so the team has one copy of the video and one set of clips and labels. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results. You have to be a member of the `MSU-Fruit` research space: if you are not, the script stops here and nothing has been changed.
+2. **The SAM 2.1 environment**, `~/envs/fruit_sam2`, which also runs the YOLO pipelines. With it come Meta's SAM 2 code and the pretrained weights, in `~/.fruit_sam2`, and a Jupyter kernel, so that a notebook can run in this environment.
+3. **The SAM 3 environment**, `~/envs/fruit_sam3`.
+4. **The SAM 3.1 environment**, `~/envs/fruit_sam3_1`.
+
+An environment is a folder with its own Python and packages, apart from the HPCC's software. All of it takes about 25 GB of the 100 GB in your home folder. The script needs no administrator rights, changes no login file such as `~/.bashrc`, submits no jobs and asks no questions. [What `setup.sh` does](#what-setupsh-does) lists every folder it makes, where each download comes from and how to remove it all. [The environments](#the-environments) says what each environment file does and how to change it.
 
 **Meta's weights for SAM 3 and SAM 3.1.** Request access at [facebook/sam3](https://huggingface.co/facebook/sam3) and [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) with one Hugging Face account and wait for the two approval emails. Then log in, once. It asks for a token: make one at <https://huggingface.co/settings/tokens> and paste it.
 
@@ -160,6 +166,92 @@ Each pipeline's README has its own steps as blocks to paste: [SAM 2.1](#sam-21-p
 - **YOLO on our clips:** `train-detector` trains at 1280 px for 100 epochs; next try `--epochs 200`, or a bigger base (`--base yolo26s-seg.pt`).
 - **SAM 3 and SAM 3.1:** `finetune.py --epochs 40`, or `--resolution 768` if the GPU runs out of memory.
 - **The video pipeline with both fine-tuned:** [`sam2_pipeline/README.md`](#sam-21-pipeline), step 5. To score that pair on the leaderboard, switch on the commented entry at the end of `sam2_pipeline/configs/lineup.yaml`.
+
+### What `setup.sh` does
+
+`hpcc/setup.sh` runs four scripts, one after the other, and stops at the first one that fails. Each script explains itself in its comments: what a step does, why, and what to edit to change it.
+
+| Step | Script | What it does |
+|---|---|---|
+| 1 | `hpcc/share_data.sh` | Makes `data/videos` and `data/dataset` links to the team's shared folders. |
+| 2 | `sam2_pipeline/hpcc/setup_env.sh` | Builds `~/envs/fruit_sam2`, fetches Meta's SAM 2 code and the pretrained weights, registers the Jupyter kernel, tests the GPU. |
+| 3 | `sam3_pipeline/hpcc/setup_env.sh` | Builds `~/envs/fruit_sam3` and checks that Meta's `sam3` package loads. |
+| 4 | `sam3_1_pipeline/hpcc/setup_env.sh` | The same for `~/envs/fruit_sam3_1`. |
+
+**What it leaves in your account**
+
+| Where | What | Size |
+|---|---|---|
+| `~/envs/fruit_sam2`, `~/envs/fruit_sam3`, `~/envs/fruit_sam3_1` | The three environments: Python 3.12, PyTorch and each pipeline's packages. | about 22 GB together |
+| `~/.fruit_sam2/` | Meta's SAM 2 code and the pretrained SAM 2.1, YOLOE and YOLO26 weights. | about 1 GB |
+| `~/.local/share/jupyter/kernels/fruit_sam2/` | The Jupyter kernel "Python (fruit_sam2)". | a few small files |
+| `~/.cache/pip` | pip's copy of what it downloaded. Safe to delete. | about 3 GB |
+| `~/Capstone-MSU_Fruit/data/` | The links `videos` and `dataset`, and the empty folders `predictions/` and `models/`. | none |
+
+conda, pip, Ultralytics and matplotlib also keep a few small settings and cache files under `~/.conda`, `~/.config` and `~/.cache`.
+
+**Where the downloads come from**
+
+| What | From |
+|---|---|
+| Python 3.12 and pip | conda-forge, through the HPCC's own conda (the Miniforge3 module) |
+| PyTorch, the CUDA 12.6 build | `download.pytorch.org` |
+| The other Python packages | PyPI. Each pipeline's `requirements.txt` lists them and says what they are for. |
+| Meta's SAM 2 code, Meta's `sam3` package, Ultralytics' CLIP | GitHub: `facebookresearch/sam2`, `facebookresearch/sam3`, `ultralytics/CLIP` |
+| The pretrained SAM 2.1 weights | Meta's file server, `dl.fbaipublicfiles.com`. If it cannot be reached: the copy in Ultralytics' releases on GitHub. |
+| The YOLOE and YOLO26 weights | Ultralytics' releases on GitHub |
+
+**What it does not do**
+
+- It installs nothing on your own computer. Everything above is in your HPCC account.
+- It needs no administrator rights and asks no questions.
+- It changes no login file such as `~/.bashrc`. The modules and the environment a script loads are gone again when that script ends.
+- It submits no batch jobs and trains nothing.
+- It does not log in to Hugging Face and does not download Meta's SAM 3 weights. Those are the two blocks that follow it in step 1.
+- In a fresh clone it moves and deletes nothing. Only when `data/videos` or `data/dataset` already hold files does step 1 copy them to the shared folder and put the link in the folder's place. A file that the shared folder already has under the same name stays as it is there.
+
+**Running it again** is safe: an environment that exists is kept and its packages are checked against the list, a file that is there is not downloaded again, a link that is right is left alone.
+
+**Removing it.** Delete the folders of the first table: `rm -rf ~/envs/fruit_sam2 ~/envs/fruit_sam3 ~/envs/fruit_sam3_1 ~/.fruit_sam2 ~/.local/share/jupyter/kernels/fruit_sam2`. Deleting `~/Capstone-MSU_Fruit` as well removes your clone, with the models and results of your own runs. The shared video and labels in `/mnt/research/MSU-Fruit` stay.
+
+### The environments
+
+Each pipeline runs in a conda environment: a folder under `~/envs/` with its own Python and packages.
+
+| Environment | Runs | Built by | Its packages |
+|---|---|---|---|
+| `~/envs/fruit_sam2` | SAM 2.1, YOLO26, YOLO11 and the labelling notebook | `sam2_pipeline/hpcc/setup_env.sh` | `sam2_pipeline/requirements.txt` |
+| `~/envs/fruit_sam3` | SAM 3 | `sam3_pipeline/hpcc/setup_env.sh` | `sam3_pipeline/requirements.txt` |
+| `~/envs/fruit_sam3_1` | SAM 3.1 | `sam3_1_pipeline/hpcc/setup_env.sh` | `sam3_1_pipeline/requirements.txt` |
+| `~/envs/fruit_yolo26`, `~/envs/fruit_yolo11` | YOLO26 or YOLO11 by itself. Optional: `hpcc/setup.sh` does not build them. | `hpcc/setup_env.sh` in `yolo26_pipeline/` or `yolo11_pipeline/` | that folder's `requirements.txt` |
+
+A YOLO pipeline uses the SAM 2.1 environment until its own has been built.
+
+Every pipeline folder has the same environment files, named here as they are inside that folder. Each explains itself in its comments.
+
+| File | What it does | When it runs |
+|---|---|---|
+| `hpcc/setup_env.sh` | Builds the environment: makes the folder with Python 3.12, installs PyTorch, installs `requirements.txt`, checks that the packages load. | Once per person, by `hpcc/setup.sh` or by hand |
+| `requirements.txt` | The list of Python packages, with what each one is for. | Read by `setup_env.sh` |
+| `hpcc/activate.sh` | Switches a terminal to the environment, so that `python` is the environment's own. It lasts until the terminal is closed. | `source hpcc/activate.sh` at the top of a block |
+| `hpcc/run.sb` | Does the same inside a batch job, then runs one command. | `sbatch hpcc/run.sb …` |
+| `sam2_pipeline/hpcc/config.sh` | The SAM 2.1 pipeline's paths: the environment, the SAM 2 code and weights, the `data/` folder. | Read by the SAM 2.1 scripts, `hpcc/run_all.sh` and `hpcc/count_rows.sh` |
+| `sam2_pipeline/environment.yml` | The SAM 2.1 environment for a laptop ([`INSTALL.md`](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam2_pipeline/INSTALL.md)). The HPCC does not use it. | `conda env create` |
+
+**Change an environment.** Edit the file, then run that pipeline's `setup_env.sh` again on a development node. It keeps what is there and installs what is new.
+
+| To change | Edit | Then |
+|---|---|---|
+| A package: add one, or fix its version | The pipeline's `requirements.txt` | Run `setup_env.sh` again. A package taken off the list stays installed until it is uninstalled or the environment is built from scratch. |
+| The version of Meta's `sam3` code | The `sam3[train]` line of `requirements.txt`: end it with `@` and a commit of Meta's repository. Leave it as it is to get Meta's newest code. | After `source hpcc/activate.sh`: `python -m pip uninstall -y sam3`. Then run `setup_env.sh` again. Without the uninstall, pip keeps the copy that is installed. |
+| The version of Meta's SAM 2 code | `SAM2_COMMIT` in `sam2_pipeline/hpcc/setup_env.sh` and in `sam2_pipeline/source/cells/030_setup.py` | In `sam2_pipeline/`, after `source hpcc/activate.sh`: `python source/build.py`, and commit the files it regenerates. Delete `~/.fruit_sam2/sam2_repo`, then run `setup_env.sh` again. |
+| The PyTorch or CUDA build | The `--index-url` line of `setup_env.sh`. `cu126` is the CUDA 12.6 build. | After `source hpcc/activate.sh`: `python -m pip uninstall -y torch torchvision`. Then run `setup_env.sh` again. |
+| The Python version | `python=3.12` in `setup_env.sh` | Delete the environment's folder, then run `setup_env.sh` again. |
+| Where the SAM 2.1 environment is kept | `ENV_DIR` in `sam2_pipeline/hpcc/config.sh` | Run `setup_env.sh` again, delete the old folder, and give the new path in the Jupyter form ([`LABELLING.md`](#labelling-guide), step 1). |
+| Where another environment is kept | The default path in its `setup_env.sh`, `activate.sh` and `run.sb`, and where `hpcc/run_all.sh` and `hpcc/count_rows.sh` name it | Run `setup_env.sh` again, then delete the old folder. |
+| Which environments `hpcc/setup.sh` builds | The `PIPELINES` line of `hpcc/setup.sh` | Nothing more. |
+| The team's shared folder | The `SHARED` line of `hpcc/share_data.sh` | In each clone: remove the links `data/videos` and `data/dataset`, then `bash hpcc/share_data.sh`. |
+| An environment that no longer works | Nothing | Delete its folder, then run `setup_env.sh` again. |
 
 ### If something goes wrong
 
@@ -410,7 +502,8 @@ COCO or YOLO outlines are used as drawn. Box-only labels get a SAM 2.1 mask and 
 | File | What it is |
 |---|---|
 | `fruit.py` | The pipeline as a command line: `status`, `clips`, `train`, `train-detector`, `evaluate`, `video`, `counts`, `check`, … (`python fruit.py --help`). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a job, `setup_env.sh` builds the environment, `config.sh` holds the paths. |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a job, `setup_env.sh` builds the environment, `config.sh` holds the paths. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
+| `requirements.txt` | The environment's Python packages, with what each one is for. |
 | `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` | The whole pipeline as a notebook, with the labelling screen. Colab, or Jupyter on the HPCC. |
 | `configs/lineup.yaml` | The models the leaderboard scores. Add any model here. |
 | `model/` | The fine-tuned SAM 2.1 the team ships ([model/README.md](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam2_pipeline/model/README.md)). |
@@ -572,8 +665,8 @@ With the defaults that is 2,000 training steps or more, about a second each on a
 | `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam3_pipeline/model/README.md)). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. |
-| `requirements.txt` | Python packages (Meta's `sam3` package with its trainer). |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
+| `requirements.txt` | The environment's Python packages (Meta's `sam3` package with its trainer), with what each one is for. |
 
 ### On another computer
 
@@ -729,8 +822,8 @@ With the defaults that is 2,000 training steps or more, about a second each on a
 | `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam3_1_pipeline/model/README.md)). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. |
-| `requirements.txt` | Python packages (Meta's `sam3` package with its trainer). |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
+| `requirements.txt` | The environment's Python packages (Meta's `sam3` package with its trainer), with what each one is for. |
 
 ### On another computer
 
@@ -908,9 +1001,9 @@ The input size matters because a model trained on photos only sees clusters of a
 | `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
 | `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
 | `model/` | The model this pipeline ships ([model/README.md](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/yolo26_pipeline/model/README.md)). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
 | `tests/` | `python -m unittest discover -s tests` |
-| `requirements.txt` | Python packages. |
+| `requirements.txt` | Python packages, with what each one is for. |
 
 The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on our own labels is two commands: `python fruit.py export-yolo` in `../sam2_pipeline/` writes `../data/yolo_dataset/`, then `python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard` here. Labels made in Roboflow work the same way: export them as a YOLO segmentation dataset and point `--data` at its `data.yaml`.
 
@@ -1070,9 +1163,9 @@ The input size matters because a model trained on photos only sees clusters of a
 | `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
 | `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
 | `model/` | The model this pipeline ships ([model/README.md](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/yolo11_pipeline/model/README.md)). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
 | `tests/` | `python -m unittest discover -s tests` |
-| `requirements.txt` | Python packages. |
+| `requirements.txt` | Python packages, with what each one is for. |
 
 The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on our own labels is two commands: `python fruit.py export-yolo` in `../sam2_pipeline/` writes `../data/yolo_dataset/`, then `python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard` here. Labels made in Roboflow work the same way: export them as a YOLO segmentation dataset and point `--data` at its `data.yaml`.
 
