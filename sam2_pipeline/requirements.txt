@@ -1,6 +1,15 @@
 # Python packages for running the pipeline outside Colab (MSU HPCC, a lab workstation).
 # Install torch + torchvision first (hpcc/setup_env.sh does, with a CUDA 12.6 build), then:
 #   python -m pip install -r requirements.txt
+#
+# This file is the package list of the HPCC environment ~/envs/fruit_sam2. To add a package or fix a version
+# (name==1.2.3), edit a line here and run hpcc/setup_env.sh again. The same packages are listed in two more
+# places, for the two other ways the pipeline is installed; keep them in step when the code needs a new one:
+#   environment.yml              the conda environment for a laptop (INSTALL.md)
+#   source/cells/030_setup.py    what the notebook installs by itself in Colab (then: python source/build.py)
+
+# Meta's SAM 2 code needs these: the first two to build the model, the next five to fine-tune it
+# (pycocotools also reads the run-length masks of imported COCO labels).
 hydra-core>=1.3.2
 iopath>=0.1.10
 fvcore
@@ -8,6 +17,8 @@ tensordict>=0.6.0
 submitit
 pycocotools
 tensorboard
+# Our own code (fruit_sam2.py), in this order: matching masks to labels when scoring, the lineup file
+# (configs/lineup.yaml), tables, plots, video and images (two packages), progress bars.
 scipy
 pyyaml
 pandas
@@ -15,8 +26,11 @@ matplotlib
 opencv-python-headless
 pillow
 tqdm
+# The labelling screen in the notebook.
 anywidget
 ipywidgets
+# The YOLO detectors: Ultralytics itself, the matching step its tracker needs, and the text encoder behind
+# YOLOE's text prompt. Having them here is also what lets this environment run the two YOLO pipelines.
 ultralytics
 lap>=0.5.12
 git+https://github.com/ultralytics/CLIP.git

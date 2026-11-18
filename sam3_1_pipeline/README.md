@@ -111,8 +111,8 @@ With the defaults that is 2,000 training steps or more, about a second each on a
 | `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](model/README.md)). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. |
-| `requirements.txt` | Python packages (Meta's `sam3` package with its trainer). |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. What each one does and how to change the environment: [`../hpcc/README.md`](../hpcc/README.md#the-environments). |
+| `requirements.txt` | The environment's Python packages (Meta's `sam3` package with its trainer), with what each one is for. |
 
 ## On another computer
 

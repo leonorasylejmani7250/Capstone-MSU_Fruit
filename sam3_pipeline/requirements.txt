@@ -1,12 +1,24 @@
 # Python packages for the SAM 3 pipeline. Install the CUDA build of PyTorch first (README.md), then:
 #   python -m pip install -r requirements.txt
+# On the HPCC this file is the package list of ~/envs/fruit_sam3: hpcc/setup_env.sh installs it. To add a package
+# or fix a version (name==1.2.3), edit a line here and run hpcc/setup_env.sh again.
+#
 # Meta's sam3 package comes from its GitHub repository (the PyPI "sam3" package is a third-party upload);
 # [train] adds Meta's trainer for finetune.py. The four packages after it are imported by sam3 but not declared by it.
+# No version of sam3 is named: pip takes Meta's code as it is on GitHub on the day the environment is built, so two
+# environments built months apart can differ. To fix one version, end the line with @ and a commit of that repository:
+#   sam3[train] @ git+https://github.com/facebookresearch/sam3.git@<commit>
+# pip keeps a sam3 it has installed for as long as Meta's version number stays the same, whatever this line says:
+# running hpcc/setup_env.sh again does not change it. After editing the line, or to get Meta's newest code, uninstall
+# the old copy first (`python -m pip uninstall -y sam3` after `source hpcc/activate.sh`) or delete the environment's
+# folder, then run hpcc/setup_env.sh.
 sam3[train] @ git+https://github.com/facebookresearch/sam3.git
 setuptools<81
 einops
 pycocotools
 psutil
+# The `hf` command (hf auth login, hf download), which fetches Meta's weights.
 huggingface_hub
+# Our own scripts: reading video and writing the overlay video, and the arrays the masks are kept in.
 opencv-python-headless
 numpy

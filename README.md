@@ -19,14 +19,17 @@ ssh dev-amd24-h200
 **1. Set up, once per person.**
 
 ```bash
-git clone [github.com](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git) ~/Capstone-MSU_Fruit
+git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
 cd ~/Capstone-MSU_Fruit
 bash hpcc/setup.sh
 ```
-It does two things:
 
-- **Shared data**: `data/videos` and `data/dataset` become links to `/mnt/research/MSU-Fruit/videos` and `/mnt/research/MSU-Fruit/dataset`, so the team has one copy of the video and one set of clips and labels. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results.
-- **Environments**: SAM 2.1, which also runs the YOLO pipelines, then SAM 3 and SAM 3.1.
+The first line copies this repository into your HPCC home folder. `hpcc/setup.sh` then gets your HPCC account ready for the pipelines, in 30 to 60 minutes. It runs on the HPCC only: nothing is installed or changed on your own computer. It does two things:
+
+- **Shared data**: `data/videos` and `data/dataset` become links to `/mnt/research/MSU-Fruit/videos` and `/mnt/research/MSU-Fruit/dataset`, so the team has one copy of the video and one set of clips and labels. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results. You have to be a member of the `MSU-Fruit` research space: if you are not, the script stops here and nothing has been changed.
+- **Environments**: `~/envs/fruit_sam2` for SAM 2.1, which also runs the YOLO pipelines, then `~/envs/fruit_sam3` and `~/envs/fruit_sam3_1`. An environment is a folder with its own Python and packages, apart from the HPCC's software. With the first one come Meta's SAM 2 code and the pretrained weights, in `~/.fruit_sam2`, and a Jupyter kernel, so that a notebook can run in that environment.
+
+All of it takes about 25 GB of the 100 GB in your home folder. The script needs no administrator rights, changes no login file such as `~/.bashrc`, submits no jobs and asks no questions. [`hpcc/README.md`](hpcc/README.md#what-setupsh-does) lists every folder it makes, where each download comes from and how to remove it all, and says [what each environment file does and how to change it](hpcc/README.md#the-environments).
 
 **Meta's weights for SAM 3 and SAM 3.1.** Request access at [facebook/sam3](https://huggingface.co/facebook/sam3) and [facebook/sam3.1](https://huggingface.co/facebook/sam3.1) with one Hugging Face account and wait for the two approval emails. Then log in, once. It asks for a token: make one at <https://huggingface.co/settings/tokens> and paste it.
 

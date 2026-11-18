@@ -8,6 +8,8 @@
 # default modules are cleared first: their Python 3.11 packages would otherwise be found before the environment's.
 # Once per terminal. A development node stops a process after two hours of CPU time; longer runs go to the queue:
 # sbatch hpcc/run.sb <script> <arguments>.
+# It lasts until the terminal is closed, and no file is changed. The environment's default place, in the next
+# line, is also written in setup_env.sh and run.sb of this folder (setup_env.sh says where else).
 SAM31_ENV_DIR="${SAM31_ENV_DIR:-$HOME/envs/fruit_sam3_1}"     # its own name: ENV_DIR belongs to the SAM 2.1 scripts
 if [ -x "$SAM31_ENV_DIR/bin/python" ]; then
     module purge > /dev/null 2>&1

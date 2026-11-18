@@ -9,6 +9,8 @@
 # YOLO scripts too. The HPCC's default modules are cleared first: their Python 3.11 packages would otherwise be found
 # before the environment's. Once per terminal. A development node stops a process after two hours of CPU time;
 # longer runs go to the queue: sbatch hpcc/run.sb <script> <arguments>.
+# It lasts until the terminal is closed, and no file is changed. The lines up to the first `fi` pick the environment:
+# this folder's own if it has been built, else the one whose place is ENV_DIR in sam2_pipeline/hpcc/config.sh.
 YOLO11_ENV_DIR="${YOLO11_ENV_DIR:-$HOME/envs/fruit_yolo11}"     # its own name: ENV_DIR belongs to the SAM 2.1 scripts
 if [ ! -x "$YOLO11_ENV_DIR/bin/python" ]; then
     YOLO11_ENV_DIR="$(source "$(dirname "${BASH_SOURCE[0]}")/../../sam2_pipeline/hpcc/config.sh" && echo "$ENV_DIR")"

@@ -7,6 +7,12 @@
 # Kept minimal on purpose: Python, Jupyter and the packages the code imports. PyTorch comes from pip
 # (CPU build on macOS/Windows; the Linux build also runs on NVIDIA GPUs). The MSU HPCC uses its own
 # setup script instead (hpcc/setup_env.sh), which installs a CUDA build.
+#
+# To add a package: add a line under "pip:" and create the environment again, or `pip install` it in the
+# active environment. requirements.txt is the list for the HPCC and says what each package is for;
+# a package the code needs goes in both, and in source/cells/030_setup.py for Colab.
+# The YOLO detectors (ultralytics and its two helpers in requirements.txt) are left out here: the code
+# installs them by itself the first time a detector is used.
 name: msu_fruit
 channels:
   - conda-forge

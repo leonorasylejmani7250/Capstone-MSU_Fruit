@@ -133,9 +133,9 @@ The input size matters because a model trained on photos only sees clusters of a
 | `video.py` | Counts the clusters in a video, or in every video of a folder: annotated video, per-frame counts, the total. |
 | `pipeline.py` | The names every script uses (the model file, the data folder, where runs and results go) and `load()`, which opens a weights file and says what it is. |
 | `model/` | The model this pipeline ships ([model/README.md](model/README.md)). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` for an environment of its own. What each one does and how to change the environment: [`../hpcc/README.md`](../hpcc/README.md#the-environments). |
 | `tests/` | `python -m unittest discover -s tests` |
-| `requirements.txt` | Python packages. |
+| `requirements.txt` | Python packages, with what each one is for. |
 
 The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on our own labels is two commands: `python fruit.py export-yolo` in `../sam2_pipeline/` writes `../data/yolo_dataset/`, then `python train.py --data ../data/yolo_dataset/data.yaml --model model/best.pt --imgsz 1280 --name vineyard` here. Labels made in Roboflow work the same way: export them as a YOLO segmentation dataset and point `--data` at its `data.yaml`.
 

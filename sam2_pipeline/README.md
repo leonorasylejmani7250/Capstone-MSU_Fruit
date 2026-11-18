@@ -162,7 +162,8 @@ COCO or YOLO outlines are used as drawn. Box-only labels get a SAM 2.1 mask and 
 | File | What it is |
 |---|---|
 | `fruit.py` | The pipeline as a command line: `status`, `clips`, `train`, `train-detector`, `evaluate`, `video`, `counts`, `check`, … (`python fruit.py --help`). |
-| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a job, `setup_env.sh` builds the environment, `config.sh` holds the paths. |
+| `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a job, `setup_env.sh` builds the environment, `config.sh` holds the paths. What each one does and how to change the environment: [`../hpcc/README.md`](../hpcc/README.md#the-environments). |
+| `requirements.txt` | The environment's Python packages, with what each one is for. |
 | `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` | The whole pipeline as a notebook, with the labelling screen. Colab, or Jupyter on the HPCC. |
 | `configs/lineup.yaml` | The models the leaderboard scores. Add any model here. |
 | `model/` | The fine-tuned SAM 2.1 the team ships ([model/README.md](model/README.md)). |
