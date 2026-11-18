@@ -66,7 +66,7 @@ cd ~/Capstone-MSU_Fruit
 bash hpcc/count_rows.sh
 ```
 
-Steps 4 and 5 submit batch jobs and return at once; `squeue --me` lists the jobs until they are done. Two results come out, both in `data/results/`: `leaderboard_val.csv` (how good each model is on our labelled clips) and `cluster_counts_by_video.csv` (each model's cluster total for each video).
+Steps 4 and 5 submit batch jobs and return at once; `squeue --me` lists the jobs until they are done. Two results come out, both in `data/results/`: `leaderboard_val.csv` (how good each model is on our labelled clips) and `cluster_counts_by_video.csv` (each model's cluster total for each video). [`RESULTS.md`](RESULTS.md) has the leaderboard of the latest training round, with every row and column explained.
 
 ## The pipelines
 
@@ -87,6 +87,7 @@ One folder per model, one shared `data/` folder. Each folder's README has that p
 ```
 Capstone-MSU_Fruit/
 ├── LABELLING.md       how to label clips
+├── RESULTS.md         the leaderboard of the latest training round, explained
 ├── data/              everything the pipelines read and write (data/README.md)
 │   ├── wgisd/         public WGISD grape dataset (in git)
 │   ├── wgisd_yolo/    WGISD as YOLO labels (in git)
