@@ -12,7 +12,7 @@ Gated: request access at [facebook/sam3](https://huggingface.co/facebook/sam3), 
 
 | File | Started from | Trained on | Leaderboard F1 (release → fine-tuned) | Download |
 |---|---|---|---|---|
-| `sam3_grapes_v1.pt` | Meta's `sam3.pt` | 1 labelled clip (8 frames, 315 clusters), 20 epochs, 11 Nov 2026 | 43.0 → 62.3 | [grapes_v1](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/releases/tag/grapes_v1) |
+| `sam3_grapes_v1.pt` | Meta's `sam3.pt` | 1 labelled clip (8 frames, 315 clusters), 20 epochs, 11 Nov 2026 | 43.6 → 62.2 | [grapes_v1](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/releases/tag/grapes_v1) |
 
 ### Using a shared model
 
