@@ -24,3 +24,8 @@ Train and score a run ([`../README.md`](../README.md), step 3). If it is better,
 cd ~/Capstone-MSU_Fruit/yolo11_pipeline
 cp ../data/runs/yolo11/wgisd_s1024/weights/best.pt model/best.pt
 ```
+## Trained on WGISD
+
+| File | Started from | Trained on | Mask mAP50 (val → test) | Download |
+|---|---|---|---|---|
+| best.pt | Ultralytics' yolo11n-seg.pt | WGISD (94 training images), 50 epochs, October 2026 | 83.3 → 81.9 | [best.pt](best.pt) |
