@@ -1,11 +1,16 @@
 #!/bin/bash --login
-# Run any script of this folder as a GPU batch job on the MSU HPCC. Submit from the yolo26_pipeline folder:
-#     cd ~/Capstone-MSU_Fruit/yolo26_pipeline
-#     sbatch hpcc/run.sb train.py --epochs 50 --imgsz 512 --batch 16          train YOLO26n-seg on WGISD (minutes on a GPU)
-#     sbatch hpcc/run.sb evaluate.py                                           box and mask mAP on the WGISD test split
-#     sbatch hpcc/run.sb video.py --video ../data/videos/row3.mp4                 count the clusters in a video
-# Everything after `run.sb` is run as `python <script> <args>`. Log: yolo26-<job id>.out in this folder.
-# Status: squeue --me   Cancel: scancel <job id>   Bigger GPU: sbatch --gpus=a100:1 hpcc/run.sb ...
+# Run any script of this folder as a GPU batch job on the MSU HPCC. Submit it from the
+# yolo26_pipeline folder:
+#
+#    cd ~/Capstone-MSU_Fruit/yolo26_pipeline
+#    sbatch hpcc/run.sb train.py --epochs 50 --imgsz 512 --batch 16
+#    sbatch hpcc/run.sb evaluate.py
+#    sbatch hpcc/run.sb video.py --video ../data/videos/row3.mp4
+#
+# Everything after `run.sb` is run as `python <script> <arguments>`. The defaults below
+# can be overridden on the sbatch line, for example `sbatch --gpus=a100:1 hpcc/run.sb
+# ...` for a bigger GPU. The log is yolo26-<job id>.out in this folder; `squeue --me`
+# shows the job and `scancel <job id>` cancels it.
 #
 #SBATCH --job-name=yolo26
 #SBATCH --ntasks=1
@@ -14,22 +19,30 @@
 #SBATCH --mem=16G
 #SBATCH --time=02:00:00
 #SBATCH --output=%x-%j.out
+
+# Stop at the first command that fails.
 set -eo pipefail
 CODE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 if [ ! -f "$CODE_DIR/train.py" ]; then
-    echo "Submit from the yolo26_pipeline folder: cd ~/Capstone-MSU_Fruit/yolo26_pipeline && sbatch hpcc/run.sb ..." >&2
+    echo "Submit from the yolo26_pipeline folder: cd" \
+        "~/Capstone-MSU_Fruit/yolo26_pipeline && sbatch hpcc/run.sb ..." >&2
     exit 1
 fi
-YOLO26_ENV_DIR="${YOLO26_ENV_DIR:-$HOME/envs/fruit_yolo26}"     # its own name: ENV_DIR belongs to the SAM 2.1 scripts
-if [ ! -x "$YOLO26_ENV_DIR/bin/python" ]; then     # not built: the SAM 2.1 environment runs the YOLO scripts too
-    YOLO26_ENV_DIR="$(source "$CODE_DIR/../sam2_pipeline/hpcc/config.sh" && echo "$ENV_DIR")"
+
+# This folder's own environment if it has been built, else the SAM 2.1 environment.
+YOLO26_ENV_DIR="${YOLO26_ENV_DIR:-$HOME/envs/fruit_yolo26}"
+if [ ! -x "$YOLO26_ENV_DIR/bin/python" ]; then
+    YOLO26_ENV_DIR="$(
+        source "$CODE_DIR/../sam2_pipeline/hpcc/config.sh" && echo "$ENV_DIR"
+    )"
 fi
 module purge
 module load Miniforge3
 eval "$(conda shell.bash hook)"
 conda activate "$YOLO26_ENV_DIR"
-# At most 8 CPU threads, unless set already: a development node stops a process after two hours of CPU time, and a
-# thread on each of its 192 cores uses that up in minutes.
+
+# At most 8 CPU threads, unless set already: a development node stops a process after
+# two hours of CPU time, and a thread on each of its cores uses that up in minutes.
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$(n=$(nproc); echo $((n < 8 ? n : 8)))}"
 export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
 echo "job $SLURM_JOB_ID on $(hostname) · $(date)"

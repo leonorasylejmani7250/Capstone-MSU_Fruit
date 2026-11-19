@@ -1,12 +1,16 @@
-# Python packages for the YOLO26 pipeline. Install PyTorch first (INSTALL.md says how), then:
+# Python packages for the YOLO26 pipeline. Install PyTorch first (INSTALL.md says how),
+# then:
 #   python -m pip install -r requirements.txt
-# On the HPCC the pipeline runs in the SAM 2.1 environment, whose list is ../sam2_pipeline/requirements.txt. This
-# file is used on a laptop (INSTALL.md) and by hpcc/setup_env.sh, which builds this pipeline an environment of
-# its own, ~/envs/fruit_yolo26. To add a package or fix a version (name==1.2.3), edit a line here and install again.
+# On the HPCC the pipeline runs in the SAM 2.1 environment, whose list is
+# ../sam2_pipeline/requirements.txt. This file is used on a laptop (INSTALL.md) and by
+# hpcc/setup_env.sh, which builds this pipeline an environment of its own,
+# ~/envs/fruit_yolo26. To add a package or fix a version (name==1.2.3), edit a line here
+# and install again.
 #
-# Ultralytics: the YOLO models, training, scoring and the tracker. It installs what it needs itself (OpenCV, NumPy,
-# matplotlib and others). The range keeps it on the 8.x line the scripts were written with, from 8.4 on.
+# Ultralytics: the YOLO models, training, scoring and the tracker. It installs what it
+# needs itself (OpenCV, NumPy, matplotlib and others). The range keeps it on the 8.x
+# line the scripts were written with, from 8.4 on.
 ultralytics>=8.4,<9
-# The matching step of the tracker that video.py counts with. Ultralytics would otherwise try to install it in
-# the middle of the first run.
+# The matching step of the tracker that video.py counts with. Ultralytics would
+# otherwise try to install it in the middle of the first run.
 lap>=0.5.12

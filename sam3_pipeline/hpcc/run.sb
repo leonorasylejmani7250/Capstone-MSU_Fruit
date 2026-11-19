@@ -1,11 +1,15 @@
 #!/bin/bash --login
-# Run any script of this folder as a GPU batch job on the MSU HPCC. Submit from the sam3_pipeline folder:
-#     cd ~/Capstone-MSU_Fruit/sam3_pipeline
-#     sbatch hpcc/run.sb run.py clips                                        masks for the labelled val clips (zero-shot or fine-tuned)
-#     sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4                count the clusters in a video
-#     sbatch --time=04:00:00 hpcc/run.sb finetune.py --run grapes_v1         fine-tune on our clips → model/sam3_grapes_v1.pt
-# Everything after `run.sb` is run as `python <script> <args>`. Log: sam3-<job id>.out in this folder.
-# Status: squeue --me   Cancel: scancel <job id>
+# Run any script of this folder as a GPU batch job on the MSU HPCC. Submit it from the
+# sam3_pipeline folder:
+#
+#    cd ~/Capstone-MSU_Fruit/sam3_pipeline
+#    sbatch hpcc/run.sb run.py clips
+#    sbatch hpcc/run.sb run.py video ../data/videos/row3.mp4
+#    sbatch --time=04:00:00 hpcc/run.sb finetune.py --run grapes_v1
+#
+# Everything after `run.sb` is run as `python <script> <arguments>`. The defaults below
+# can be overridden on the sbatch line. The log is sam3-<job id>.out in this folder;
+# `squeue --me` shows the job and `scancel <job id>` cancels it.
 #
 #SBATCH --job-name=sam3
 #SBATCH --ntasks=1
@@ -14,19 +18,23 @@
 #SBATCH --mem=48G
 #SBATCH --time=02:00:00
 #SBATCH --output=%x-%j.out
+
+# Stop at the first command that fails.
 set -eo pipefail
 CODE_DIR="${SLURM_SUBMIT_DIR:-$(pwd)}"
 if [ ! -f "$CODE_DIR/run.py" ]; then
-    echo "Submit from the sam3_pipeline folder: cd ~/Capstone-MSU_Fruit/sam3_pipeline && sbatch hpcc/run.sb run.py ..." >&2
+    echo "Submit from the sam3_pipeline folder: cd ~/Capstone-MSU_Fruit/sam3_pipeline" \
+        "&& sbatch hpcc/run.sb run.py ..." >&2
     exit 1
 fi
-SAM3_ENV_DIR="${SAM3_ENV_DIR:-$HOME/envs/fruit_sam3}"     # its own name: ENV_DIR belongs to the SAM 2.1 scripts
+SAM3_ENV_DIR="${SAM3_ENV_DIR:-$HOME/envs/fruit_sam3}"
 module purge
 module load Miniforge3
 eval "$(conda shell.bash hook)"
 conda activate "$SAM3_ENV_DIR"
-# At most 8 CPU threads, unless set already: a development node stops a process after two hours of CPU time, and a
-# thread on each of its 192 cores uses that up in minutes.
+
+# At most 8 CPU threads, unless set already: a development node stops a process after
+# two hours of CPU time, and a thread on each of its cores uses that up in minutes.
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$(n=$(nproc); echo $((n < 8 ? n : 8)))}"
 export MKL_NUM_THREADS="${MKL_NUM_THREADS:-$OMP_NUM_THREADS}"
 echo "job $SLURM_JOB_ID on $(hostname) · $(date)"
