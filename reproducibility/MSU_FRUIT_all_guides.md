@@ -1,5 +1,5 @@
 # MSU FRUIT: HPCC instructions, labelling guide and pipeline guide
-The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `20ad307`) as one file, in this order:
+The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `0b25b51`) as one file, in this order:
 
 1. [HPCC instructions](#hpcc-instructions): the whole workflow on the MSU HPCC, from logging in to the cluster counts
 2. [Labelling guide](#labelling-guide)
@@ -169,7 +169,7 @@ Each pipeline's README has its own steps as blocks to paste: [SAM 2.1](#sam-21-p
 
 ### What `setup.sh` does
 
-`hpcc/setup.sh` runs four scripts, one after the other, and stops at the first one that fails. Each script explains itself in its comments: what a step does, why, and what to edit to change it.
+`hpcc/setup.sh` runs four scripts, one after the other, and stops at the first one that fails. Each script says in its comments what every step does. What to edit to change something is in "The environments" below.
 
 | Step | Script | What it does |
 |---|---|---|
@@ -227,7 +227,7 @@ Each pipeline runs in a conda environment: a folder under `~/envs/` with its own
 
 A YOLO pipeline uses the SAM 2.1 environment until its own has been built.
 
-Every pipeline folder has the same environment files, named here as they are inside that folder. Each explains itself in its comments.
+Every pipeline folder has the same environment files, named here as they are inside that folder. Each says in its comments what its steps do.
 
 | File | What it does | When it runs |
 |---|---|---|
