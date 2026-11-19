@@ -1,5 +1,5 @@
 # MSU FRUIT: HPCC instructions, labelling guide and pipeline guide
-The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `0b25b51`) as one file, in this order:
+The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `e2aca95`) as one file, in this order:
 
 1. [HPCC instructions](#hpcc-instructions): the whole workflow on the MSU HPCC, from logging in to the cluster counts
 2. [Labelling guide](#labelling-guide)
@@ -32,19 +32,20 @@ The first line lands on a gateway node, which runs no software and refuses `sbat
 ### 1. Set up, once per person
 
 ```bash
-git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
+git clone --filter=blob:none https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
 cd ~/Capstone-MSU_Fruit
 bash hpcc/setup.sh
 ```
 
-The first line copies this repository into your HPCC home folder. `hpcc/setup.sh` then gets your HPCC account ready for the pipelines. It runs on the HPCC only: nothing is installed or changed on your own computer. It takes 30 to 60 minutes, prints each step as it starts, and ends with `Next: LABELLING.md`.
+The first line copies this repository into your HPCC home folder; `--filter=blob:none` leaves the old versions of files on GitHub, which keeps the download small. `hpcc/setup.sh` then gets your HPCC account ready for the pipelines. It runs on the HPCC only: nothing is installed or changed on your own computer. It takes 30 to 60 minutes, prints each step as it starts, and ends with `Next: LABELLING.md`.
 
-It does four things, in this order:
+It does five things, in this order:
 
-1. **Shared data.** `data/videos` and `data/dataset` become links to `/mnt/research/MSU-Fruit/videos` and `/mnt/research/MSU-Fruit/dataset`, so the team has one copy of the video and one set of clips and labels. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results. You have to be a member of the `MSU-Fruit` research space: if you are not, the script stops here and nothing has been changed.
+1. **Shared data.** `data/videos`, `data/dataset` and `data/wgisd` become links to the folders of the same names in `/mnt/research/MSU-Fruit`, so the team has one copy of the video, one set of clips and labels and one copy of the public WGISD dataset. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results. You have to be a member of the `MSU-Fruit` research space: if you are not, the script stops here and nothing has been changed.
 2. **The SAM 2.1 environment**, `~/envs/fruit_sam2`, which also runs the YOLO pipelines. With it come Meta's SAM 2 code and the pretrained weights, in `~/.fruit_sam2`, and a Jupyter kernel, so that a notebook can run in this environment.
 3. **The SAM 3 environment**, `~/envs/fruit_sam3`.
 4. **The SAM 3.1 environment**, `~/envs/fruit_sam3_1`.
+5. **The public WGISD dataset.** The first time anyone on the team runs this, the photos are downloaded into the shared folder (420 MB); after that the step only checks them. It also copies the YOLO training photos into your clone (110 MB).
 
 An environment is a folder with its own Python and packages, apart from the HPCC's software. All of it takes about 25 GB of the 100 GB in your home folder. The script needs no administrator rights, changes no login file such as `~/.bashrc`, submits no jobs and asks no questions. [What `setup.sh` does](#what-setupsh-does) lists every folder it makes, where each download comes from and how to remove it all. [The environments](#the-environments) says what each environment file does and how to change it.
 
@@ -169,14 +170,15 @@ Each pipeline's README has its own steps as blocks to paste: [SAM 2.1](#sam-21-p
 
 ### What `setup.sh` does
 
-`hpcc/setup.sh` runs four scripts, one after the other, and stops at the first one that fails. Each script says in its comments what every step does. What to edit to change something is in "The environments" below.
+`hpcc/setup.sh` runs five scripts, one after the other, and stops at the first one that fails. A download that fails in step 5 can be finished later ([If something goes wrong](#if-something-goes-wrong)). Each script says in its comments what every step does. What to edit to change something is in "The environments" below.
 
 | Step | Script | What it does |
 |---|---|---|
-| 1 | `hpcc/share_data.sh` | Makes `data/videos` and `data/dataset` links to the team's shared folders. |
+| 1 | `hpcc/share_data.sh` | Makes `data/videos`, `data/dataset` and `data/wgisd` links to the team's shared folders. |
 | 2 | `sam2_pipeline/hpcc/setup_env.sh` | Builds `~/envs/fruit_sam2`, fetches Meta's SAM 2 code and the pretrained weights, registers the Jupyter kernel, tests the GPU. |
 | 3 | `sam3_pipeline/hpcc/setup_env.sh` | Builds `~/envs/fruit_sam3` and checks that Meta's `sam3` package loads. |
 | 4 | `sam3_1_pipeline/hpcc/setup_env.sh` | The same for `~/envs/fruit_sam3_1`. |
+| 5 | `data/get_wgisd.py` | Fetches the public WGISD dataset into the shared folder when it is not complete there, checks every file, and copies the YOLO training photos into `data/wgisd_yolo/images/`. |
 
 **What it leaves in your account**
 
@@ -186,7 +188,8 @@ Each pipeline's README has its own steps as blocks to paste: [SAM 2.1](#sam-21-p
 | `~/.fruit_sam2/` | Meta's SAM 2 code and the pretrained SAM 2.1, YOLOE and YOLO26 weights. | about 1 GB |
 | `~/.local/share/jupyter/kernels/fruit_sam2/` | The Jupyter kernel "Python (fruit_sam2)". | a few small files |
 | `~/.cache/pip` | pip's copy of what it downloaded. Safe to delete. | about 3 GB |
-| `~/Capstone-MSU_Fruit/data/` | The links `videos` and `dataset`, and the empty folders `predictions/` and `models/`. | none |
+| `~/Capstone-MSU_Fruit/data/` | The links `videos`, `dataset` and `wgisd`, the YOLO training photos in `wgisd_yolo/images/`, and the empty folders `predictions/` and `models/`. | 110 MB |
+| `/mnt/research/MSU-Fruit/wgisd` | The public WGISD dataset, in the team's shared folder: fetched by the first person who runs the setup. | 420 MB, once for the team |
 
 conda, pip, Ultralytics and matplotlib also keep a few small settings and cache files under `~/.conda`, `~/.config` and `~/.cache`.
 
@@ -200,6 +203,7 @@ conda, pip, Ultralytics and matplotlib also keep a few small settings and cache 
 | Meta's SAM 2 code, Meta's `sam3` package, Ultralytics' CLIP | GitHub: `facebookresearch/sam2`, `facebookresearch/sam3`, `ultralytics/CLIP` |
 | The pretrained SAM 2.1 weights | Meta's file server, `dl.fbaipublicfiles.com`. If it cannot be reached: the copy in Ultralytics' releases on GitHub. |
 | The YOLOE and YOLO26 weights | Ultralytics' releases on GitHub |
+| The WGISD dataset | GitHub: `thsant/wgisd`, the files listed in `data/wgisd_files.sha256` |
 
 **What it does not do**
 
@@ -208,11 +212,11 @@ conda, pip, Ultralytics and matplotlib also keep a few small settings and cache 
 - It changes no login file such as `~/.bashrc`. The modules and the environment a script loads are gone again when that script ends.
 - It submits no batch jobs and trains nothing.
 - It does not log in to Hugging Face and does not download Meta's SAM 3 weights. Those are the two blocks that follow it in step 1.
-- In a fresh clone it moves and deletes nothing. Only when `data/videos` or `data/dataset` already hold files does step 1 copy them to the shared folder and put the link in the folder's place. A file that the shared folder already has under the same name stays as it is there.
+- In a fresh clone it moves and deletes nothing. Only when `data/videos`, `data/dataset` or `data/wgisd` already hold files does step 1 copy them to the shared folder and put the link in the folder's place. A file that the shared folder already has under the same name stays as it is there.
 
 **Running it again** is safe: an environment that exists is kept and its packages are checked against the list, a file that is there is not downloaded again, a link that is right is left alone.
 
-**Removing it.** Delete the folders of the first table: `rm -rf ~/envs/fruit_sam2 ~/envs/fruit_sam3 ~/envs/fruit_sam3_1 ~/.fruit_sam2 ~/.local/share/jupyter/kernels/fruit_sam2`. Deleting `~/Capstone-MSU_Fruit` as well removes your clone, with the models and results of your own runs. The shared video and labels in `/mnt/research/MSU-Fruit` stay.
+**Removing it.** Delete the folders of the first table: `rm -rf ~/envs/fruit_sam2 ~/envs/fruit_sam3 ~/envs/fruit_sam3_1 ~/.fruit_sam2 ~/.local/share/jupyter/kernels/fruit_sam2`. Deleting `~/Capstone-MSU_Fruit` as well removes your clone, with the models and results of your own runs. The shared video, labels and WGISD photos in `/mnt/research/MSU-Fruit` stay.
 
 ### The environments
 
@@ -250,7 +254,7 @@ Every pipeline folder has the same environment files, named here as they are ins
 | Where the SAM 2.1 environment is kept | `ENV_DIR` in `sam2_pipeline/hpcc/config.sh` | Run `setup_env.sh` again, delete the old folder, and give the new path in the Jupyter form ([`LABELLING.md`](#labelling-guide), step 1). |
 | Where another environment is kept | The default path in its `setup_env.sh`, `activate.sh` and `run.sb`, and where `hpcc/run_all.sh` and `hpcc/count_rows.sh` name it | Run `setup_env.sh` again, then delete the old folder. |
 | Which environments `hpcc/setup.sh` builds | The `PIPELINES` line of `hpcc/setup.sh` | Nothing more. |
-| The team's shared folder | The `SHARED` line of `hpcc/share_data.sh` | In each clone: remove the links `data/videos` and `data/dataset`, then `bash hpcc/share_data.sh`. |
+| The team's shared folder | The `SHARED` line of `hpcc/share_data.sh` | In each clone: remove the links `data/videos`, `data/dataset` and `data/wgisd`, then `bash hpcc/share_data.sh`. |
 | An environment that no longer works | Nothing | Delete its folder, then run `setup_env.sh` again. |
 
 ### If something goes wrong
@@ -263,6 +267,7 @@ Every pipeline folder has the same environment files, named here as they are ins
 | `Killed` in the middle of a run in the terminal | The process used up its two hours of CPU time. Start from `source hpcc/activate.sh` in the pipeline's folder, which limits the CPU threads, or submit the run as a batch job. |
 | A job stays `PD` for a long time | Jobs that ask for more than 4 hours wait much longer. The scripts here ask for 4 hours or less; a job that runs out of time continues when it is submitted again. |
 | `conda` stops with `No module named …` before anything of ours runs | Check the cluster's own conda: `(module purge; module load Miniforge3; conda --version)`. If that fails too, it is the HPCC, not your setup: try later, or write to ICER through <https://contact.icer.msu.edu>. |
+| `WGISD is not complete yet` at the end of the setup, or `No training photos in …` | On a development node, in `sam2_pipeline/` after `source hpcc/activate.sh`: `python ../data/get_wgisd.py`. It goes on where it stopped. |
 | `401` or `GatedRepoError` from `hf download` | Access to that model is not approved yet, or `hf auth login` was not done (step 1). |
 
 ---
@@ -688,7 +693,7 @@ hf download facebook/sam3 sam3.pt --local-dir model
 
 Use the CUDA build of PyTorch that matches the machine (`cu126`, or `cu128` on newer cards). Then the commands are the ones above without the `source hpcc/activate.sh` and `sbatch` parts: `python run.py video <video>`, `python run.py clips`, `python finetune.py --run grapes_v1`, and `python fruit.py evaluate` in `../sam2_pipeline`.
 
-Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
+Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone --filter=blob:none https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
 
 ### If something goes wrong
 
@@ -845,7 +850,7 @@ hf download facebook/sam3.1 sam3.1_multiplex.pt --local-dir model
 
 Use the CUDA build of PyTorch that matches the machine (`cu126`, or `cu128` on newer cards). Then the commands are the ones above without the `source hpcc/activate.sh` and `sbatch` parts: `python run.py video <video>`, `python run.py clips`, `python finetune.py --run grapes_v1`, and `python fruit.py evaluate` in `../sam2_pipeline`.
 
-Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_1_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
+Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone --filter=blob:none https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_1_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
 
 ### If something goes wrong
 
@@ -913,12 +918,13 @@ sbatch hpcc/run.sb video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
 ```bash
 cd ~/Capstone-MSU_Fruit/yolo26_pipeline
 source hpcc/activate.sh
+python ../data/get_wgisd.py
 python train.py
 ```
 
-Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo26/`, which also holds `results.csv`, the curves and the confusion matrix.
+Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo26/`, which also holds `results.csv`, the curves and the confusion matrix. The training photos are not in git: the `get_wgisd.py` line fetches them, and does nothing when they are there already ([`../data/README.md`](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/data/README.md)).
 
-A stronger model (bigger network, larger images, more epochs), as a batch job:
+A stronger model (bigger network, larger images, more epochs), as a batch job, once the photos are there:
 
 ```bash
 cd ~/Capstone-MSU_Fruit/yolo26_pipeline
@@ -1017,6 +1023,7 @@ The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on 
 | A job log says a download failed | Fetch the base weights once on the development node: `source hpcc/activate.sh`, then `python -c "from ultralytics import YOLO; YOLO('yolo26s-seg.pt')"` in this folder, and submit again. |
 | `Missing weights: …/model/best.pt` | Incomplete clone (`git status`), or train a model (step 3) and copy it there. |
 | `Missing …/wgisd_yolo/grape.yaml` | `python ../data/wgisd_yolo/prepare_wgisd.py` |
+| `No training photos in …`, or `No photos in …` | `python ../data/get_wgisd.py` on a development node or on your own computer, then run the command again. |
 | CUDA out of memory | Lower `--batch` (training) or `--imgsz` (video). |
 | CUDA unavailable | The CPU is used. For a GPU, install a CUDA build of PyTorch (INSTALL.md). |
 | `… is a base model` | A base model such as `yolo26n-seg.pt` has no grape class. Use `model/best.pt` or a trained run. |
@@ -1075,12 +1082,13 @@ sbatch hpcc/run.sb video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
 ```bash
 cd ~/Capstone-MSU_Fruit/yolo11_pipeline
 source hpcc/activate.sh
+python ../data/get_wgisd.py
 python train.py
 ```
 
-Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo11/`, which also holds `results.csv`, the curves and the confusion matrix.
+Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo11/`, which also holds `results.csv`, the curves and the confusion matrix. The training photos are not in git: the `get_wgisd.py` line fetches them, and does nothing when they are there already ([`../data/README.md`](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/data/README.md)).
 
-A stronger model (bigger network, larger images, more epochs), as a batch job:
+A stronger model (bigger network, larger images, more epochs), as a batch job, once the photos are there:
 
 ```bash
 cd ~/Capstone-MSU_Fruit/yolo11_pipeline
@@ -1179,6 +1187,7 @@ The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on 
 | A job log says a download failed | Fetch the base weights once on the development node: `source hpcc/activate.sh`, then `python -c "from ultralytics import YOLO; YOLO('yolo11s-seg.pt')"` in this folder, and submit again. |
 | `Missing weights: …/model/best.pt` | Incomplete clone (`git status`), or train a model (step 3) and copy it there. |
 | `Missing …/wgisd_yolo/grape.yaml` | `python ../data/wgisd_yolo/prepare_wgisd.py` |
+| `No training photos in …`, or `No photos in …` | `python ../data/get_wgisd.py` on a development node or on your own computer, then run the command again. |
 | CUDA out of memory | Lower `--batch` (training) or `--imgsz` (video). |
 | CUDA unavailable | The CPU is used. For a GPU, install a CUDA build of PyTorch (INSTALL.md). |
 | `… is a base model` | A base model such as `yolo11n-seg.pt` has no grape class. Use `model/best.pt` or a trained run. |
