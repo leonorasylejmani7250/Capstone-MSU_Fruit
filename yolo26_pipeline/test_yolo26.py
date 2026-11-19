@@ -1,6 +1,6 @@
 # test the yolo26 model on the same hand counted data that the others were evaluated on
-from pathlib import Path
 import csv
+from pathlib import Path
 
 from ultralytics import YOLO
 
@@ -41,9 +41,7 @@ data = [
 
 def main():
     # Find the most recently modified trained best.pt
-    checkpoints = list(
-        RUNS_DIR.glob("yolo26_wgisd*/weights/best.pt")
-    )
+    checkpoints = list(RUNS_DIR.glob("yolo26_wgisd*/weights/best.pt"))
 
     if not checkpoints:
         raise FileNotFoundError(
@@ -69,21 +67,33 @@ def main():
 
         result = model.predict(
             source=str(image_path),
-            imgsz=512,conf=0.25,verbose=False,)[0]
+            imgsz=512,
+            conf=0.25,
+            verbose=False,
+        )[0]
 
- # Count detected instance masks.
- # For segmentation, boxes and masks correspond to instances.
-        predicted_count = (
-        len(result.masks) if result.masks is not None else 0
-        )
+        # Count detected instance masks.
+        # For segmentation, boxes and masks correspond to instances.
+        predicted_count = len(result.masks) if result.masks is not None else 0
 
         error = predicted_count - actual_count
 
-        results_data.append({
-            "image": filename,"actual_count": actual_count,"predicted_count": predicted_count,
-            "error": error,"absolute_error": abs(error),})
+        results_data.append(
+            {
+                "image": filename,
+                "actual_count": actual_count,
+                "predicted_count": predicted_count,
+                "error": error,
+                "absolute_error": abs(error),
+            }
+        )
 
-        print(f"{filename:38} "f"Actual: {actual_count:2} | "f"Predicted: {predicted_count:2} | "f"Error: {error:+3}")
+        print(
+            f"{filename:38} "
+            f"Actual: {actual_count:2} | "
+            f"Predicted: {predicted_count:2} | "
+            f"Error: {error:+3}"
+        )
 
         # Save visual predictions for inspection.
         result.save(filename=str(ROOT / "test_predictions" / filename))
@@ -93,10 +103,7 @@ def main():
         return
 
     mae = sum(r["absolute_error"] for r in results_data) / len(results_data)
-    exact = sum(
-        r["actual_count"] == r["predicted_count"]
-        for r in results_data
- )
+    exact = sum(r["actual_count"] == r["predicted_count"] for r in results_data)
 
     total_actual = sum(r["actual_count"] for r in results_data)
     total_predicted = sum(r["predicted_count"] for r in results_data)
@@ -104,7 +111,10 @@ def main():
     print("\n--- Evaluation summary ---")
     print(f"Images evaluated: {len(results_data)}/{len(data)}")
     print(f"Mean absolute count error: {mae:.2f} objects/image")
-    print(f"Exact count matches: {exact}/{len(results_data)} "f"({100 * exact / len(results_data):.1f}%)")
+    print(
+        f"Exact count matches: {exact}/{len(results_data)} "
+        f"({100 * exact / len(results_data):.1f}%)"
+    )
     print(f"Total actual objects: {total_actual}")
     print(f"Total predicted objects: {total_predicted}")
 
@@ -118,4 +128,4 @@ def main():
 
 
 if __name__ == "__main__":
-        main()
+    main()

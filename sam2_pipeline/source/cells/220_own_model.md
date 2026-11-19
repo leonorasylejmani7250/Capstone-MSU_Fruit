@@ -3,16 +3,18 @@ A model is a class with one method. It receives a clip and returns one array of 
 
 ```python
 class MyModel(Model):
-    tracks = False                     # True if the same cluster keeps the same number across frames
+    tracks = False  # True if the same cluster keeps the same number across frames
 
     def predict(self, clip, prompts=None):
         out = np.zeros((len(clip), *clip.hw), np.uint16)
         for t in range(len(clip)):
-            image = clip.image(t)                      # RGB, uint8, [height, width, 3]
-            masks = my_network(image)                  # your code → a list of boolean [height, width] masks
+            image = clip.image(t)  # RGB, uint8, [height, width, 3]
+            # your code → a list of boolean [height, width] masks
+            masks = my_network(image)
             for number, mask in enumerate(masks, 1):
                 out[t][mask] = number
         return out
+
 
 benchmark({"my model": MyModel()})
 ```
@@ -25,7 +27,17 @@ The same models can be described as plain data, which is how the HPCC jobs take 
 
 ```python
 benchmark(load_lineup("/path/to/lineup.yaml"))
-benchmark({"YOLOE": build_model({"type": "ultralytics", "weights": "yoloe-26m-seg.pt", "text": "grape cluster"})})
+benchmark(
+    {
+        "YOLOE": build_model(
+            {
+                "type": "ultralytics",
+                "weights": "yoloe-26m-seg.pt",
+                "text": "grape cluster",
+            }
+        )
+    }
+)
 ```
 
 `examples/my_model.py` is a ready-to-edit template for your own class (`type: python` in a lineup file).

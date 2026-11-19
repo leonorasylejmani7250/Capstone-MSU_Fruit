@@ -1,16 +1,39 @@
-#@title B · Install and set up (about a minute)  { display-mode: "form" }
-import os, sys, subprocess, json, time, math, random, shutil, re, glob, io, base64, warnings, functools, contextlib, getpass
-from pathlib import Path
+# @title B · Install and set up (about a minute)  { display-mode: "form" }
+import base64
+import contextlib
+import functools
+import getpass
+import glob
+import io
+import json
+import math
+import os
+import random
+import re
+import shutil
+import subprocess
+import sys
+import time
+import warnings
 from dataclasses import dataclass, field
+from pathlib import Path
 
 IN_COLAB = "google.colab" in sys.modules
-# Work folder for the SAM 2 code, pretrained weights and temporary files (never your labels):
-# $FRUIT_BASE if set, /content in Colab, otherwise ~/.fruit_sam2 (what hpcc/setup_env.sh fills in).
-BASE = Path(os.environ.get("FRUIT_BASE") or ("/content" if IN_COLAB else Path.home() / ".fruit_sam2")).expanduser()
+# Work folder for the SAM 2 code, pretrained weights and temporary files (never your
+# labels):
+# $FRUIT_BASE if set, /content in Colab, otherwise
+# ~/.fruit_sam2 (what hpcc/setup_env.sh fills in).
+BASE = Path(
+    os.environ.get("FRUIT_BASE")
+    or ("/content" if IN_COLAB else Path.home() / ".fruit_sam2")
+).expanduser()
 BASE.mkdir(parents=True, exist_ok=True)
 
+
 def sh(cmd, check=True, quiet=True):
-    """Run a command (a list of arguments, so paths with spaces are safe); show its output only when it fails."""
+    """Run a command (a list of arguments, so paths with spaces are safe); show its
+    output only when it fails.
+    """
     r = subprocess.run([str(c) for c in cmd], text=True, capture_output=True)
     if r.returncode != 0 and check:
         print(r.stdout[-3000:], r.stderr[-3000:])
@@ -19,86 +42,137 @@ def sh(cmd, check=True, quiet=True):
         print(r.stdout)
     return r
 
+
 def _missing(*mods):
     import importlib.util
+
     return [m for m in mods if importlib.util.find_spec(m) is None]
 
-# --- SAM 2 code, pinned to one commit ------------------------------------------------------
-SAM2_COMMIT = "2b90b9f5ceec907a1c18123530e92e794ad901a4"   # facebookresearch/sam2, 2024-12-15 (latest)
+
+# --- SAM 2 code, pinned to one commit -------------------------------------------------
+# facebookresearch/sam2, 2024-12-15 (latest)
+SAM2_COMMIT = "2b90b9f5ceec907a1c18123530e92e794ad901a4"
 SAM2_REPO = Path(os.environ.get("FRUIT_SAM2_REPO") or BASE / "sam2_repo")
 if not (SAM2_REPO / "sam2" / "build_sam.py").exists():
-    shutil.rmtree(SAM2_REPO, ignore_errors=True)          # a half-finished earlier download starts over
+    # a half-finished earlier download starts over
+    shutil.rmtree(SAM2_REPO, ignore_errors=True)
     SAM2_REPO.mkdir(parents=True, exist_ok=True)
     sh(["git", "-C", SAM2_REPO, "init", "-q"])
-    sh(["git", "-C", SAM2_REPO, "remote", "add", "origin", "https://github.com/facebookresearch/sam2.git"])
+    sh(
+        [
+            "git",
+            "-C",
+            SAM2_REPO,
+            "remote",
+            "add",
+            "origin",
+            "https://github.com/facebookresearch/sam2.git",
+        ]
+    )
     sh(["git", "-C", SAM2_REPO, "fetch", "-q", "--depth", "1", "origin", SAM2_COMMIT])
     sh(["git", "-C", SAM2_REPO, "checkout", "-q", "FETCH_HEAD"])
 if str(SAM2_REPO) not in sys.path:
-    sys.path.insert(0, str(SAM2_REPO))        # makes `sam2` and `training` importable, no pip build
+    # makes `sam2` and `training` importable, no pip build
+    sys.path.insert(0, str(SAM2_REPO))
 
-# --- Python packages (only what is missing; Colab already has most) --------------------------
-_pip = {"hydra": "hydra-core>=1.3.2", "iopath": "iopath>=0.1.10", "fvcore": "fvcore",
-        "tensordict": "tensordict>=0.6.0", "submitit": "submitit", "pycocotools": "pycocotools",
-        "tensorboard": "tensorboard", "scipy": "scipy", "yaml": "pyyaml",
-        "pandas": "pandas", "matplotlib": "matplotlib", "cv2": "opencv-python-headless",
-        "anywidget": "anywidget", "ipywidgets": "ipywidgets", "tqdm": "tqdm"}
+# --- Python packages (only what is missing; Colab already has most) -------------------
+_pip = {
+    "hydra": "hydra-core>=1.3.2",
+    "iopath": "iopath>=0.1.10",
+    "fvcore": "fvcore",
+    "tensordict": "tensordict>=0.6.0",
+    "submitit": "submitit",
+    "pycocotools": "pycocotools",
+    "tensorboard": "tensorboard",
+    "scipy": "scipy",
+    "yaml": "pyyaml",
+    "pandas": "pandas",
+    "matplotlib": "matplotlib",
+    "cv2": "opencv-python-headless",
+    "anywidget": "anywidget",
+    "ipywidgets": "ipywidgets",
+    "tqdm": "tqdm",
+}
 _need = [_pip[m] for m in _missing(*_pip)]
 if _need:
     print("installing:", ", ".join(_need))
     sh([sys.executable, "-m", "pip", "install", "-q", *_need])
-    import importlib; importlib.invalidate_caches()
+    import importlib
 
-import numpy as np, pandas as pd, cv2, torch
+    importlib.invalidate_caches()
+
+import cv2
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
+from IPython.display import HTML, Video, clear_output, display
 from PIL import Image
 from tqdm.auto import tqdm
-from IPython.display import display, HTML, Video, clear_output
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 if DEVICE == "cuda":
     _p = torch.cuda.get_device_properties(0)
     GPU_GB, GPU_NAME = _p.total_memory / 2**30, _p.name
-    BF16_OK = _p.major >= 8          # A100 / L4 / L40S / H100 / H200. T4 and V100 train in float16 instead.
-    if _p.major >= 8:                # same speed-up the official notebooks use
+    # A100 / L4 / L40S / H100 / H200. T4 and V100 train in float16 instead.
+    BF16_OK = _p.major >= 8
+    if _p.major >= 8:  # same speed-up the official notebooks use
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
 else:
     GPU_GB, GPU_NAME, BF16_OK = 0.0, "", False
 
+
 def _in_notebook():
     try:
-        return get_ipython().__class__.__name__ in ("ZMQInteractiveShell", "Shell")   # Jupyter / Colab
+        # Jupyter / Colab
+        return get_ipython().__class__.__name__ in (
+            "ZMQInteractiveShell",
+            "Shell",
+        )
     except NameError:
         return False
 
-# --- Project folder ------------------------------------------------------------------------------
+
+# --- Project folder -------------------------------------------------------------------
 def _safe(name):
     return re.sub(r"[^A-Za-z0-9_-]+", "_", str(name)).strip("_")
 
+
 def use_project(root):
-    """Point every tool at one project folder: videos/, dataset/ (frames + labels), predictions/,
-    models/, results/, runs/. In the team repository that folder is data/. The notebook and the
-    command line both go through here."""
+    """Point every tool at one project folder: videos/, dataset/ (frames + labels),
+    predictions/, models/, results/, runs/. In the team repository that folder is data/.
+    The notebook and the command line both go through here.
+    """
     global ROOT, VIDEOS, DATA, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS, _META, PROMPTS
     ROOT = Path(root).expanduser().resolve()
-    VIDEOS, DATA      = ROOT / "videos", ROOT / "dataset"
-    IMG, ANN          = DATA / "JPEGImages", DATA / "Annotations"
-    PRED, RUNS        = ROOT / "predictions", ROOT / "runs"
-    WEIGHTS, RESULTS  = ROOT / "models", ROOT / "results"
-    _META, PROMPTS    = DATA / "clips.json", DATA / "prompts"
-    if DATA.exists() and DATA.stat().st_mode & 0o020:      # a dataset folder its group may write to is shared by a team
-        os.umask(0o002)                                     # (hpcc/share_data.sh): what we create, the others can change
+    VIDEOS, DATA = ROOT / "videos", ROOT / "dataset"
+    IMG, ANN = DATA / "JPEGImages", DATA / "Annotations"
+    PRED, RUNS = ROOT / "predictions", ROOT / "runs"
+    WEIGHTS, RESULTS = ROOT / "models", ROOT / "results"
+    _META, PROMPTS = DATA / "clips.json", DATA / "prompts"
+    # a dataset folder its group may write to is shared by a team
+    if DATA.exists() and DATA.stat().st_mode & 0o020:
+        os.umask(0o002)  # (hpcc/share_data.sh): what we create, the others can change
     for _d in (VIDEOS, IMG, ANN, PRED, RUNS, WEIGHTS, RESULTS):
         _d.mkdir(parents=True, exist_ok=True)
     return ROOT
 
+
 CKPT_DIR = Path(os.environ.get("FRUIT_CHECKPOINTS") or BASE / "checkpoints")
 CKPT_DIR.mkdir(parents=True, exist_ok=True)
 
+
 def _repo_dir():
-    """The team repository (the folder that holds sam2_pipeline/ and data/), when this code runs from inside it.
-    None in a standalone notebook, e.g. the pipeline notebook opened in Colab from the Open-in-Colab badge."""
-    starts = [Path(globals()["__file__"]).resolve().parent] if "__file__" in globals() else []
+    """The team repository (the folder that holds sam2_pipeline/ and data/), when this
+    code runs from inside it. None in a standalone notebook, e.g. the pipeline notebook
+    opened in Colab from the Open-in-Colab badge.
+    """
+    starts = (
+        [Path(globals()["__file__"]).resolve().parent]
+        if "__file__" in globals()
+        else []
+    )
     starts.append(Path.cwd())
     for start in starts:
         for d in (start, *start.parents):
@@ -106,26 +180,45 @@ def _repo_dir():
                 return d
     return None
 
+
 REPO_DIR = _repo_dir()
-# The fine-tuned SAM 2.1 the team ships: sam2_pipeline/model/ (see its README). Scored and used by default.
+# The fine-tuned SAM 2.1 the team ships: sam2_pipeline/model/ (see its README). Scored
+# and used by default.
 MODEL_DIR = REPO_DIR / "sam2_pipeline" / "model" if REPO_DIR else None
 
-if not globals().get("_DEFER_PROJECT"):           # the command-line module picks its folder later
+# the command-line module picks its folder later
+if not globals().get("_DEFER_PROJECT"):
     _project = _safe(PROJECT_NAME) or "fruit_sam2"
-    _parent = Path(os.environ.get("FRUIT_PROJECTS") or ("/content" if IN_COLAB else Path.home()))
-    if DEMO:        # the demo always gets its own folder, never your real project: <PROJECT_DIR>/<name>_demo, or ~/<name>_demo
-        _root = (Path(PROJECT_DIR).expanduser() if PROJECT_DIR else _parent) / f"{_project}_demo"
+    _parent = Path(
+        os.environ.get("FRUIT_PROJECTS") or ("/content" if IN_COLAB else Path.home())
+    )
+    # the demo always gets its own folder, never your real project:
+    # <PROJECT_DIR>/<name>_demo, or ~/<name>_demo
+    if DEMO:
+        _root = (
+            Path(PROJECT_DIR).expanduser() if PROJECT_DIR else _parent
+        ) / f"{_project}_demo"
     elif PROJECT_DIR:
         _root = PROJECT_DIR
     elif IN_COLAB and SAVE_TO_DRIVE:
         from google.colab import drive
+
         drive.mount("/content/drive")
         _root = Path("/content/drive/MyDrive") / _project
     else:
         _root = _parent / _project
     use_project(_root)
-    print(f"torch {torch.__version__} · " + (f"GPU {GPU_NAME} ({GPU_GB:.0f} GB)" if DEVICE == "cuda" else "CPU")
-          + f" · SAM 2 code @ {SAM2_COMMIT[:7]}")
+    print(
+        f"torch {torch.__version__} · "
+        + (f"GPU {GPU_NAME} ({GPU_GB:.0f} GB)" if DEVICE == "cuda" else "CPU")
+        + f" · SAM 2 code @ {SAM2_COMMIT[:7]}"
+    )
     if DEVICE != "cuda":
-        print("⚠️  No GPU. Everything still runs, but slowly. In Colab: Runtime ▸ Change runtime type ▸ T4 GPU.")
-    print(("🧪 DEMO MODE: public sample grapes, not your videos.  " if DEMO else "") + f"Project folder: {ROOT}")
+        print(
+            "⚠️  No GPU. Everything still runs, but slowly. In Colab: Runtime ▸ "
+            "Change runtime type ▸ T4 GPU."
+        )
+    print(
+        ("🧪 DEMO MODE: public sample grapes, not your videos.  " if DEMO else "")
+        + f"Project folder: {ROOT}"
+    )

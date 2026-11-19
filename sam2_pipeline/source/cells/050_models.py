@@ -1,118 +1,242 @@
-#@title Tools: model wrappers and the leaderboard  { display-mode: "form" }
-# A model is anything with predict(clip, prompts) → [T, H, W] array of object ids (0 = background).
-# To add your own: subclass Model, or write PNGs with another program and use FromFolder.
+# @title Tools: model wrappers and the leaderboard  { display-mode: "form" }
+# A model is anything with predict(clip, prompts) → [T, H, W] array of object ids (0 =
+# background).
+# To add your own: subclass Model, or write
+# PNGs with another program and use FromFolder.
+
 
 class Model:
-    needs_prompts = False   # True → scored on the prompted leaderboard; False → on the automatic one
-    tracks = False          # True → the same object keeps the same id from frame to frame
-    prompt = None           # for prompted models: "box" | "point" | "mask"
-    def prepare(self):      # load weights here so loading time is not counted as inference time
+    needs_prompts = (
+        False  # True → scored on the prompted leaderboard; False → on the automatic one
+    )
+    tracks = False  # True → the same object keeps the same id from frame to frame
+    prompt = None  # for prompted models: "box" | "point" | "mask"
+
+    # load weights here so loading time is not counted as inference time
+    def prepare(
+        self,
+    ):
         pass
+
     def predict(self, clip, prompts=None):
         raise NotImplementedError
 
+
 class SAM2Prompted(Model):
-    """SAM 2.1 pointed at each object once. ckpt=None → Meta's pretrained weights; or a fine-tuned .pt file."""
+    """SAM 2.1 pointed at each object once. ckpt=None → Meta's pretrained weights; or a
+    fine-tuned .pt file.
+    """
+
     needs_prompts, tracks = True, True
+
     def __init__(self, size=None, ckpt=None, prompt="box"):
         self.size, self.ckpt, self.prompt = size or SAM2_SIZE, ckpt, prompt
+
     def prepare(self):
         load_sam2(self.size, self.ckpt)
+
     def predict(self, clip, prompts=None):
-        return sam2_track(load_sam2(self.size, self.ckpt), clip, prompts, backward=False)
+        return sam2_track(
+            load_sam2(self.size, self.ckpt), clip, prompts, backward=False
+        )
+
 
 def _ultralytics(text=False):
-    """Import ultralytics, installing it (and its tracker / text-prompt extras) on first use."""
-    need = [pkg for mod, pkg in (("ultralytics", "ultralytics"), ("lap", "lap>=0.5.12")) if _missing(mod)]
+    """Import ultralytics, installing it (and its
+    tracker / text-prompt extras) on first use.
+    """
+    need = [
+        pkg
+        for mod, pkg in (("ultralytics", "ultralytics"), ("lap", "lap>=0.5.12"))
+        if _missing(mod)
+    ]
     if text and _missing("clip"):
-        need.append("git+https://github.com/ultralytics/CLIP.git")          # text encoder for YOLOE prompts
+        # text encoder for YOLOE prompts
+        need.append("git+https://github.com/ultralytics/CLIP.git")
     if need:
         print("installing:", ", ".join(need))
         sh([sys.executable, "-m", "pip", "install", "-q", *need])
     threads = torch.get_num_threads()
     import ultralytics
-    torch.set_num_threads(threads)                # importing ultralytics lowers the CPU thread count; put it back
+
+    # importing ultralytics lowers the CPU thread count; put it back
+    torch.set_num_threads(threads)
     return ultralytics
 
-DETECTOR_SIZES = (256, 384, 512, 768, 1024, 1280, 1536, 1920, 2560, 3840)   # input sizes tried by imgsz="auto" and by check_detectors
-SURE = 0.25                                                                # a box the detector is sure of scores at least this
-KNOWS = 0.8                                                                # on footage a detector knows, its clearest box scores at least this
-NOTHING_FOUND = ("`python fruit.py check <video>` shows what every detector sees in a video at every input size. "
-                 "If none of them finds the clusters, label clips of this footage and fine-tune (LABELLING.md).")
+
+# input sizes tried by imgsz="auto" and by check_detectors
+DETECTOR_SIZES = (
+    256,
+    384,
+    512,
+    768,
+    1024,
+    1280,
+    1536,
+    1920,
+    2560,
+    3840,
+)
+SURE = 0.25  # a box the detector is sure of scores at least this
+KNOWS = 0.8  # on footage a detector knows, its clearest box scores at least this
+NOTHING_FOUND = (
+    "`python fruit.py check <video>` shows what every detector sees in a video at "
+    "every input size. "
+    "If none of them finds the clusters, label clips of this footage and fine-tune "
+    "(LABELLING.md)."
+)
+
 
 def weights_card(model, weights, text=None):
-    """What an Ultralytics weights file is, read from the file itself: (one line, warnings, the size it was trained at).
-    Two files find no grape cluster however they are run. A base model, which has no grape class, is refused;
-    a training run that was only a test (an epoch or two) gets a warning."""
+    """What an Ultralytics weights file is, read from the file itself: (one line,
+    warnings, the size it was trained at). Two files find no grape cluster however they
+    are run. A base model, which has no grape class, is refused; a training run that was
+    only a test (an epoch or two) gets a warning.
+    """
     ck = getattr(model, "ckpt", None) or {}
-    ta, tm, tr = ck.get("train_args") or {}, ck.get("train_metrics") or {}, ck.get("train_results") or {}
+    ta, tm, tr = (
+        ck.get("train_args") or {},
+        ck.get("train_metrics") or {},
+        ck.get("train_results") or {},
+    )
     names = [str(n) for n in (getattr(model, "names", None) or {}).values()]
     label = "/".join(Path(weights).parts[-3:]) if "/" in str(weights) else str(weights)
     if text:
-        return f"{label}: text prompt '{text if isinstance(text, str) else ', '.join(text)}'", [], None
+        return (
+            f"{label}: text prompt "
+            f"'{text if isinstance(text, str) else ', '.join(text)}'",
+            [],
+            None,
+        )
     epochs = len(tr.get("epoch") or []) or ta.get("epochs")
     score = tm.get("metrics/mAP50(M)", tm.get("metrics/mAP50(B)"))
-    ours = len(names) == 1 or any(w in n.lower() for n in names for w in OBJECT_NAME.lower().split())
-    card = f"{label}: " + " · ".join(x for x in (
-        Path(str(ta.get("model") or "")).stem or None,
-        f"{epochs} epoch(s) at {ta.get('imgsz')} px" if epochs and ta.get("imgsz") else None,
-        f"val mAP50 {score:.2f}" if score is not None and ours else None,
-        f"class: {names[0]}" if len(names) == 1 else f"{len(names)} classes") if x)
+    ours = len(names) == 1 or any(
+        w in n.lower() for n in names for w in OBJECT_NAME.lower().split()
+    )
+    card = f"{label}: " + " · ".join(
+        x
+        for x in (
+            Path(str(ta.get("model") or "")).stem or None,
+            f"{epochs} epoch(s) at {ta.get('imgsz')} px"
+            if epochs and ta.get("imgsz")
+            else None,
+            f"val mAP50 {score:.2f}" if score is not None and ours else None,
+            f"class: {names[0]}" if len(names) == 1 else f"{len(names)} classes",
+        )
+        if x
+    )
     warn = []
     if not ours:
-        raise ValueError(f"{label} is a base model: it knows {len(names)} classes ({', '.join(names[:3])}, …), none of them a "
-                         f"{OBJECT_NAME}, so whatever it finds is not a {OBJECT_NAME}. Use a trained model "
-                         "(yolo26_pipeline/model/best.pt) or train one (train-detector).")
+        raise ValueError(
+            f"{label} is a base model: it knows {len(names)} classes "
+            f"({', '.join(names[:3])}, …), none of them a "
+            f"{OBJECT_NAME}, so whatever it finds is not a {OBJECT_NAME}. Use a "
+            "trained model "
+            "(yolo26_pipeline/model/best.pt) or train one (train-detector)."
+        )
     if (epochs and epochs < 5) or (score is not None and score < 0.2):
-        warn.append(f"⚠️  {label} is a test run, not a trained model ({epochs or '?'} epoch(s)"
-                    + (f", val mAP50 {score:.2f}" if score is not None else "") + "): it finds little or nothing on any "
-                    "footage. The trained models are yolo26_pipeline/model/best.pt and yolo11_pipeline/model/best.pt.")
-    return card, warn, (int(ta["imgsz"]) if ours and isinstance(ta.get("imgsz"), (int, float)) else None)
+        warn.append(
+            f"⚠️  {label} is a test run, not a trained model ({epochs or '?'} epoch(s)"
+            + (f", val mAP50 {score:.2f}" if score is not None else "")
+            + "): it finds little or nothing on any "
+            "footage. The trained models are yolo26_pipeline/model/best.pt and "
+            "yolo11_pipeline/model/best.pt."
+        )
+    return (
+        card,
+        warn,
+        (
+            int(ta["imgsz"])
+            if ours and isinstance(ta.get("imgsz"), (int, float))
+            else None
+        ),
+    )
+
 
 class UltralyticsModel(Model):
-    """Any Ultralytics weights: a YOLO-seg model you trained, or YOLOE with a text prompt (text='grape cluster';
-    only YOLOE weights use a text). `weights` is a file (absolute, or inside the project folder or the repository,
-    e.g. 'yolo26_pipeline/model/best.pt') or a bare Ultralytics name, which is downloaded. Used on its own it is an
-    automatic model (ByteTrack ids); it can also feed boxes to SAM 2 (DetectThenSAM2).
+    """Any Ultralytics weights: a YOLO-seg model you trained, or YOLOE with a text
+    prompt (text='grape cluster'; only YOLOE weights use a text). `weights` is a file
+    (absolute, or inside the project folder or the repository, e.g.
+    'yolo26_pipeline/model/best.pt') or a bare Ultralytics name, which is downloaded.
+    Used on its own it is an automatic model (ByteTrack ids); it can also feed boxes to
+    SAM 2 (DetectThenSAM2).
 
-    imgsz is the size the frame is shrunk to before the detector sees it, so it sets how big a cluster looks to
-    the detector. A YOLO trained on photos only finds clusters in a band of sizes (the WGISD models: about 40 to
-    100 px tall; at 250 px they find 3 in 100). imgsz='auto' tries DETECTOR_SIZES on three frames of each clip and
-    uses the size at which the detector is most sure; a number fixes it."""
+    imgsz is the size the frame is shrunk to before the detector sees it, so it sets how
+    big a cluster looks to the detector. A YOLO trained on photos only finds clusters in
+    a band of sizes (the WGISD models: about 40 to 100 px tall; at 250 px they find 3 in
+    100). imgsz='auto' tries DETECTOR_SIZES on three frames of each clip and uses the
+    size at which the detector is most sure; a number fixes it.
+    """
+
     tracks = True
-    def __init__(self, weights, text=None, conf=0.25, imgsz="auto", tracker="bytetrack.yaml"):
+
+    def __init__(
+        self, weights, text=None, conf=0.25, imgsz="auto", tracker="bytetrack.yaml"
+    ):
         here = _project_path(weights) if "ROOT" in globals() else Path(weights)
-        self.weights, self.text, self.conf, self.tracker = str(here if here.exists() else weights), text, conf, tracker
+        self.weights, self.text, self.conf, self.tracker = (
+            str(here if here.exists() else weights),
+            text,
+            conf,
+            tracker,
+        )
         self.imgsz = imgsz if imgsz == "auto" else int(imgsz)
-        self._m, self._size, self.trained_size, self.card, self.warn, self.tried = None, None, None, "", [], None
+        self._m, self._size, self.trained_size, self.card, self.warn, self.tried = (
+            None,
+            None,
+            None,
+            "",
+            [],
+            None,
+        )
+
     @property
     def model(self):
         if self._m is None:
             ul = _ultralytics(text=bool(self.text))
-            with contextlib.redirect_stdout(io.StringIO()):          # hides the download progress bars
+            # hides the download progress bars
+            with contextlib.redirect_stdout(io.StringIO()):
                 m = ul.YOLOE(self.weights) if self.text else ul.YOLO(self.weights)
                 if self.text and hasattr(m.model, "get_text_pe"):
-                    names = [self.text] if isinstance(self.text, str) else list(self.text)
+                    names = (
+                        [self.text] if isinstance(self.text, str) else list(self.text)
+                    )
                     m.set_classes(names, m.get_text_pe(names))
-                elif self.text:                                      # trained weights have their own class: no text
+                elif self.text:  # trained weights have their own class: no text
                     m, self.text = ul.YOLO(self.weights), None
-            self.card, self.warn, self.trained_size = weights_card(m, self.weights, self.text)
+            self.card, self.warn, self.trained_size = weights_card(
+                m, self.weights, self.text
+            )
             self._m = m
             print("\n".join(["detector " + self.card, *self.warn]))
         return self._m
+
     def prepare(self):
         self.model
+
     def _tracker_file(self):
-        """ByteTrack only starts a track above its own score bar (0.25 by default), which would silently
-        discard every detection between `conf` and 0.25. Tie the tracker's bars to `conf` instead."""
-        import yaml, ultralytics
+        """ByteTrack only starts a track above its own score bar (0.25 by default),
+        which would silently discard every detection between `conf` and 0.25. Tie the
+        tracker's bars to `conf` instead.
+        """
+        import ultralytics
+        import yaml
+
         base = Path(ultralytics.__file__).parent / "cfg" / "trackers" / self.tracker
-        cfg = yaml.safe_load((base if base.exists() else Path(self.tracker)).read_text())
-        cfg.update(track_high_thresh=float(self.conf), new_track_thresh=float(self.conf),
-                   track_low_thresh=float(min(cfg.get("track_low_thresh", 0.1), self.conf / 2)))
+        cfg = yaml.safe_load(
+            (base if base.exists() else Path(self.tracker)).read_text()
+        )
+        cfg.update(
+            track_high_thresh=float(self.conf),
+            new_track_thresh=float(self.conf),
+            track_low_thresh=float(
+                min(cfg.get("track_low_thresh", 0.1), self.conf / 2)
+            ),
+        )
         f = CKPT_DIR / f"{Path(self.tracker).stem}_conf{self.conf:g}.yaml"
         f.write_text(yaml.safe_dump(cfg))
         return str(f)
+
     def _unpack(self, r, hw):
         n = 0 if r.boxes is None else len(r.boxes)
         boxes = r.boxes.xyxy.cpu().numpy() if n else np.zeros((0, 4), np.float32)
@@ -121,167 +245,353 @@ class UltralyticsModel(Model):
         if n and r.masks is not None:
             masks = r.masks.data.cpu().numpy() > 0.5
             if masks.shape[1:] != tuple(hw):
-                masks = np.stack([cv2.resize(m.astype(np.uint8), hw[::-1], interpolation=cv2.INTER_NEAREST) > 0 for m in masks])
-        else:                                       # box-only weights: fall back to filled boxes
+                masks = np.stack(
+                    [
+                        cv2.resize(
+                            m.astype(np.uint8),
+                            hw[::-1],
+                            interpolation=cv2.INTER_NEAREST,
+                        )
+                        > 0
+                        for m in masks
+                    ]
+                )
+        else:  # box-only weights: fall back to filled boxes
             masks = np.zeros((n, *hw), bool)
             for i, (x0, y0, x1, y1) in enumerate(boxes.round().astype(int)):
-                masks[i, max(y0, 0):y1, max(x0, 0):x1] = True
+                masks[i, max(y0, 0) : y1, max(x0, 0) : x1] = True
         return boxes, scores, masks, ids
+
     def sweep(self, frames, sizes=None, conf=None):
-        """The detector on a few RGB frames at several input sizes. One row per size: boxes per frame at `conf`,
-        the top score, how tall those boxes are in the pixels the detector sees, and `sure`: the summed scores of
-        the boxes it is sure of (SURE or more), which is what imgsz='auto' maximises. Only the 60 most confident
-        boxes of a frame are looked at: every box costs a full-size mask, and a weak model makes hundreds."""
+        """The detector on a few RGB frames at several input sizes.
+
+        One row per size: boxes per frame at `conf`, the top score, how tall those boxes
+        are in the pixels the detector sees, and `sure`: the summed scores of the boxes
+        it is sure of (SURE or more), which is what imgsz='auto' maximises. Only the 60
+        most confident boxes of a frame are looked at: every box costs a full-size mask,
+        and a weak model makes hundreds.
+        """
         conf = self.conf if conf is None else conf
         full = int(math.ceil(max(max(f.shape[:2]) for f in frames) / 32) * 32)
         rows = []
-        for size in sorted(set(sizes or [s for s in DETECTOR_SIZES if s < full] + [full])):
+        for size in sorted(
+            set(sizes or [s for s in DETECTOR_SIZES if s < full] + [full])
+        ):
             scores, tall = [], []
             for f in frames:
-                r = self.model.predict(f[..., ::-1], conf=min(conf, 0.05), imgsz=size, max_det=60, verbose=False)[0]
-                if r.boxes is None or not len(r.boxes): continue
+                r = self.model.predict(
+                    f[..., ::-1],
+                    conf=min(conf, 0.05),
+                    imgsz=size,
+                    max_det=60,
+                    verbose=False,
+                )[0]
+                if r.boxes is None or not len(r.boxes):
+                    continue
                 sc, b = r.boxes.conf.cpu().numpy(), r.boxes.xyxy.cpu().numpy()
-                scores.append(sc); tall.append((b[:, 3] - b[:, 1])[sc >= conf] * size / max(f.shape[:2]))
-            sc, tall = np.concatenate(scores or [np.zeros(0)]), np.concatenate(tall or [np.zeros(0)])
-            rows.append(dict(imgsz=size, boxes_per_frame=float((sc >= conf).sum()) / len(frames),
-                             top_score=float(sc.max()) if len(sc) else 0.0, sure=float(sc[sc >= max(conf, SURE)].sum()),
-                             box_height_px=float(np.median(tall)) if len(tall) else np.nan))
+                scores.append(sc)
+                tall.append((b[:, 3] - b[:, 1])[sc >= conf] * size / max(f.shape[:2]))
+            sc, tall = (
+                np.concatenate(scores or [np.zeros(0)]),
+                np.concatenate(tall or [np.zeros(0)]),
+            )
+            rows.append(
+                dict(
+                    imgsz=size,
+                    boxes_per_frame=float((sc >= conf).sum()) / len(frames),
+                    top_score=float(sc.max()) if len(sc) else 0.0,
+                    sure=float(sc[sc >= max(conf, SURE)].sum()),
+                    box_height_px=float(np.median(tall)) if len(tall) else np.nan,
+                )
+            )
         return pd.DataFrame(rows)
+
     def fit(self, clip):
-        """The input size for this clip (a Clip, or a list of RGB frames). A number in imgsz: that number.
-        imgsz='auto': the size at which the detector is most sure on three frames of the clip (the first, the
-        middle, the last); sure of nothing at any size: the size with the highest score."""
+        """The input size for this clip (a Clip, or a list of RGB frames).
+
+        A number in imgsz: that number. imgsz='auto': the size at which the detector is
+        most sure on three frames of the clip (the first, the middle, the last); sure of
+        nothing at any size: the size with the highest score.
+        """
         if self.imgsz != "auto":
-            self._size = int(self.imgsz); return self._size
-        frames = clip if isinstance(clip, (list, tuple)) else [clip.image(t) for t in sorted({0, len(clip) // 2, len(clip) - 1})]
+            self._size = int(self.imgsz)
+            return self._size
+        frames = (
+            clip
+            if isinstance(clip, (list, tuple))
+            else [clip.image(t) for t in sorted({0, len(clip) // 2, len(clip) - 1})]
+        )
         t = self.tried = self.sweep(frames)
         best = t.loc[(t["sure"] if t["sure"].max() > 0 else t["top_score"]).idxmax()]
-        self._size = int(best["imgsz"]) if best["top_score"] > 0 else int(self.trained_size or 1280)
+        self._size = (
+            int(best["imgsz"])
+            if best["top_score"] > 0
+            else int(self.trained_size or 1280)
+        )
         return self._size
+
     def detect(self, img, conf=None, imgsz=None):
         """One RGB frame → (boxes [N,4] x0,y0,x1,y1, scores [N], masks [N,H,W])."""
         size = imgsz or self._size or self.fit([img])
-        r = self.model.predict(img[..., ::-1], conf=self.conf if conf is None else conf, imgsz=size, retina_masks=True, verbose=False)[0]
+        r = self.model.predict(
+            img[..., ::-1],
+            conf=self.conf if conf is None else conf,
+            imgsz=size,
+            retina_masks=True,
+            verbose=False,
+        )[0]
         return self._unpack(r, img.shape[:2])[:3]
+
     def predict(self, clip, prompts=None):
-        T = len(clip); H, W = clip.hw
-        out, remap, tracker, size = np.zeros((T, H, W), np.uint16), {}, self._tracker_file(), self.fit(clip)
+        T = len(clip)
+        H, W = clip.hw
+        out, remap, tracker, size = (
+            np.zeros((T, H, W), np.uint16),
+            {},
+            self._tracker_file(),
+            self.fit(clip),
+        )
         for t in range(T):
-            r = self.model.track(clip.image(t)[..., ::-1], persist=t > 0, conf=self.conf, imgsz=size,
-                                 tracker=tracker, retina_masks=True, verbose=False)[0]
+            r = self.model.track(
+                clip.image(t)[..., ::-1],
+                persist=t > 0,
+                conf=self.conf,
+                imgsz=size,
+                tracker=tracker,
+                retina_masks=True,
+                verbose=False,
+            )[0]
             boxes, scores, masks, ids = self._unpack(r, (H, W))
-            if ids is None: continue
-            for i in np.argsort(scores):            # most confident painted last
+            if ids is None:
+                continue
+            for i in np.argsort(scores):  # most confident painted last
                 out[t][masks[i]] = remap.setdefault(int(ids[i]), len(remap) + 1)
         return out
 
+
 def _same_box(a, b, iou_thr):
-    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0])); iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
     inter = ix * iy
     area_a, area_b = (a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1])
-    return inter / max(area_a + area_b - inter, 1e-6) >= iou_thr or inter / max(min(area_a, area_b), 1e-6) >= 0.7
+    return (
+        inter / max(area_a + area_b - inter, 1e-6) >= iou_thr
+        or inter / max(min(area_a, area_b), 1e-6) >= 0.7
+    )
+
 
 class DetectThenSAM2(Model):
-    """The automatic SAM 2 pipeline: a detector finds objects on every `every`-th frame, SAM 2.1 turns each
-    new box into a mask and follows it. SAM 2 cannot find grapes by itself; it only follows what it is shown."""
+    """The automatic SAM 2 pipeline: a detector finds objects on every `every`-th frame,
+    SAM 2.1 turns each new box into a mask and follows it. SAM 2 cannot find grapes by
+    itself; it only follows what it is shown.
+    """
+
     tracks = True
-    def __init__(self, detector, size=None, ckpt=None, every=4, match_iou=0.4, max_objects=200, backward=False):
+
+    def __init__(
+        self,
+        detector,
+        size=None,
+        ckpt=None,
+        every=4,
+        match_iou=0.4,
+        max_objects=200,
+        backward=False,
+    ):
         self.detector, self.size, self.ckpt = detector, size or SAM2_SIZE, ckpt
-        self.every, self.match_iou, self.max_objects, self.backward = every, match_iou, max_objects, backward
+        self.every, self.match_iou, self.max_objects, self.backward = (
+            every,
+            match_iou,
+            max_objects,
+            backward,
+        )
         self.last_prompts = []
+
     def prepare(self):
-        self.detector.prepare(); load_sam2(self.size, self.ckpt)
+        self.detector.prepare()
+        load_sam2(self.size, self.ckpt)
+
     def predict(self, clip, prompts=None, carry=None, first_id=1):
-        """carry: the id map of this clip's first frame from the run before it (run_on_video hands over the last
-        frame of the previous chunk). Those objects go on under the same ids, whether or not the detector sees
-        them again; objects that are new here are numbered from `first_id`."""
+        """carry: the id map of this clip's first frame from the run before it
+        (run_on_video hands over the last frame of the previous chunk). Those objects go
+        on under the same ids, whether or not the detector sees them again; objects that
+        are new here are numbered from `first_id`.
+        """
         sess = Sam2Session(load_sam2(self.size, self.ckpt), clip)
-        ids = np.zeros((sess.T, sess.H, sess.W), np.uint16); best = np.zeros(ids.shape, np.float16)
+        ids = np.zeros((sess.T, sess.H, sess.W), np.uint16)
+        best = np.zeros(ids.shape, np.float16)
         made, n_carried = [], 0
         if carry is not None:
             k, area = np.unique(carry, return_counts=True)
-            seeds = [dict(obj=int(o), frame=0, mask=carry == o) for o, a in zip(k, area) if o and a >= MIN_OBJECT_AREA]
+            seeds = [
+                dict(obj=int(o), frame=0, mask=carry == o)
+                for o, a in zip(k, area)
+                if o and a >= MIN_OBJECT_AREA
+            ]
             if seeds:
-                sess.add(seeds[:self.max_objects], ids, best, backward=False)
+                sess.add(seeds[: self.max_objects], ids, best, backward=False)
                 n_carried, first_id = len(seeds), max(first_id, int(k.max()) + 1)
-        if hasattr(self.detector, "fit"): self.detector.fit(clip)          # imgsz="auto": the input size for this clip
+        if hasattr(self.detector, "fit"):
+            self.detector.fit(clip)  # imgsz="auto": the input size for this clip
         for t in range(0, sess.T, self.every):
             boxes, scores, _ = self.detector.detect(clip.image(t))
-            known = [(s[1].start, s[0].start, s[1].stop, s[0].stop) for s in ndimage.find_objects(ids[t]) if s is not None]
+            known = [
+                (s[1].start, s[0].start, s[1].stop, s[0].stop)
+                for s in ndimage.find_objects(ids[t])
+                if s is not None
+            ]
             new = []
             for b in boxes[np.argsort(-scores)]:
-                if n_carried + len(made) + len(new) >= self.max_objects: break
-                if any(_same_box(b, k, self.match_iou) for k in known): continue
+                if n_carried + len(made) + len(new) >= self.max_objects:
+                    break
+                if any(_same_box(b, k, self.match_iou) for k in known):
+                    continue
                 known.append(tuple(b))
-                new.append(dict(obj=first_id + len(made) + len(new), frame=t, box=[float(v) for v in b]))
+                new.append(
+                    dict(
+                        obj=first_id + len(made) + len(new),
+                        frame=t,
+                        box=[float(v) for v in b],
+                    )
+                )
             if new:
-                sess.add(new, ids, best, backward=self.backward); made += new
+                sess.add(new, ids, best, backward=self.backward)
+                made += new
         self.last_prompts = made
         return ids
 
+
 def model_label(model):
-    """A short name for a model in result tables: its weights; for detector → SAM 2.1, both."""
+    """A short name for a model in result tables:
+    its weights; for detector → SAM 2.1, both.
+    """
     if isinstance(model, DetectThenSAM2):
-        return f"{model_label(model.detector)} → SAM 2.1 " + (Path(model.ckpt).stem.replace("sam2.1_", "") if model.ckpt
-                                                             else f"{model.size} pretrained")
+        return f"{model_label(model.detector)} → SAM 2.1 " + (
+            Path(model.ckpt).stem.replace("sam2.1_", "")
+            if model.ckpt
+            else f"{model.size} pretrained"
+        )
     if isinstance(model, UltralyticsModel):
-        model.prepare()                                     # loading settles whether the weights use a text prompt
-        w = Path(model.weights)                             # yolo26_pipeline/model/best.pt → yolo26; runs/<name>/weights/best.pt → <name>
-        return (w.parents[1].name.replace("_pipeline", "") if w.name == "best.pt" and len(w.parts) > 2 else w.stem) \
-            + (f" '{model.text if isinstance(model.text, str) else ', '.join(model.text)}'" if model.text else "")
+        model.prepare()  # loading settles whether the weights use a text prompt
+        # yolo26_pipeline/model/best.pt → yolo26; runs/<name>/weights/best.pt → <name>
+        w = Path(model.weights)
+        return (
+            w.parents[1].name.replace("_pipeline", "")
+            if w.name == "best.pt" and len(w.parts) > 2
+            else w.stem
+        ) + (
+            f" '{model.text if isinstance(model.text, str) else ', '.join(model.text)}'"
+            if model.text
+            else ""
+        )
     return type(model).__name__
 
+
 class FromFolder(Model):
-    """Score predictions written by any other program: <folder>/<clip>/<frame>.png, pixel value = object id."""
+    """Score predictions written by any other program: <folder>/<clip>/<frame>.png,
+    pixel value = object id.
+    """
+
     def __init__(self, folder, tracks=False):
         self.folder, self.tracks = Path(folder), tracks
+
     def predict(self, clip, prompts=None):
         lab = clip.labels(root=self.folder)
         if lab is None:
-            raise FileNotFoundError(f"{self.folder / clip.name} needs one PNG per frame, named like the frames")
+            raise FileNotFoundError(
+                f"{self.folder / clip.name} needs one PNG per frame, named like the "
+                "frames"
+            )
         return lab
 
+
 class SAM3Text(Model):
-    """SAM 3.1 (or SAM 3) with a text prompt, through Meta's `sam3` package. Needs that package installed and
-    the gated Hugging Face weights. The sam3_1_pipeline and sam3_pipeline folders run these models in their own
-    environments and write predictions/<name>/ with a recipe.json instead, which `evaluate` scores as folders."""
+    """SAM 3.1 (or SAM 3) with a text prompt, through Meta's `sam3` package.
+
+    Needs that package installed and the gated Hugging Face weights. The sam3_1_pipeline
+    and sam3_pipeline folders run these models in their own environments and write
+    predictions/<name>/ with a recipe.json instead, which `evaluate` scores as folders.
+    """
+
     tracks = True
-    def __init__(self, text=None, version="sam3.1", max_num_objects=64, checkpoint=None, **builder_args):
+
+    def __init__(
+        self,
+        text=None,
+        version="sam3.1",
+        max_num_objects=64,
+        checkpoint=None,
+        **builder_args,
+    ):
         self.text, self._p = text or OBJECT_NAME, None
-        self.version, self.max_num_objects, self.checkpoint, self.builder_args = version, max_num_objects, checkpoint, builder_args
+        self.version, self.max_num_objects, self.checkpoint, self.builder_args = (
+            version,
+            max_num_objects,
+            checkpoint,
+            builder_args,
+        )
+
     def prepare(self):
         if self._p is None:
             import sam3.model_builder as mb
+
             args = dict(self.builder_args)
             if self.checkpoint:
                 args["checkpoint_path"] = str(self.checkpoint)
-            if self.version == "sam3.1":          # SAM 3.1 (March 2026): Object Multiplex, many objects per clip
-                self._p = mb.build_sam3_multiplex_video_predictor(max_num_objects=self.max_num_objects, **args)
-            else:                                  # the original SAM 3 (November 2025)
+            # SAM 3.1 (March 2026): Object Multiplex, many objects per clip
+            if self.version == "sam3.1":
+                self._p = mb.build_sam3_multiplex_video_predictor(
+                    max_num_objects=self.max_num_objects, **args
+                )
+            else:  # the original SAM 3 (November 2025)
                 self._p = mb.build_sam3_video_predictor(**args)
+
     def predict(self, clip, prompts=None):
         self.prepare()
-        T = len(clip); H, W = clip.hw
+        T = len(clip)
+        H, W = clip.hw
         out = np.zeros((T, H, W), np.uint16)
-        sid = self._p.handle_request(dict(type="start_session", resource_path=str(clip.dir)))["session_id"]
+        sid = self._p.handle_request(
+            dict(type="start_session", resource_path=str(clip.dir))
+        )["session_id"]
         try:
-            self._p.handle_request(dict(type="add_prompt", session_id=sid, frame_index=0, text=self.text))
-            for resp in self._p.handle_stream_request(dict(type="propagate_in_video", session_id=sid,
-                                                           propagation_direction="forward")):
+            self._p.handle_request(
+                dict(type="add_prompt", session_id=sid, frame_index=0, text=self.text)
+            )
+            for resp in self._p.handle_stream_request(
+                dict(
+                    type="propagate_in_video",
+                    session_id=sid,
+                    propagation_direction="forward",
+                )
+            ):
                 o = resp["outputs"]
-                for k, m in zip(np.asarray(o["out_obj_ids"]).tolist(), np.asarray(o["out_binary_masks"])):
+                for k, m in zip(
+                    np.asarray(o["out_obj_ids"]).tolist(),
+                    np.asarray(o["out_binary_masks"]),
+                ):
                     m = np.asarray(m, bool)
                     if m.shape != (H, W):
-                        m = cv2.resize(m.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST) > 0
+                        m = (
+                            cv2.resize(
+                                m.astype(np.uint8),
+                                (W, H),
+                                interpolation=cv2.INTER_NEAREST,
+                            )
+                            > 0
+                        )
                     out[resp["frame_index"]][m] = int(k) + 1
         finally:
             self._p.handle_request(dict(type="close_session", session_id=sid))
         return out
 
-# ---- describing models in plain data (used by the HPCC jobs and the lineup files) ------------------------
+
+# ---- describing models in plain data (used by the HPCC jobs and the lineup files) ----
 def _project_path(p):
-    """A path written in a lineup file: absolute, ~/…, or relative to the project folder; if nothing is there,
-    relative to the team repository (so `yolo26_pipeline/model/best.pt` works from any project folder)."""
+    """A path written in a lineup file: absolute, ~/…, or relative to the project
+    folder; if nothing is there, relative to the team repository (so
+    `yolo26_pipeline/model/best.pt` works from any project folder).
+    """
     p = Path(os.path.expandvars(str(p))).expanduser()
     if p.is_absolute():
         return p
@@ -289,47 +599,82 @@ def _project_path(p):
         return REPO_DIR / p
     return ROOT / p
 
+
 def build_model(spec):
-    """Make a model from a plain dict, e.g. one entry of a lineup YAML file:
-      {type: sam2, size: base_plus, checkpoint: models/x.pt, prompt: box}      SAM 2.1, pretrained or fine-tuned
-      {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster}      YOLO / YOLOE (automatic)
-      {type: detect_then_sam2, detector: {...}, checkpoint: models/x.pt}       a detector finds, SAM 2.1 follows
-      {type: folder, path: predictions/sam3_1_text, tracks: true}              masks written by any other program
-      {type: sam3, text: grape cluster}                                        SAM 3.1 in this environment (gated weights)
-      {type: python, class: my_models.py:MyModel, args: {...}}                 your own Model subclass"""
-    spec = dict(spec); kind = spec.pop("type").lower()
+    """Make a model from a plain dict, e.g. one entry of a lineup YAML file.
+
+    SAM 2.1, pretrained or fine-tuned:
+        {type: sam2, size: base_plus, checkpoint: models/x.pt, prompt: box}
+    YOLO / YOLOE (automatic):
+        {type: ultralytics, weights: yoloe-26m-seg.pt, text: grape cluster}
+    a detector finds, SAM 2.1 follows:
+        {type: detect_then_sam2, detector: {...}, checkpoint: models/x.pt}
+    masks written by any other program:
+        {type: folder, path: predictions/sam3_1_text, tracks: true}
+    SAM 3.1 in this environment (gated weights):
+        {type: sam3, text: grape cluster}
+    your own Model subclass:
+        {type: python, class: my_models.py:MyModel, args: {...}}
+    """
+    spec = dict(spec)
+    kind = spec.pop("type").lower()
     ckpt = spec.pop("checkpoint", None)
     ckpt = _project_path(ckpt) if ckpt else None
     if kind == "sam2":
         return SAM2Prompted(spec.get("size"), ckpt, spec.get("prompt", "box"))
     if kind in ("ultralytics", "yolo", "yoloe"):
         w = str(spec.pop("weights"))
-        w = str(_project_path(w)) if ("/" in w or _project_path(w).exists()) else w      # bare names: Ultralytics fetches them
+        # bare names: Ultralytics fetches them
+        w = str(_project_path(w)) if ("/" in w or _project_path(w).exists()) else w
         return UltralyticsModel(w, **spec)
     if kind == "detect_then_sam2":
-        return DetectThenSAM2(build_model(spec.pop("detector")), spec.pop("size", None), ckpt, **spec)
+        return DetectThenSAM2(
+            build_model(spec.pop("detector")), spec.pop("size", None), ckpt, **spec
+        )
     if kind == "folder":
-        return FromFolder(_project_path(spec["path"]), tracks=bool(spec.get("tracks", False)))
+        return FromFolder(
+            _project_path(spec["path"]), tracks=bool(spec.get("tracks", False))
+        )
     if kind == "sam3":
         return SAM3Text(checkpoint=ckpt, **spec)
     if kind == "python":
         target, args = spec.pop("class"), spec.pop("args", {}) or {}
         mod_name, cls_name = target.rsplit(":", 1)
-        import importlib, importlib.util
+        import importlib
+        import importlib.util
+
         if mod_name.endswith(".py"):
-            path = _project_path(mod_name) if not Path(mod_name).expanduser().exists() else Path(mod_name).expanduser()
+            path = (
+                _project_path(mod_name)
+                if not Path(mod_name).expanduser().exists()
+                else Path(mod_name).expanduser()
+            )
             spec_ = importlib.util.spec_from_file_location(path.stem, path)
             mod = importlib.util.module_from_spec(spec_)
-            sys.modules[path.stem] = mod                       # its classes can then subclass Model from here
-            mod.__dict__.update({k: v for k, v in globals().items() if k in ("Model", "np", "cv2", "Clip")})
+            sys.modules[path.stem] = (
+                mod  # its classes can then subclass Model from here
+            )
+            mod.__dict__.update(
+                {
+                    k: v
+                    for k, v in globals().items()
+                    if k in ("Model", "np", "cv2", "Clip")
+                }
+            )
             spec_.loader.exec_module(mod)
         else:
             mod = importlib.import_module(mod_name)
         return getattr(mod, cls_name)(**args)
-    raise ValueError(f"unknown model type '{kind}' (sam2, ultralytics, detect_then_sam2, folder, sam3, python)")
+    raise ValueError(
+        f"unknown model type '{kind}' (sam2, ultralytics, detect_then_sam2, folder, "
+        "sam3, python)"
+    )
+
 
 def _needed_files(model):
-    """The local files a lineup model reads (a bare Ultralytics name such as yoloe-26m-seg.pt is a download, not a file)."""
+    """The local files a lineup model reads (a bare Ultralytics name such as
+    yoloe-26m-seg.pt is a download, not a file).
+    """
     files = []
     if isinstance(model, UltralyticsModel) and "/" in model.weights:
         files.append(model.weights)
@@ -337,17 +682,22 @@ def _needed_files(model):
         files += _needed_files(model.detector)
     if getattr(model, "ckpt", None):
         files.append(model.ckpt)
-    if getattr(model, "checkpoint", None):            # SAM3Text
+    if getattr(model, "checkpoint", None):  # SAM3Text
         files.append(model.checkpoint)
     if isinstance(model, FromFolder):
         files.append(model.folder)
     return [str(f) for f in files]
 
+
 def load_lineup(path):
-    """Read a lineup YAML file → {name: Model}. See configs/lineup.yaml for a commented example.
-    A `python` model's file may be given relative to the lineup file itself. An entry whose weights or
-    folder are not on this computer is skipped with a note, so the rest of the lineup still runs."""
+    """Read a lineup YAML file → {name: Model}.
+
+    See configs/lineup.yaml for a commented example. A `python` model's file may be
+    given relative to the lineup file itself. An entry whose weights or folder are not
+    on this computer is skipped with a note, so the rest of the lineup still runs.
+    """
     import yaml
+
     path = Path(path).expanduser()
     entries = yaml.safe_load(path.read_text())["models"] or []
     out = {}
@@ -359,7 +709,7 @@ def load_lineup(path):
             f, cls = e["class"].rsplit(":", 1)
             if not Path(f).expanduser().is_absolute() and (path.parent / f).exists():
                 e["class"] = f"{(path.parent / f).resolve()}:{cls}"
-        name = e.pop("name")                 # (popped before build_model sees the entry)
+        name = e.pop("name")  # (popped before build_model sees the entry)
         model = build_model(e)
         missing = [f for f in _needed_files(model) if not Path(f).exists()]
         if missing:
@@ -368,33 +718,58 @@ def load_lineup(path):
         out[name] = model
     return out
 
-# ---- run + score ------------------------------------------------------------------------------------
-PROMPT_VISIBLE_FRAC = 0.5    # prompt an object on the first frame where half of its largest view is in frame
-MIN_OBJECT_AREA = 100        # automatic track: ignore specks smaller than this many pixels (labels and predictions)
+
+# ---- run + score ---------------------------------------------------------------------
+# prompt an object on the first frame where half of its largest view is in frame
+PROMPT_VISIBLE_FRAC = 0.5
+# automatic track: ignore specks smaller than this many pixels (labels and predictions)
+MIN_OBJECT_AREA = 100
+
 
 def run_model(name, model, clips):
-    """Predict every clip and save the result under predictions/<name>/. Returns seconds per frame."""
+    """Predict every clip and save the result under predictions/<name>/.
+
+    Returns seconds per frame.
+    """
     root, secs, n = PRED / _safe(name), 0.0, 0
     model.prepare()
     for clip in tqdm(clips, desc=name, leave=False):
-        prompts = prompts_from_labels(clip.labels(), model.prompt, PROMPT_VISIBLE_FRAC) if model.needs_prompts else None
+        prompts = (
+            prompts_from_labels(clip.labels(), model.prompt, PROMPT_VISIBLE_FRAC)
+            if model.needs_prompts
+            else None
+        )
         t0 = time.time()
         pred = np.asarray(model.predict(clip, prompts))
-        secs += time.time() - t0; n += len(clip)
-        assert pred.shape == (len(clip), *clip.hw), f"{name}: expected {(len(clip), *clip.hw)}, got {pred.shape}"
+        secs += time.time() - t0
+        n += len(clip)
+        assert pred.shape == (len(clip), *clip.hw), (
+            f"{name}: expected {(len(clip), *clip.hw)}, got {pred.shape}"
+        )
         clip.save_labels(pred, root=root)
     return secs / max(n, 1)
 
+
 def score_model(name, model, clips):
-    """Compare saved predictions with the labels. Returns (summary row, detail table)."""
+    """Compare saved predictions with the labels.
+
+    Returns (summary row, detail table).
+    """
     root, obj_rows, frame_rows, uniq = PRED / _safe(name), [], [], [0, 0]
     for clip in clips:
         gt, pred = clip.labels(), clip.labels(root=root)
         if model.needs_prompts:
-            prompts = prompts_from_labels(gt, "box", PROMPT_VISIBLE_FRAC)        # same frames for every prompt type
-            obj_rows += [dict(model=name, clip=clip.name, **r) for r in score_prompted(gt, pred, prompts)]
+            # same frames for every prompt type
+            prompts = prompts_from_labels(gt, "box", PROMPT_VISIBLE_FRAC)
+            obj_rows += [
+                dict(model=name, clip=clip.name, **r)
+                for r in score_prompted(gt, pred, prompts)
+            ]
         else:
-            frame_rows += [dict(model=name, clip=clip.name, **r) for r in score_automatic(gt, pred, 0.5, MIN_OBJECT_AREA)]
+            frame_rows += [
+                dict(model=name, clip=clip.name, **r)
+                for r in score_automatic(gt, pred, 0.5, MIN_OBJECT_AREA)
+            ]
             for i, arr in enumerate((gt, pred)):
                 k, c = np.unique(arr, return_counts=True)
                 uniq[i] += int(((k != 0) & (c >= MIN_OBJECT_AREA)).sum())
@@ -403,81 +778,181 @@ def score_model(name, model, clips):
     if model.needs_prompts:
         d = pd.DataFrame(obj_rows)
         J, F = d["J"].mean(), d["F"].mean()
-        row = {"model": name, "kind": "prompted", "prompt": model.prompt, "objects": len(d),
-               "J&F": (J + F) / 2, "J": J, "F": F, "J&F (DAVIS)": (d["J_all"].mean() + d["F_all"].mean()) / 2,
-               "IoU on prompt frame": np.nan if model.prompt == "mask" else d["iou_prompt_frame"].mean()}
+        row = {
+            "model": name,
+            "kind": "prompted",
+            "prompt": model.prompt,
+            "objects": len(d),
+            "J&F": (J + F) / 2,
+            "J": J,
+            "F": F,
+            "J&F (DAVIS)": (d["J_all"].mean() + d["F_all"].mean()) / 2,
+            "IoU on prompt frame": np.nan
+            if model.prompt == "mask"
+            else d["iou_prompt_frame"].mean(),
+        }
     else:
         d = pd.DataFrame(frame_rows)
         tp, fp, fn = d["tp"].sum(), d["fp"].sum(), d["fn"].sum()
         diff = d["n_pred"] - d["n_gt"]
         P, R = tp / max(tp + fp, 1), tp / max(tp + fn, 1)
-        row = {"model": name, "kind": "automatic", "precision": 100 * P, "recall": 100 * R,
-               "F1": 100 * 2 * P * R / max(P + R, 1e-9), "mask IoU (matched)": 100 * d["iou_sum"].sum() / max(tp, 1),
-               "count error / frame": diff.abs().mean(), "count bias / frame": diff.mean(),
-               "objects / frame (truth)": d["n_gt"].mean(),
-               "tracks found / true": f"{uniq[1]} / {uniq[0]}" if model.tracks else "n/a"}
+        row = {
+            "model": name,
+            "kind": "automatic",
+            "precision": 100 * P,
+            "recall": 100 * R,
+            "F1": 100 * 2 * P * R / max(P + R, 1e-9),
+            "mask IoU (matched)": 100 * d["iou_sum"].sum() / max(tp, 1),
+            "count error / frame": diff.abs().mean(),
+            "count bias / frame": diff.mean(),
+            "objects / frame (truth)": d["n_gt"].mean(),
+            "tracks found / true": f"{uniq[1]} / {uniq[0]}" if model.tracks else "n/a",
+        }
     return row, d
 
+
 def _data_signature(clips):
-    """Short fingerprint of the clips and their labels: rows scored on different data are never shown together."""
+    """Short fingerprint of the clips and their labels: rows scored on different data
+    are never shown together.
+    """
     import hashlib
+
     h = hashlib.md5()
     for c in sorted(clips, key=lambda c: c.name):
         h.update(c.name.encode())
-        for f in sorted((ANN / c.name).glob("*.png")): h.update(f.read_bytes())
+        for f in sorted((ANN / c.name).glob("*.png")):
+            h.update(f.read_bytes())
     return h.hexdigest()[:8]
 
+
 def benchmark(models, split="val", clips=None):
-    """Run and score every model in `models` (a dict name → Model) on the labelled clips of `split`.
-    Rows add up across calls, so the pretrained models scored earlier sit next to the fine-tuned ones."""
+    """Run and score every model in `models` (a dict name → Model) on the labelled clips
+    of `split`. Rows add up across calls, so the pretrained models scored earlier sit
+    next to the fine-tuned ones.
+    """
     clips = clips or get_clips(split, labelled=True)
     if not clips:
-        raise RuntimeError(f"No labelled '{split}' clips yet. Label some in Step 3 and mark them done "
-                           "(Step 3c shows what is missing).")
+        raise RuntimeError(
+            f"No labelled '{split}' clips yet. Label some in Step 3 and mark them done "
+            "(Step 3c shows what is missing)."
+        )
     sig, rows, details = _data_signature(clips), [], {}
     for name, model in models.items():
         try:
             spf = run_model(name, model, clips)
             row, details[name] = score_model(name, model, clips)
             rows.append({**row, "sec / frame": spf, "data": sig})
-        except Exception as e:                       # one broken model should not sink the whole table
+        except Exception as e:  # one broken model should not sink the whole table
             print(f"✗ {name}: {type(e).__name__}: {str(e)[:300]}")
     RESULTS.mkdir(exist_ok=True)
-    f, fd = RESULTS / f"leaderboard_{split}.csv", RESULTS / f"leaderboard_{split}_details.csv"
+    f, fd = (
+        RESULTS / f"leaderboard_{split}.csv",
+        RESULTS / f"leaderboard_{split}_details.csv",
+    )
     old = pd.read_csv(f) if f.exists() and f.stat().st_size > 5 else pd.DataFrame()
     if len(old):
         stale = int((old["data"] != sig).sum())
-        if stale: print(f"({stale} earlier row(s) were scored on a different set of clips or labels and were dropped)")
+        if stale:
+            print(
+                f"({stale} earlier row(s) were scored on a different set of clips or "
+                "labels and were dropped)"
+            )
         old = old[(old["data"] == sig) & ~old["model"].isin([r["model"] for r in rows])]
-    board = pd.concat([old, pd.DataFrame(rows)], ignore_index=True) if len(old) else pd.DataFrame(rows)
-    if len(board): board.to_csv(f, index=False)
+    board = (
+        pd.concat([old, pd.DataFrame(rows)], ignore_index=True)
+        if len(old)
+        else pd.DataFrame(rows)
+    )
+    if len(board):
+        board.to_csv(f, index=False)
     if details:
         new = pd.concat(details.values()).assign(data=sig)
         if fd.exists():
-            od = pd.read_csv(fd); new = pd.concat([od[(od["data"] == sig) & ~od["model"].isin(list(details))], new])
+            od = pd.read_csv(fd)
+            new = pd.concat(
+                [od[(od["data"] == sig) & ~od["model"].isin(list(details))], new]
+            )
         new.to_csv(fd, index=False)
-    print(f"scored on {len(clips)} {split} clip(s), {sum(len(c) for c in clips)} frames · table saved to {f}")
+    print(
+        f"scored on {len(clips)} {split} clip(s), {sum(len(c) for c in clips)} frames "
+        f"· table saved to {f}"
+    )
     show_board(board)
     silent = [n for n, d in details.items() if "n_pred" in d and not d["n_pred"].sum()]
     if silent:
-        print("\n⚠️  found nothing on any clip: " + "; ".join(silent) + ".\n" + NOTHING_FOUND)
+        print(
+            "\n⚠️  found nothing on any clip: "
+            + "; ".join(silent)
+            + ".\n"
+            + NOTHING_FOUND
+        )
     own = [c.name for c in clips if _load_prompts(c.name)]
     if own and len(board) and (board["kind"] == "prompted").any():
-        print(f"\n⚠️  {len(own)} of these {len(clips)} clips were labelled with SAM 2.1's help (labelling screen or box imports), so SAM 2.1 is partly being "
-              "graded against its own drawing. Its 'box' rows read high for that reason alone. Trust differences on the "
-              "click rows and in the automatic table more, and see 'Keeping the score honest' under Step 3.")
+        print(
+            f"\n⚠️  {len(own)} of these {len(clips)} clips were labelled with SAM "
+            "2.1's help (labelling screen or box imports), so SAM 2.1 is partly "
+            "being "
+            "graded against its own drawing. Its 'box' rows read high for that reason "
+            "alone. Trust differences on the "
+            "click rows and in the automatic table more, and see 'Keeping the score "
+            "honest' under Step 3."
+        )
     return board
+
 
 def clear_leaderboard(split="val"):
     """Start the table over (the saved predictions stay)."""
-    for f in RESULTS.glob(f"leaderboard_{split}*.csv"): f.unlink()
+    for f in RESULTS.glob(f"leaderboard_{split}*.csv"):
+        f.unlink()
+
 
 def show_board(board):
-    for kind, cols, key in (("prompted", ["model", "prompt", "J&F", "J", "F", "J&F (DAVIS)", "IoU on prompt frame", "objects", "sec / frame"], "J&F"),
-                            ("automatic", ["model", "F1", "precision", "recall", "mask IoU (matched)", "count error / frame",
-                                           "count bias / frame", "objects / frame (truth)", "tracks found / true", "sec / frame"], "F1")):
+    for kind, cols, key in (
+        (
+            "prompted",
+            [
+                "model",
+                "prompt",
+                "J&F",
+                "J",
+                "F",
+                "J&F (DAVIS)",
+                "IoU on prompt frame",
+                "objects",
+                "sec / frame",
+            ],
+            "J&F",
+        ),
+        (
+            "automatic",
+            [
+                "model",
+                "F1",
+                "precision",
+                "recall",
+                "mask IoU (matched)",
+                "count error / frame",
+                "count bias / frame",
+                "objects / frame (truth)",
+                "tracks found / true",
+                "sec / frame",
+            ],
+            "F1",
+        ),
+    ):
         part = board[board["kind"] == kind] if len(board) else board
         if len(part):
-            print(f"\n{kind.upper()} models" + (" — shown each object once, must follow it" if kind == "prompted"
-                                                   else " — must find every object themselves"))
-            display(part[cols].sort_values(key, ascending=False).round(2).reset_index(drop=True))
+            print(
+                f"\n{kind.upper()} models"
+                + (
+                    " — shown each object once, must follow it"
+                    if kind == "prompted"
+                    else " — must find every object themselves"
+                )
+            )
+            display(
+                part[cols]
+                .sort_values(key, ascending=False)
+                .round(2)
+                .reset_index(drop=True)
+            )

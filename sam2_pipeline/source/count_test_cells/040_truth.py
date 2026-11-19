@@ -1,4 +1,5 @@
-# Step 3: the hand counts (grape clusters per photo), the same list as yolo26_pipeline/count_test.py.
+# Step 3: the hand counts (grape clusters per photo), the same list as
+# yolo26_pipeline/count_test.py.
 GROUND_TRUTH = [
     ("SYH_2017-04-27_1322.jpg", 20),
     ("SYH_2017-04-27_1318.jpg", 8),
@@ -28,4 +29,9 @@ GROUND_TRUTH = [
     ("CDY_2040.jpg", 8),
     ("CDY_2015.jpg", 20),
 ]
-print(len(GROUND_TRUTH), "photos,", sum(n for _, n in GROUND_TRUTH), "clusters counted by hand")
+print(
+    len(GROUND_TRUTH),
+    "photos,",
+    sum(n for _, n in GROUND_TRUTH),
+    "clusters counted by hand",
+)

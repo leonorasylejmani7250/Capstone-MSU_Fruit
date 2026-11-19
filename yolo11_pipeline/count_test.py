@@ -1,8 +1,11 @@
-"""Cluster counts against hand counts on the 27 WGISD test photos (Michal's count test). Default model: model/best.pt.
+"""Cluster counts against hand counts on the 27 WGISD test photos (Michal's count test).
+Default model: model/best.pt.
 
-Prints the error per photo and the mean absolute error; writes ../data/results/<pipeline>/count_test.csv and the
-photos with the predictions drawn on them to ../data/results/<pipeline>/count_test/.
+Prints the error per photo and the mean absolute error; writes
+../data/results/<pipeline>/count_test.csv and the photos with the predictions drawn on
+them to ../data/results/<pipeline>/count_test/.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -11,7 +14,7 @@ from pathlib import Path
 
 from pipeline import DATA, MODEL, RESULTS, load
 
-IMAGE_DIR = DATA / 'wgisd_yolo' / 'images' / 'test'
+IMAGE_DIR = DATA / "wgisd_yolo" / "images" / "test"
 
 # (image, grape clusters counted by hand)
 HAND_COUNTS = [
@@ -46,14 +49,21 @@ HAND_COUNTS = [
 
 
 def main():
-    p = argparse.ArgumentParser(description=' '.join(__doc__.split('\n\n')[0].split()))
-    p.add_argument('--model', type=Path, default=MODEL, help='weights (default: model/best.pt)')
-    p.add_argument('--conf', type=float, default=0.25)
-    p.add_argument('--imgsz', type=int, default=None, help='image size (default: the size the model was trained at)')
+    p = argparse.ArgumentParser(description=" ".join(__doc__.split("\n\n")[0].split()))
+    p.add_argument(
+        "--model", type=Path, default=MODEL, help="weights (default: model/best.pt)"
+    )
+    p.add_argument("--conf", type=float, default=0.25)
+    p.add_argument(
+        "--imgsz",
+        type=int,
+        default=None,
+        help="image size (default: the size the model was trained at)",
+    )
     args = p.parse_args()
     if not args.model.is_file():
-        p.error(f'Missing weights: {args.model}')
-    out_dir = RESULTS / 'count_test'
+        p.error(f"Missing weights: {args.model}")
+    out_dir = RESULTS / "count_test"
     out_dir.mkdir(parents=True, exist_ok=True)
     model, trained_size = load(args.model)
     imgsz = args.imgsz or trained_size or 512
@@ -62,36 +72,50 @@ def main():
     for filename, actual in HAND_COUNTS:
         image_path = IMAGE_DIR / filename
         if not image_path.is_file():
-            print(f'Missing image: {image_path}')
+            print(f"Missing image: {image_path}")
             continue
-        result = model.predict(source=str(image_path), imgsz=imgsz, conf=args.conf, verbose=False)[0]
-        predicted = len(result.masks) if result.masks is not None else 0     # one mask per detected cluster
+        result = model.predict(
+            source=str(image_path), imgsz=imgsz, conf=args.conf, verbose=False
+        )[0]
+        # one mask per detected cluster
+        predicted = len(result.masks) if result.masks is not None else 0
         error = predicted - actual
-        rows.append({'image': filename, 'actual_count': actual, 'predicted_count': predicted,
-                     'error': error, 'absolute_error': abs(error)})
-        print(f'{filename:38} Actual: {actual:2} | Predicted: {predicted:2} | Error: {error:+3}')
-        result.save(filename=str(out_dir / filename))          # the image with the predictions drawn on it
+        rows.append(
+            {
+                "image": filename,
+                "actual_count": actual,
+                "predicted_count": predicted,
+                "error": error,
+                "absolute_error": abs(error),
+            }
+        )
+        print(
+            f"{filename:38} Actual: {actual:2} | Predicted: {predicted:2} | Error: "
+            f"{error:+3}"
+        )
+        # the image with the predictions drawn on it
+        result.save(filename=str(out_dir / filename))
 
     if not rows:
-        print('No images were evaluated.')
+        print("No images were evaluated.")
         return
-    mae = sum(r['absolute_error'] for r in rows) / len(rows)
-    exact = sum(r['actual_count'] == r['predicted_count'] for r in rows)
-    print('\n--- Count test summary ---')
-    print(f'Images evaluated: {len(rows)}/{len(HAND_COUNTS)}')
-    print(f'Mean absolute count error: {mae:.2f} clusters/image')
-    print(f'Exact count matches: {exact}/{len(rows)} ({100 * exact / len(rows):.1f}%)')
-    print(f'Total counted by hand: {sum(r["actual_count"] for r in rows)}')
-    print(f'Total predicted: {sum(r["predicted_count"] for r in rows)}')
+    mae = sum(r["absolute_error"] for r in rows) / len(rows)
+    exact = sum(r["actual_count"] == r["predicted_count"] for r in rows)
+    print("\n--- Count test summary ---")
+    print(f"Images evaluated: {len(rows)}/{len(HAND_COUNTS)}")
+    print(f"Mean absolute count error: {mae:.2f} clusters/image")
+    print(f"Exact count matches: {exact}/{len(rows)} ({100 * exact / len(rows):.1f}%)")
+    print(f"Total counted by hand: {sum(r['actual_count'] for r in rows)}")
+    print(f"Total predicted: {sum(r['predicted_count'] for r in rows)}")
 
-    csv_path = out_dir.parent / 'count_test.csv'
-    with csv_path.open('w', newline='', encoding='utf-8') as f:
+    csv_path = out_dir.parent / "count_test.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
-    print(f'\nCSV saved to: {csv_path}')
-    print(f'Annotated images saved to: {out_dir}')
+    print(f"\nCSV saved to: {csv_path}")
+    print(f"Annotated images saved to: {out_dir}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -25,7 +25,8 @@ Single images train SAM 2.1 as an image model and are scored on the *IoU on prom
 **Export everything labelled here to YOLO format** (same train / val split), for training a detector outside this notebook:
 
 ```python
-data_yaml = export_yolo_seg(every=2)      # every 2nd frame; neighbouring frames are near-copies
+# every 2nd frame; neighbouring frames are near-copies
+data_yaml = export_yolo_seg(every=2)
 ```
 
 Step 5b does this export and the YOLO training in one go. On the HPCC: `python fruit.py import-coco …`, `import-yolo …`, `export-yolo`.
