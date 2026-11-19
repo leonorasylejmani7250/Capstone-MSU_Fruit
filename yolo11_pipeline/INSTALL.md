@@ -8,13 +8,13 @@ On the MSU HPCC there is nothing to install by hand: [`../hpcc/README.md`](../hp
 
 - Git: <https://git-scm.com/downloads>
 - Python 3.10 or newer: <https://www.python.org/downloads/>
-- 1 GB of disk for the environment (5 GB on Linux) and 2 GB for the repository; internet on the first run
+- 1 GB of disk for the environment (5 GB on Linux) and 0.1 GB for the repository; internet on the first run
 - macOS, Linux or Windows; an NVIDIA GPU is optional
 
 ## 2. Get the code
 
 ```bash
-git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
+git clone --filter=blob:none https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit/yolo11_pipeline
 ```
 
@@ -53,7 +53,7 @@ The first line prints the versions (`CUDA False` is fine); the second ends with 
 
 ## 5. Score the shipped model
 
-The WGISD dataset (`../data/wgisd/`, `../data/wgisd_yolo/`) and the model (`model/best.pt`) are in the repository, so this runs at once (about a minute each on a CPU):
+The 27 WGISD test photos (`../data/wgisd_yolo/`) and the model (`model/best.pt`) are in the repository, so this runs at once (about a minute each on a CPU):
 
 ```bash
 python evaluate.py
@@ -62,7 +62,7 @@ python count_test.py
 
 `evaluate.py` prints box and mask mAP on the 27 held-out photos; `count_test.py` prints the count error per photo and writes `../data/results/yolo11/count_test.csv` and the annotated photos in `../data/results/yolo11/count_test/`.
 
-Training, video, tracking and fine-tuning on our own footage: [README.md](README.md). Partner video goes in `../data/videos/` ([`../data/README.md`](../data/README.md)).
+Training, video, tracking and fine-tuning on our own footage: [README.md](README.md). Training on WGISD needs the other photos first: `python ../data/get_wgisd.py` (0.5 GB). Partner video goes in `../data/videos/` ([`../data/README.md`](../data/README.md)).
 
 ## 6. If something goes wrong
 
@@ -73,4 +73,5 @@ Training, video, tracking and fine-tuning on our own footage: [README.md](README
 | pip stops with `ReadTimeoutError` | Run the same command again with `--timeout 120`. |
 | `No module named cv2` or `ultralytics` | Activate the environment (section 3). |
 | `Missing weights: …/model/best.pt` | Incomplete clone: `git status`. |
+| `No training photos in …` | `python ../data/get_wgisd.py` |
 | Out of memory | Lower `--batch` (training) or `--imgsz` (video). |

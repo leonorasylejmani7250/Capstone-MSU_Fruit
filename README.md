@@ -19,14 +19,14 @@ ssh dev-amd24-h200
 **1. Set up, once per person.**
 
 ```bash
-git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
+git clone --filter=blob:none https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git ~/Capstone-MSU_Fruit
 cd ~/Capstone-MSU_Fruit
 bash hpcc/setup.sh
 ```
 
-The first line copies this repository into your HPCC home folder. `hpcc/setup.sh` then gets your HPCC account ready for the pipelines, in 30 to 60 minutes. It runs on the HPCC only: nothing is installed or changed on your own computer. It does two things:
+The first line copies this repository into your HPCC home folder; `--filter=blob:none` leaves the old versions of files on GitHub, which keeps the download small. `hpcc/setup.sh` then gets your HPCC account ready for the pipelines, in 30 to 60 minutes. It runs on the HPCC only: nothing is installed or changed on your own computer. It does two things:
 
-- **Shared data**: `data/videos` and `data/dataset` become links to `/mnt/research/MSU-Fruit/videos` and `/mnt/research/MSU-Fruit/dataset`, so the team has one copy of the video and one set of clips and labels. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results. You have to be a member of the `MSU-Fruit` research space: if you are not, the script stops here and nothing has been changed.
+- **Shared data**: `data/videos`, `data/dataset` and `data/wgisd` become links to the folders of the same names in `/mnt/research/MSU-Fruit`, so the team has one copy of the video, one set of clips and labels and one copy of the public WGISD dataset, which is fetched if it is not there yet. Videos or clips already in the clone move there first. Everything else in `data/` stays in the clone: each person's own runs and results. You have to be a member of the `MSU-Fruit` research space: if you are not, the script stops here and nothing has been changed.
 - **Environments**: `~/envs/fruit_sam2` for SAM 2.1, which also runs the YOLO pipelines, then `~/envs/fruit_sam3` and `~/envs/fruit_sam3_1`. An environment is a folder with its own Python and packages, apart from the HPCC's software. With the first one come Meta's SAM 2 code and the pretrained weights, in `~/.fruit_sam2`, and a Jupyter kernel, so that a notebook can run in that environment.
 
 All of it takes about 25 GB of the 100 GB in your home folder. The script needs no administrator rights, changes no login file such as `~/.bashrc`, submits no jobs and asks no questions. [`hpcc/README.md`](hpcc/README.md#what-setupsh-does) lists every folder it makes, where each download comes from and how to remove it all, and says [what each environment file does and how to change it](hpcc/README.md#the-environments).
@@ -89,8 +89,8 @@ Capstone-MSU_Fruit/
 ├── LABELLING.md       how to label clips
 ├── RESULTS.md         the leaderboard of the latest training round, explained
 ├── data/              everything the pipelines read and write (data/README.md)
-│   ├── wgisd/         public WGISD grape dataset (in git)
-│   ├── wgisd_yolo/    WGISD as YOLO labels (in git)
+│   ├── get_wgisd.py   fetches the public WGISD grape dataset into wgisd/ (not in git)
+│   ├── wgisd_yolo/    WGISD as YOLO labels, with the 27 test photos (in git)
 │   ├── videos/        the partner's video (not in git; shared by the team on the HPCC)
 │   ├── dataset/       our clips and their labels (not in git; shared by the team on the HPCC)
 │   ├── predictions/   every model's masks on the clips, what the leaderboard scores
@@ -137,11 +137,11 @@ bash hpcc/run_all.sh grapes_v1   # fine-tune every model, then score them all on
 bash hpcc/count_rows.sh          # count the clusters in every video, with every model
 ```
 
-The video and our labelled clips are not in git: they reach a clone through the team's shared folder on the research space [`data/README.md`](data/README.md). A clone without them can build the environments and train on the public WGISD photos, but it cannot reproduce a leaderboard row, because the `val` clips live there.
+The video and our labelled clips are not in git: they reach a clone through the team's shared folder on the research space [`data/README.md`](data/README.md). A clone without them can build the environments and train on the public WGISD photos, which `python data/get_wgisd.py` fetches, but it cannot reproduce a leaderboard row, because the `val` clips live there.
 
 ## Data
 
-Vineyard video (GoPro, phone, DJI) from National Grape, in a SharePoint folder; it reaches the HPCC through Globus [`data/README.md`](data/README.md). Public data: the Embrapa WGISD grape dataset (CC BY-NC 4.0), in `data/wgisd/`.
+Vineyard video (GoPro, phone, DJI) from National Grape, in a SharePoint folder; it reaches the HPCC through Globus [`data/README.md`](data/README.md). Public data: the Embrapa WGISD grape dataset (CC BY-NC 4.0). It is not in git: `python data/get_wgisd.py` fetches it from its own repository into `data/wgisd/` [`data/README.md`](data/README.md). Its 27 test photos are in git, in `data/wgisd_yolo/`.
 
 ## Tools
 

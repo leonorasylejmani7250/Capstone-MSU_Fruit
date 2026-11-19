@@ -7,7 +7,8 @@ With --data and --model: fine-tune the shipped model on our own labels.
                     --imgsz 1280 --name vineyard
 
 The run folder holds weights/best.pt, results.csv, results.png and the curves. To ship a
-run, copy its weights/best.pt to model/best.pt and update model/README.md.
+run, copy its weights/best.pt to model/best.pt and update model/README.md. The WGISD
+training photos are not in git: python ../data/get_wgisd.py fetches them.
 """
 
 from __future__ import annotations
@@ -46,6 +47,9 @@ def main():
     args = p.parse_args()
     if not args.data.is_file():
         p.error(f"Missing dataset file {args.data}")
+    photos = WGISD.parent / "images" / "train"
+    if args.data.resolve() == WGISD and not any(photos.glob("*.jpg")):
+        p.error(f"No training photos in {photos} yet: python ../data/get_wgisd.py")
     device = (
         (0 if torch.cuda.is_available() else "cpu")
         if args.device == "auto"

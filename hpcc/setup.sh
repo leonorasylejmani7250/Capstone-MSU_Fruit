@@ -6,9 +6,11 @@
 #    cd ~/Capstone-MSU_Fruit
 #    bash hpcc/setup.sh
 #
-# It links data/videos and data/dataset to the team's shared folders and builds the
-# conda environments, about 22 GB under ~/envs. It needs no administrator rights, edits
-# no login file and submits no jobs. Running it again is safe.
+# It links data/videos, data/dataset and data/wgisd to the team's shared folders, builds
+# the conda environments, about 22 GB under ~/envs, and fetches the public WGISD dataset
+# into the shared folder if it is not there yet (420 MB, once for the team). It needs no
+# administrator rights, edits no login file and submits no jobs. Running it again is
+# safe.
 #
 # hpcc/README.md, "What setup.sh does", lists every step, everything the script leaves
 # in the account and how to remove it.
@@ -22,10 +24,10 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # One environment for each folder named here. The two YOLO pipelines are not in the
 # list: they run in the SAM 2.1 environment.
 PIPELINES=(sam2_pipeline sam3_pipeline sam3_1_pipeline)
-STEPS=$(( ${#PIPELINES[@]} + 1 ))
+STEPS=$(( ${#PIPELINES[@]} + 2 ))
 
-echo "=== Step 1 of $STEPS · hpcc/share_data.sh: link data/videos and data/dataset to" \
-    "the team's shared folders"
+echo "=== Step 1 of $STEPS · hpcc/share_data.sh: link data/videos, data/dataset and" \
+    "data/wgisd to the team's shared folders"
 bash "$REPO/hpcc/share_data.sh"
 
 step=1
@@ -38,6 +40,17 @@ for pipeline in "${PIPELINES[@]}"; do
     # In a subshell, so that the cd holds for this line only.
     (cd "$REPO/$pipeline" && bash hpcc/setup_env.sh)
 done
+echo
+echo "=== Step $STEPS of $STEPS · data/get_wgisd.py: the public WGISD dataset, once" \
+    "for the team"
+
+# With the Python of the SAM 2.1 environment, in a subshell so that the settings of
+# config.sh end here. A download that fails does not undo the setup.
+(
+    source "$REPO/sam2_pipeline/hpcc/config.sh"
+    "$ENV_DIR/bin/python" "$REPO/data/get_wgisd.py"
+) || echo "WGISD is not complete yet. To finish it later, in sam2_pipeline/ after" \
+    "'source hpcc/activate.sh': python ../data/get_wgisd.py"
 echo
 echo "Done. SAM 3 and SAM 3.1 still need Meta's weights: run the two 'hf' lines each" \
     "of them printed above,"

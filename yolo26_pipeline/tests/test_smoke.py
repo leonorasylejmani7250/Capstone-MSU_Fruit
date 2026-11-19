@@ -76,7 +76,9 @@ class SmokeTest(unittest.TestCase):
         self.assertEqual(pipeline.ROOT, HERE)
         self.assertTrue(pipeline.WGISD.is_file(), f"missing {pipeline.WGISD}")
         for split in ("train", "val", "test"):
-            self.assertTrue((pipeline.WGISD.parent / "images" / split).is_dir())
+            self.assertTrue((pipeline.WGISD.parent / "labels" / split).is_dir())
+        # in git: the test photos; ../data/get_wgisd.py fetches the train and val photos
+        self.assertTrue(any((pipeline.WGISD.parent / "images" / "test").glob("*.jpg")))
         self.assertTrue(pipeline.MODEL.is_file(), f"missing {pipeline.MODEL}")
         self.assertEqual(pipeline.RUNS.parent.name, "runs")
         self.assertEqual(pipeline.RESULTS.parent.name, "results")

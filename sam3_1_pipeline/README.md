@@ -134,7 +134,7 @@ hf download facebook/sam3.1 sam3.1_multiplex.pt --local-dir model
 
 Use the CUDA build of PyTorch that matches the machine (`cu126`, or `cu128` on newer cards). Then the commands are the ones above without the `source hpcc/activate.sh` and `sbatch` parts: `python run.py video <video>`, `python run.py clips`, `python finetune.py --run grapes_v1`, and `python fruit.py evaluate` in `../sam2_pipeline`.
 
-Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_1_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
+Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone --filter=blob:none https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git && cd Capstone-MSU_Fruit/sam3_1_pipeline && pip install -q -r requirements.txt`, then `from huggingface_hub import login; login()`. Copy `data/dataset/` from Drive into the clone's `data/`.
 
 ## If something goes wrong
 

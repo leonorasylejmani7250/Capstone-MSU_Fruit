@@ -45,12 +45,13 @@ sbatch hpcc/run.sb video.py --video-dir ../data/videos/2026/Grape--DJIOsmo
 ```bash
 cd ~/Capstone-MSU_Fruit/yolo11_pipeline
 source hpcc/activate.sh
+python ../data/get_wgisd.py
 python train.py
 ```
 
-Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo11/`, which also holds `results.csv`, the curves and the confusion matrix.
+Ten minutes or less: 50 epochs on the public WGISD photos. It ends with `Best weights: …` and the path of the run folder under `../data/runs/yolo11/`, which also holds `results.csv`, the curves and the confusion matrix. The training photos are not in git: the `get_wgisd.py` line fetches them, and does nothing when they are there already ([`../data/README.md`](../data/README.md)).
 
-A stronger model (bigger network, larger images, more epochs), as a batch job:
+A stronger model (bigger network, larger images, more epochs), as a batch job, once the photos are there:
 
 ```bash
 cd ~/Capstone-MSU_Fruit/yolo11_pipeline
@@ -149,6 +150,7 @@ The model detects grape clusters, not berries. Outside the HPCC, fine-tuning on 
 | A job log says a download failed | Fetch the base weights once on the development node: `source hpcc/activate.sh`, then `python -c "from ultralytics import YOLO; YOLO('yolo11s-seg.pt')"` in this folder, and submit again. |
 | `Missing weights: …/model/best.pt` | Incomplete clone (`git status`), or train a model (step 3) and copy it there. |
 | `Missing …/wgisd_yolo/grape.yaml` | `python ../data/wgisd_yolo/prepare_wgisd.py` |
+| `No training photos in …`, or `No photos in …` | `python ../data/get_wgisd.py` on a development node or on your own computer, then run the command again. |
 | CUDA out of memory | Lower `--batch` (training) or `--imgsz` (video). |
 | CUDA unavailable | The CPU is used. For a GPU, install a CUDA build of PyTorch (INSTALL.md). |
 | `… is a base model` | A base model such as `yolo11n-seg.pt` has no grape class. Use `model/best.pt` or a trained run. |

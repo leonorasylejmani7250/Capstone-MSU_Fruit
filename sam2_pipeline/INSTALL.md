@@ -10,13 +10,13 @@ No install: open [`demo.ipynb` in Google Colab](https://colab.research.google.co
 
 - Git: <https://git-scm.com/downloads>
 - Conda: Miniforge (<https://conda-forge.org/download/>), Anaconda or Miniconda
-- 3 GB of disk for the environment (6 GB on Linux) and 2 GB for the repository; internet on the first run
+- 3 GB of disk for the environment (6 GB on Linux) and 0.1 GB for the repository; internet on the first run
 - Linux, macOS on Apple Silicon, or Windows (use the *Miniforge Prompt*; if anything fails, use WSL or Colab). Intel Macs: use Colab.
 
 ## 2. Get the code
 
 ```bash
-git clone https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
+git clone --filter=blob:none https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit.git
 cd Capstone-MSU_Fruit/sam2_pipeline
 ```
 
@@ -47,7 +47,7 @@ Ends with `INSTALL OK` after about a minute. The first run downloads Meta's SAM 
 
 ## 5. Get the data
 
-Demo data: nothing to do; the demo uses photos from `../data/wgisd/` (in the repository).
+Demo data: nothing to do; the demo downloads its four WGISD photos (6 MB) on the first run.
 
 Partner video: copy it from the team drive into `../data/videos/` (`../data/README.md`).
 

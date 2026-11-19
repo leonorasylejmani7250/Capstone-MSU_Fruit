@@ -1,7 +1,9 @@
 """Build this folder from the public WGISD dataset (../wgisd).
 
-It writes YOLO segmentation labels, split train / val / test, and grape.yaml. The result
-is committed, so this only needs running to rebuild it, or to look at the labels:
+It writes YOLO segmentation labels, split train / val / test, and grape.yaml. The
+labels, grape.yaml and the test photos are committed, and ../get_wgisd.py fetches the
+dataset and copies the other photos here, so this only needs running to rebuild the
+labels, or to look at them:
 
     python prepare_wgisd.py
         rebuild images/, labels/ and grape.yaml
@@ -27,7 +29,8 @@ YAML = HERE / "grape.yaml"
 def read_names(path: Path) -> list[str]:
     if not path.is_file():
         raise FileNotFoundError(
-            f"Missing {path}. The WGISD dataset should be in {SOURCE}"
+            f"Missing {path}. Fetch the WGISD dataset into {SOURCE}: "
+            "python ../get_wgisd.py"
         )
     names = [
         Path(line.split()[0].replace("\\", "/")).stem

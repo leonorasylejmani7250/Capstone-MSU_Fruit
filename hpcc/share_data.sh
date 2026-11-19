@@ -1,21 +1,21 @@
 #!/bin/bash
-# Give the whole team one videos folder and one dataset folder (the clips and their
-# labels) on the research space. Each person runs it once in their own clone;
-# hpcc/setup.sh runs it as its first step.
+# Give the whole team one videos folder, one dataset folder (the clips and their
+# labels) and one copy of the public WGISD dataset on the research space. Each person
+# runs it once in their own clone; hpcc/setup.sh runs it as its first step.
 #
 #    cd ~/Capstone-MSU_Fruit
 #    bash hpcc/share_data.sh
 #    bash hpcc/share_data.sh /mnt/research/<group>
 #
 # Without an argument the shared folder is /mnt/research/MSU-Fruit. The script makes
-# <shared>/videos and <shared>/dataset, writable by the group, and turns data/videos and
-# data/dataset of this clone into links to them. Files the clone already holds there are
-# copied to the shared folder first; a file the shared folder already has is kept.
-# Everything else in data/ stays in the clone.
+# <shared>/videos, <shared>/dataset and <shared>/wgisd, writable by the group, and turns
+# data/videos, data/dataset and data/wgisd of this clone into links to them. Files the
+# clone already holds there are copied to the shared folder first; a file the shared
+# folder already has is kept. Everything else in data/ stays in the clone.
 #
 # It stops without changing anything when the shared folder is not writable for you,
-# when data/videos or data/dataset is already a link to another folder, or when the
-# clone and the shared folder both hold labelled clips. Running it again is safe.
+# when one of the three is already a link to another folder, or when the clone and the
+# shared folder both hold labelled clips. Running it again is safe.
 
 # Stop at the first command that fails, and at a variable that was never set.
 set -euo pipefail
@@ -34,7 +34,7 @@ fi
 
 # What is made from here on can be changed by the group, not only by you.
 umask 002
-for name in videos dataset; do
+for name in videos dataset wgisd; do
     shared="$SHARED/$name"
     mine="$DATA/$name"
 

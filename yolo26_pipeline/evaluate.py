@@ -43,6 +43,9 @@ def main():
     args = p.parse_args()
     if not WGISD.is_file():
         p.error(f"Missing {WGISD}: python ../data/wgisd_yolo/prepare_wgisd.py")
+    photos = WGISD.parent / "images" / args.split
+    if not any(photos.glob("*.jpg")):
+        p.error(f"No photos in {photos} yet: python ../data/get_wgisd.py")
     for m in args.model:
         if not m.is_file():
             p.error(f"Missing weights: {m}")

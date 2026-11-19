@@ -24,10 +24,14 @@ desktop.ini
 .env.*
 *.key
 
-# data/ (data/README.md): in git only the WGISD dataset, its YOLO labels, the YOLO11 training run, and the
-# per-frame counts of the YOLO11 and YOLO26 runs on the partner's DJI videos
+# data/ (data/README.md): in git only the WGISD YOLO labels with the 27 test photos, the YOLO11 training run,
+# and the per-frame counts of the YOLO11 and YOLO26 runs on the partner's DJI videos.
+# data/get_wgisd.py fetches the WGISD dataset itself and the training photos.
 data/videos
 data/dataset
+data/wgisd
+data/wgisd_yolo/images/train/
+data/wgisd_yolo/images/val/
 data/predictions/
 data/models/
 data/runs/*

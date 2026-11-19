@@ -882,8 +882,12 @@ def dataset_report(show_examples=True):
 
 
 # ---- public sample data: Embrapa WGISD (CC BY-NC 4.0) ----
-# Real grape photos with hand-drawn cluster masks.
-_WGISD = "https://raw.githubusercontent.com/thsant/wgisd/master/data/"
+# Real grape photos with hand-drawn cluster masks, from the commit of the dataset that
+# data/get_wgisd.py fetches as a whole.
+_WGISD = (
+    "https://raw.githubusercontent.com/thsant/wgisd/"
+    "6910edc5ae3aae8c20062941b1641821f0c30127/data/"
+)
 DEMO_IMAGES = [
     "CDY_2015",
     "CDY_2017",
@@ -902,10 +906,10 @@ def make_demo_clips(names=None, frames=12, fps=6, hw=(640, 960)):
     every step something to run on before you have labelled anything. Returns the clip
     names; existing demo clips are kept.
     """
-    # the copy of WGISD in the repository
+    # data/wgisd, when data/get_wgisd.py has fetched the dataset
     local = REPO_DIR / "data" / "wgisd" / "data" if REPO_DIR else None
     raw = BASE / "demo_download"
-    raw.mkdir(parents=True, exist_ok=True)  # otherwise: fetched once from GitHub
+    raw.mkdir(parents=True, exist_ok=True)  # otherwise: these photos, from GitHub
     made = []
     for name in names or DEMO_IMAGES:
         clip_name = f"demo_{name}_t0000000"
