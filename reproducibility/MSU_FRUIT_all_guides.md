@@ -1,5 +1,5 @@
 # MSU FRUIT: HPCC instructions, labelling guide and pipeline guide
-The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `e2aca95`) as one file, in this order:
+The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `db7d3ca`) as one file, in this order:
 
 1. [HPCC instructions](#hpcc-instructions): the whole workflow on the MSU HPCC, from logging in to the cluster counts
 2. [Labelling guide](#labelling-guide)
@@ -401,9 +401,9 @@ bash --login hpcc/run.sb evaluate
 A few minutes, in the terminal. It scores every model on the labelled val clips, prints two tables and saves them as `data/results/leaderboard_val.csv`:
 
 - **Prompted** (SAM 2.1): shown each cluster once by a box or a click, must follow it. Headline **J&F** (0–100).
-- **Automatic** (YOLO26, YOLO11, YOLOE, detector → SAM 2.1, SAM 3, SAM 3.1): gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error, tracks found vs true.
+- **Automatic** (YOLO26, YOLO11, YOLOE, detector → SAM 2.1, SAM 3, SAM 3.1, detector → SAM 3): gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error, tracks found vs true.
 
-Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<run>)`. SAM 3 and SAM 3.1 get their rows from step 2 of their own READMEs.
+Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<run>)`. SAM 3 and SAM 3.1 get their rows from step 2 of their own READMEs, detector → SAM 3 from step 4 of the [SAM 3 README](#4-yolo-finds-the-clusters-sam-3-follows-them).
 
 #### 5. Count the clusters in a video
 
@@ -506,7 +506,7 @@ COCO or YOLO outlines are used as drawn. Box-only labels get a SAM 2.1 mask and 
 
 | File | What it is |
 |---|---|
-| `fruit.py` | The pipeline as a command line: `status`, `clips`, `train`, `train-detector`, `evaluate`, `video`, `counts`, `check`, … (`python fruit.py --help`). |
+| `fruit.py` | The pipeline as a command line: `status`, `clips`, `train`, `train-detector`, `evaluate`, `video`, `counts`, `check`, `boxes`, … (`python fruit.py --help`). |
 | `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a job, `setup_env.sh` builds the environment, `config.sh` holds the paths. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
 | `requirements.txt` | The environment's Python packages, with what each one is for. |
 | `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` | The whole pipeline as a notebook, with the labelling screen. Colab, or Jupyter on the HPCC. |
@@ -565,6 +565,7 @@ SAM 3 (Meta, November 2025) segments and tracks every object that matches a text
 ../data/videos/<file>            ──▶ run.py video ──▶ ../data/results/sam3/<file>_sam3.mp4 + .csv, the total in ../data/results/cluster_counts.csv
 ../data/dataset (labelled clips) ──▶ run.py clips ──▶ ../data/predictions/sam3_text/ ──▶ the leaderboard in ../sam2_pipeline
 ../data/dataset (labelled clips) ──▶ finetune.py ──▶ model/sam3_<run>.pt ──▶ run.py clips ──▶ ../data/predictions/sam3_<run>/ ──▶ the leaderboard
+../data/boxes/<detector>         ──▶ run.py clips --boxes ──▶ ../data/predictions/sam3_<run>_boxes_<detector>/ ──▶ the leaderboard
 ```
 
 ### On the MSU HPCC
@@ -633,6 +634,33 @@ bash --login hpcc/run.sb evaluate
 
 Its row is `SAM 3 · text 'grape cluster' → fine-tuned on our clips (grapes_v1)`. From now on `run.py` uses the fine-tuned model, the newest file in `model/`, so step 1 counts with it; `--checkpoint release` after the command goes back to Meta's weights. A run name is trained once: after labelling more clips, use a new name such as `grapes_v2`.
 
+#### 4. YOLO finds the clusters, SAM 3 follows them
+
+Here SAM 3 gets a detector's boxes in place of the text, the way the detector → SAM 2.1 rows work: the detector looks at every fourth frame, and SAM 3 outlines each cluster it finds and follows it. Every detector of the leaderboard gets its own row, so the rows show which YOLO works best in front of SAM 3. Only the tracker and the image encoder of the model work here: the part that fine-tuning trained to find clusters from the text is not used.
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+source hpcc/activate.sh
+python fruit.py boxes
+```
+
+A minute or two. It runs every detector of the leaderboard (YOLO26, YOLO11 and YOLOE from `configs/lineup.yaml`, and every detector in `../data/runs/`) on the labelled val clips and writes their boxes to `../data/boxes/<detector>/`.
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam3_pipeline
+source hpcc/activate.sh
+python run.py clips --boxes all
+```
+
+A few minutes. It writes one folder of masks per detector, `../data/predictions/sam3_grapes_v1_boxes_<detector>/`, and ends with `Score them: …`.
+
+```bash
+cd ~/Capstone-MSU_Fruit/sam2_pipeline
+bash --login hpcc/run.sb evaluate
+```
+
+The new rows are `<detector> → SAM 3 · fine-tuned (grapes_v1)`, for example `yolo_grapes_v1 → SAM 3 · fine-tuned (grapes_v1)`; compare them with the detector → SAM 2.1 rows and with `SAM 3 · text 'grape cluster' → fine-tuned on our clips (grapes_v1)`. With `--checkpoint release` after `--boxes all` in the second block, the same with Meta's weights, rows `<detector> → SAM 3 pretrained`.
+
 ### Reference
 
 #### `run.py`
@@ -641,6 +669,7 @@ Its row is `SAM 3 · text 'grape cluster' → fine-tuned on our clips (grapes_v1
 - **Options**, before or after the command name: `--text "green grapes"` (one phrase per prompt), `--prob 0.4` (output threshold; default 0.5), `--data <folder>` (project folder; default `../data` or `$PROJECT_DIR`).
 - **`video`**: the video goes through the model in stretches of 10 seconds that share one frame; a cluster keeps its id from one stretch to the next when its masks on the shared frame overlap. The total is the number of ids seen in at least two frames. `--start 60 --seconds 30` runs a stretch for a quick look; only a whole video adds its total. In a folder, `--overwrite` counts again the videos that have a total. A video's overlay and `.csv` are replaced by a later run with another model or prompt; each model's total stays in `cluster_counts.csv`.
 - **`clips`**: each run writes `../data/predictions/<name>/` with a `recipe.json`, and the leaderboard adds a row for it by itself.
+- **`clips --boxes`**: `all`, or folder names in `../data/boxes/` such as `--boxes yolo_grapes_v1 yolo26`. On each frame with boxes, a box on a cluster that is not followed yet is outlined and followed to the end of the clip; a box on one already followed is skipped (at most 200 clusters a clip). The boxes come from `python fruit.py boxes` in `../sam2_pipeline`, the environment with YOLO; after more val clips are marked done, run both again. SAM 3 only: SAM 3.1's tracker has another interface.
 
 #### `finetune.py`
 
@@ -664,7 +693,7 @@ With the defaults that is 2,000 training steps or more, about a second each on a
 
 | File | What it does |
 |---|---|
-| `run.py` | `video`: counts the clusters in a video, or in every video of a folder. `clips`: masks for the labelled val clips. |
+| `run.py` | `video`: counts the clusters in a video, or in every video of a folder. `clips`: masks for the labelled val clips, from the text, or from a detector's boxes with `--boxes`. |
 | `finetune.py` | Fine-tunes the model on our labelled clips with Meta's trainer and writes the result to `model/`. |
 | `finetune.yaml` | Meta's fine-tuning recipe with our dataset and settings (filled in by `finetune.py`). |
 | `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
