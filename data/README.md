@@ -10,6 +10,7 @@ One folder for all the pipelines. For the SAM 2.1 pipeline it is the project fol
 | `dataset/` | Our clips and their labels: `JPEGImages/<clip>/` frames, `Annotations/<clip>/` masks (pixel value = cluster number), `clips.json` (split, source video, draft or done, who labels it). On the HPCC a link to the team's shared folder. | no |
 | `results/` | Every output (next table). | `yolo11/CodyKresta_1025/`, `yolo26/CodyKresta_1025/` |
 | `predictions/<model>/` | What each model drew on the clips, in the format of `Annotations/`; the leaderboard scores these. | no |
+| `boxes/<detector>/` | Each detector's boxes on the labelled val clips (`fruit.py boxes`), which SAM 3 follows in `run.py clips --boxes`. | no |
 | `models/` | Fine-tuned SAM 2.1 weights, each with a `.json` recipe. | no |
 | `runs/` | Training runs: `runs/<name>/` (SAM 2.1 fine-tuning and `train-detector`), `runs/yolo26/<name>/` and `runs/yolo11/<name>/` (YOLO on WGISD), `runs/sam3_<name>/` and `runs/sam3_1_<name>/`. | `yolo11/wgisd/` |
 | `wgisd/` | Public Embrapa WGISD grape dataset: 300 photos, 137 of them with hand-drawn cluster masks (CC BY-NC 4.0). Fetched by `get_wgisd.py` (section below). On the HPCC a link to the team's shared folder. | no |

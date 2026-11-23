@@ -6,6 +6,10 @@ The prompt is "grape cluster" unless --text says otherwise. Results go to ../dat
       masks for the held-out val clips, written to
       ../data/predictions/<name>/<clip>/<frame>.png; `python fruit.py evaluate` in
       ../sam2_pipeline then scores them with every other model
+  python run.py clips --boxes all
+      the same, with a detector's boxes in place of the text: SAM 3 outlines each box
+      and follows it, one leaderboard row per detector (SAM 3 only; the boxes come
+      from `python fruit.py boxes` in ../sam2_pipeline)
   python run.py video ../data/videos/row3.mp4
       count the clusters in a video: overlay video, per-frame counts, the total
   python run.py video ../data/videos/CodyKresta_1025
@@ -51,6 +55,10 @@ CHUNK_SECONDS = 10  # a video goes through the model in stretches of this length
 MIN_FRAMES = 2  # an id counts as a cluster once it has been seen in this many frames
 MAX_SIDE = 1280  # frames are shrunk to this first (the model works at 1008 px)
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".mts", ".webm"}
+# --boxes, as fruit.py's detector → SAM 2.1: a box this close to a cluster already
+# followed is that cluster, and a clip gets at most this many objects
+MATCH_IOU = 0.4
+MAX_BOX_OBJECTS = 200
 
 
 def pick_checkpoint(arg: str | None) -> Path | None:
@@ -162,6 +170,193 @@ def track_text(
     return out
 
 
+def build_tracker(checkpoint: Path | None):
+    """SAM 3's tracker on its own: the part that outlines an object it is shown and
+    follows it, through Meta's SAM 2-style interface (their notebook
+    sam3_for_sam2_video_task_example.ipynb). It sees the frames through the model's
+    image encoder, which a fine-tuned checkpoint has trained on our clips; the part
+    that finds clusters from the text is not used.
+    """
+    import sam3.model_builder as mb
+
+    model = mb.build_sam3_video_model(
+        checkpoint_path=str(checkpoint) if checkpoint else None
+    )
+    tracker = model.eval().tracker
+    tracker.backbone = model.detector.backbone
+    return tracker
+
+
+def same_box(a, b, iou_thr: float) -> bool:
+    """Two boxes [x0, y0, x1, y1] are one cluster: overlap of at least iou_thr, or
+    the smaller box mostly inside the other (fruit.py's rule).
+    """
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    return (
+        inter / max(area_a + area_b - inter, 1e-6) >= iou_thr
+        or inter / max(min(area_a, area_b), 1e-6) >= 0.7
+    )
+
+
+def id_boxes(idmap: np.ndarray) -> list[tuple[int, int, int, int]]:
+    """The box [x0, y0, x1, y1) around each object of an id map."""
+    ys, xs = np.nonzero(idmap)
+    if not len(ys):
+        return []
+    k = idmap[ys, xs].astype(np.int64)
+    n = int(k.max()) + 1
+    x0 = np.full(n, idmap.shape[1])
+    y0 = np.full(n, idmap.shape[0])
+    x1 = np.full(n, -1)
+    y1 = np.full(n, -1)
+    np.minimum.at(x0, k, xs)
+    np.minimum.at(y0, k, ys)
+    np.maximum.at(x1, k, xs)
+    np.maximum.at(y1, k, ys)
+    found = np.nonzero(x1 >= 0)[0]
+    return [(int(x0[i]), int(y0[i]), int(x1[i]) + 1, int(y1[i]) + 1) for i in found]
+
+
+def follow_boxes(
+    tracker, frames_dir: Path, boxes: dict, hw: tuple[int, int], n_frames: int
+) -> np.ndarray:
+    """SAM 3 outlines the clusters a detector found and follows them through a clip.
+
+    `boxes`: {frame: [[x0, y0, x1, y1, score], …]} (fruit.py boxes). The rule of
+    fruit.py's detector → SAM 2.1: on each frame with boxes, a box on a cluster that
+    is already followed is skipped, and the new ones are shown to the tracker together
+    and followed forward to the end of the clip. Where two objects overlap, the more
+    confident one owns the pixel. Returns [T, H, W] uint16 masks, pixel value = object
+    number, the format of data/predictions.
+    """
+    import torch
+
+    H, W = hw
+    ids = np.zeros((n_frames, H, W), np.uint16)
+    best = np.zeros((n_frames, H, W), np.float16)
+    made = 0
+    with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+        state = tracker.init_state(video_path=str(frames_dir))
+        for t in sorted(int(f) for f in boxes):
+            if t >= n_frames:
+                continue
+            known = id_boxes(ids[t])
+            new = []
+            for b in sorted(boxes[str(t)], key=lambda b: -b[4]):
+                if made + len(new) >= MAX_BOX_OBJECTS:
+                    break
+                if any(same_box(b, k, MATCH_IOU) for k in known):
+                    continue
+                known.append(tuple(b[:4]))
+                new.append(b[:4])
+            if not new:
+                continue
+            tracker.clear_all_points_in_video(state)
+            for i, (x0, y0, x1, y1) in enumerate(new):
+                tracker.add_new_points_or_box(
+                    state,
+                    frame_idx=t,
+                    obj_id=made + i + 1,
+                    box=np.array([x0 / W, y0 / H, x1 / W, y1 / H], np.float32),
+                )
+            for f, obj_ids, _, logits, _ in tracker.propagate_in_video(
+                state,
+                start_frame_idx=t,
+                max_frame_num_to_track=n_frames,
+                reverse=False,
+                tqdm_disable=True,
+                propagate_preflight=True,
+            ):
+                top, which = logits[:, 0].float().max(0)
+                top, which = top.cpu().numpy(), which.cpu().numpy()
+                win = top > best[f]
+                ids[f][win] = np.asarray(obj_ids, np.uint16)[which[win]]
+                best[f][win] = np.minimum(top[win], 1000.0)
+            made += len(new)
+    return ids
+
+
+def boxes_label(checkpoint: Path | None, detector: str) -> tuple[str, str]:
+    """(folder name prefix under predictions/, leaderboard row name) for SAM 3
+    following a detector's boxes.
+    """
+    recipe = checkpoint.with_suffix(".json") if checkpoint else None
+    if recipe and recipe.exists():  # written by finetune.py
+        run = json.loads(recipe.read_text()).get("run", checkpoint.stem)
+        return f"{P.NAME}_{run}", f"{detector} → {P.MODEL_NAME} · fine-tuned ({run})"
+    return f"{P.NAME}_release", f"{detector} → {P.MODEL_NAME} pretrained"
+
+
+def clips_from_boxes(args, data: Path, checkpoint: Path | None, todo: list[str]):
+    """`clips --boxes`: for each detector, SAM 3 follows its boxes on every clip."""
+    if P.VERSION != "sam3":
+        sys.exit(
+            f"--boxes works with SAM 3 only (../sam3_pipeline): {P.MODEL_NAME}'s "
+            "tracker has another interface."
+        )
+    root = data / "boxes"
+    have = sorted(f.parent.name for f in root.glob("*/recipe.json"))
+    names = have if args.boxes == ["all"] else args.boxes
+    missing = [n for n in names if n not in have]
+    if not names or missing:
+        sys.exit(
+            f"No boxes for {', '.join(missing) or 'any detector'} in {root} (there: "
+            f"{', '.join(have) or 'none'}). Write them first: cd ../sam2_pipeline, "
+            "then python fruit.py boxes"
+        )
+    tracker = build_tracker(checkpoint)
+    for name in names:
+        source = json.loads((root / name / "recipe.json").read_text())
+        lacking = [c for c in todo if not (root / name / f"{c}.json").exists()]
+        if lacking:
+            print(
+                f"{name}: no boxes for {len(lacking)} of the {len(todo)} clips, "
+                "skipped. Write them again: python fruit.py boxes in ../sam2_pipeline"
+            )
+            continue
+        prefix, row = boxes_label(checkpoint, source["detector"])
+        out_root = data / "predictions" / f"{prefix}_boxes_{name}"
+        for clip in todo:
+            frames = sorted((data / "dataset" / "JPEGImages" / clip).glob("*.jpg"))
+            h, w = cv2.imread(str(frames[0])).shape[:2]
+            boxes = json.loads((root / name / f"{clip}.json").read_text())["frames"]
+            masks = follow_boxes(tracker, frames[0].parent, boxes, (h, w), len(frames))
+            (out_root / clip).mkdir(parents=True, exist_ok=True)
+            for f, m in zip(frames, masks):
+                cv2.imwrite(str(out_root / clip / (f.stem + ".png")), m)
+            print(
+                f"{clip}: {len(frames)} frames, {len(np.unique(masks)) - 1} objects → "
+                f"{out_root / clip}"
+            )
+        (out_root / "recipe.json").write_text(
+            json.dumps(
+                {  # fruit.py evaluate reads this to name the row
+                    "row": row,
+                    "pipeline": P.NAME,
+                    "model": P.MODEL_NAME,
+                    "boxes": source["detector"],
+                    "detector": source.get("weights"),
+                    "weights": str(checkpoint)
+                    if checkpoint
+                    else f"Meta's release ({P.HF_REPO})",
+                    "split": args.split,
+                    "clips": todo,
+                    "written": time.strftime("%Y-%m-%d %H:%M"),
+                },
+                indent=1,
+            )
+        )
+        print(f"{name}: done, row: {row}")
+    print(
+        "\nScore them: cd ../sam2_pipeline && python fruit.py evaluate   (one row per "
+        "detector)"
+    )
+
+
 def frames_as_video(frames: list[Path], fps: float = 6) -> Path:
     """The package reads a video file; our clips are folders of JPEG frames.
 
@@ -192,6 +387,8 @@ def cmd_clips(args, data: Path, checkpoint: Path | None):
             f"No labelled {args.split} clips in {data / 'dataset'}. Label clips with "
             "the SAM 2.1 pipeline first."
         )
+    if args.boxes:
+        return clips_from_boxes(args, data, checkpoint, todo)
     folder, row = weights_label(checkpoint)
     out_root = data / "predictions" / (args.name or folder)
     predictor = build_predictor(args.max_objects, checkpoint)
@@ -530,6 +727,14 @@ def main():
         "--name",
         default=None,
         help="folder name under predictions/ (default: from the weights)",
+    )
+    s.add_argument(
+        "--boxes",
+        nargs="+",
+        default=None,
+        help="SAM 3 follows a detector's boxes instead of the text: folder names in "
+        "../data/boxes/, or 'all' (write them with `python fruit.py boxes` in "
+        "../sam2_pipeline)",
     )
     s = sub.add_parser(
         "video",

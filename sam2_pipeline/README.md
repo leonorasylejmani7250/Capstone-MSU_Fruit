@@ -56,9 +56,9 @@ bash --login hpcc/run.sb evaluate
 A few minutes, in the terminal. It scores every model on the labelled val clips, prints two tables and saves them as `data/results/leaderboard_val.csv`:
 
 - **Prompted** (SAM 2.1): shown each cluster once by a box or a click, must follow it. Headline **J&F** (0–100).
-- **Automatic** (YOLO26, YOLO11, YOLOE, detector → SAM 2.1, SAM 3, SAM 3.1): gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error, tracks found vs true.
+- **Automatic** (YOLO26, YOLO11, YOLOE, detector → SAM 2.1, SAM 3, SAM 3.1, detector → SAM 3): gets only pixels. Headline **F1** at IoU 0.5, plus precision, recall, count error, tracks found vs true.
 
-Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<run>)`. SAM 3 and SAM 3.1 get their rows from step 2 of their own READMEs.
+Row names say what each model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<run>)`. SAM 3 and SAM 3.1 get their rows from step 2 of their own READMEs, detector → SAM 3 from step 4 of the [SAM 3 README](../sam3_pipeline/README.md#4-yolo-finds-the-clusters-sam-3-follows-them).
 
 ### 5. Count the clusters in a video
 
@@ -161,7 +161,7 @@ COCO or YOLO outlines are used as drawn. Box-only labels get a SAM 2.1 mask and 
 
 | File | What it is |
 |---|---|
-| `fruit.py` | The pipeline as a command line: `status`, `clips`, `train`, `train-detector`, `evaluate`, `video`, `counts`, `check`, … (`python fruit.py --help`). |
+| `fruit.py` | The pipeline as a command line: `status`, `clips`, `train`, `train-detector`, `evaluate`, `video`, `counts`, `check`, `boxes`, … (`python fruit.py --help`). |
 | `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a job, `setup_env.sh` builds the environment, `config.sh` holds the paths. What each one does and how to change the environment: [`../hpcc/README.md`](../hpcc/README.md#the-environments). |
 | `requirements.txt` | The environment's Python packages, with what each one is for. |
 | `notebooks/MSU_FRUIT_SAM2_pipeline.ipynb` | The whole pipeline as a notebook, with the labelling screen. Colab, or Jupyter on the HPCC. |

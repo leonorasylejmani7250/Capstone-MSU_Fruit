@@ -33,6 +33,7 @@ data/wgisd
 data/wgisd_yolo/images/train/
 data/wgisd_yolo/images/val/
 data/predictions/
+data/boxes/
 data/models/
 data/runs/*
 !data/runs/yolo11/

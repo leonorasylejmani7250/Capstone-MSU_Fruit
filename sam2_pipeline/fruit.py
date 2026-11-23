@@ -26,6 +26,8 @@ Commands:
       every model's total for every video
   python fruit.py check videos/row3.mp4
       a model finds nothing: which detector and size see this video
+  python fruit.py boxes
+      every detector's boxes on the val clips, for SAM 3 to follow (run.py --boxes)
   python fruit.py train-detector --base yolo26_pipeline/model/best.pt
       fine-tune our YOLO26 on the same labels
   python fruit.py approve --all-drafts
@@ -372,30 +374,100 @@ def cmd_counts(F, a):
     F.count_table()
 
 
-def cmd_check(F, a):
-    video = _video(F, a.video)
+def _detectors(F, a):
+    """The detectors given with --weights, else every detector the leaderboard scores:
+    the lineup's and the ones fine-tuned on our clips. {name: UltralyticsModel}
+    """
     if a.weights:
-        found = {
+        return {
             Path(w).name
             if Path(w).name != "best.pt"
             else "/".join(Path(w).parts[-3:]): _detector(F, w, a.text, conf=a.conf)
             for w in a.weights
         }
-    else:  # every detector the leaderboard scores
-        models = F.load_lineup(here(a.lineup)) if a.lineup else {}
-        models.update(_detector_rows(F))
-        found, seen = {}, set()
-        for name, m in models.items():
-            d = getattr(m, "detector", m)
-            if (
-                isinstance(d, F.UltralyticsModel)
-                and (d.weights, str(d.text)) not in seen
-            ):
-                seen.add((d.weights, str(d.text)))
-                found[name.split(" → SAM")[0].split(" · zero-shot")[0]] = d
+    models = F.load_lineup(here(a.lineup)) if a.lineup else {}
+    models.update(_detector_rows(F))
+    found, seen = {}, set()
+    for name, m in models.items():
+        d = getattr(m, "detector", m)
+        if isinstance(d, F.UltralyticsModel) and (d.weights, str(d.text)) not in seen:
+            seen.add((d.weights, str(d.text)))
+            found[name.split(" → SAM")[0].split(" · zero-shot")[0]] = d
+    return found
+
+
+def cmd_check(F, a):
+    video = _video(F, a.video)
+    found = _detectors(F, a)
     if not found:
         sys.exit("No detector to check: give --weights FILE.")
     F.check_detectors(video, found, frames=a.frames, conf=a.conf, max_side=a.max_side)
+
+
+def cmd_boxes(F, a):
+    """Every detector's boxes on the labelled clips of a split, for SAM 3 to outline
+    and follow (`run.py clips --boxes` in ../sam3_pipeline, which has no YOLO). The
+    boxes are the ones the detector → SAM 2.1 rows get: every `every`-th frame, at the
+    input size `auto` picks for each clip. One folder per detector in boxes/, one JSON
+    per clip: {frame: [[x0, y0, x1, y1, score], …]} in the clip's pixels.
+    """
+    import json
+
+    clips = F.get_clips(a.split, labelled=True)
+    if not clips:
+        sys.exit(
+            f"No labelled '{a.split}' clips yet: label clips and mark them done "
+            "(../LABELLING.md)."
+        )
+    found = _detectors(F, a)
+    if not found:
+        sys.exit("No detector: give --weights FILE.")
+    root = F.ROOT / "boxes"
+    for name, d in found.items():
+        try:
+            label = F.model_label(d)
+            out = root / F._safe(label)
+            out.mkdir(parents=True, exist_ok=True)
+            # a folder counts as done only once every clip has its boxes
+            (out / "recipe.json").unlink(missing_ok=True)
+            for clip in clips:
+                d.fit(clip)
+                frames = {}
+                for t in range(0, len(clip), a.every):
+                    boxes, scores, _ = d.detect(clip.image(t))
+                    frames[str(t)] = [
+                        [round(float(v), 1) for v in b] + [round(float(s), 4)]
+                        for b, s in zip(boxes, scores)
+                    ]
+                (out / f"{clip.name}.json").write_text(
+                    json.dumps({"imgsz": d._size, "frames": frames})
+                )
+                n = sum(len(b) for b in frames.values())
+                print(
+                    f"  {clip.name}: {n} boxes on {len(frames)} frames, input "
+                    f"{d._size} px"
+                )
+        except Exception as e:  # one broken detector should not stop the others
+            print(f"✗ {name}: {type(e).__name__}: {str(e)[:300]}")
+            continue
+        recipe = {
+            "detector": label,
+            "row": name,
+            "weights": d.weights,
+            "text": d.text,
+            "conf": d.conf,
+            "imgsz": d.imgsz,
+            "every": a.every,
+            "split": a.split,
+            "clips": [c.name for c in clips],
+            "written": time.strftime("%Y-%m-%d %H:%M"),
+        }
+        (out / "recipe.json").write_text(json.dumps(recipe, indent=1))
+        print(f"{name}: boxes in {out}")
+    print(
+        "next: cd ../sam3_pipeline, then `python run.py clips --boxes all` (SAM 3 "
+        "follows the boxes); then `python fruit.py evaluate` here"
+    )
 
 
 def cmd_train_detector(F, a):
@@ -657,6 +729,36 @@ def main(argv=None):
     )
 
     s = sub.add_parser(
+        "boxes",
+        help="every detector's boxes on the val clips, for SAM 3 to follow "
+        "(../sam3_pipeline: run.py clips --boxes)",
+    )
+    s.add_argument(
+        "--weights",
+        nargs="+",
+        default=None,
+        help="detector weights (default: the lineup's detectors and the ones "
+        "fine-tuned on our clips)",
+    )
+    s.add_argument(
+        "--text", default="grape cluster", help="what a YOLOE detector looks for"
+    )
+    s.add_argument("--lineup", default=str(HERE / "configs" / "lineup.yaml"))
+    s.add_argument(
+        "--conf",
+        type=float,
+        default=0.25,
+        help="with --weights: keep boxes that score at least this",
+    )
+    s.add_argument(
+        "--every",
+        type=int,
+        default=4,
+        help="the detector looks at every n-th frame, as in detector → SAM 2.1",
+    )
+    s.add_argument("--split", default="val")
+
+    s = sub.add_parser(
         "train-detector", help="train a YOLO-seg detector on the same labels"
     )
     s.add_argument(
@@ -699,6 +801,7 @@ def main(argv=None):
         "video": cmd_video,
         "counts": cmd_counts,
         "check": cmd_check,
+        "boxes": cmd_boxes,
         "train-detector": cmd_train_detector,
         "approve": cmd_approve,
         "export-yolo": cmd_export_yolo,

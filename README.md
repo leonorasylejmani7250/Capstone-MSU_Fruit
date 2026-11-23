@@ -75,7 +75,7 @@ One folder per model, one shared `data/` folder. Each folder's README has that p
 | Pipeline | What it does | On a laptop |
 |---|---|---|
 | **SAM 2.1** — [`sam2_pipeline/`](sam2_pipeline/README.md) | The labelling screen, fine-tuning of SAM 2.1, the leaderboard of all models, and the video pipeline: a YOLO detector finds the clusters, SAM 2.1 outlines and follows them. | [`INSTALL.md`](sam2_pipeline/INSTALL.md), or Google Colab |
-| **SAM 3** — [`sam3_pipeline/`](sam3_pipeline/README.md) | Finds and follows clusters from the text prompt "grape cluster", as released (zero-shot) and fine-tuned on our clips. | needs an NVIDIA GPU |
+| **SAM 3** — [`sam3_pipeline/`](sam3_pipeline/README.md) | Finds and follows clusters from the text prompt "grape cluster", as released (zero-shot) and fine-tuned on our clips. It can also follow the clusters a YOLO detector finds. | needs an NVIDIA GPU |
 | **SAM 3.1** — [`sam3_1_pipeline/`](sam3_1_pipeline/README.md) | The same with SAM 3.1, Meta's newer release with a faster multi-object tracker. | needs an NVIDIA GPU |
 | **YOLO26** — [`yolo26_pipeline/`](yolo26_pipeline/README.md) | Trains YOLO26n-seg on the public WGISD grape photos, scores it, counts clusters in video with tracker ids. | [`INSTALL.md`](yolo26_pipeline/INSTALL.md) |
 | **YOLO11** — [`yolo11_pipeline/`](yolo11_pipeline/README.md) | The same scripts with YOLO11n-seg, the model the team shipped in October. | [`INSTALL.md`](yolo11_pipeline/INSTALL.md) |
