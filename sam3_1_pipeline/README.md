@@ -85,7 +85,7 @@ Its row is `SAM 3.1 · text 'grape cluster' → fine-tuned on our clips (grapes_
 
 ### `finetune.py`
 
-It exports the labelled clips as a COCO dataset (`../data/sam3_dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_1_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_1_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again.
+It exports the labelled clips as a COCO dataset (`../data/runs/sam3_1_grapes_v1/dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_1_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_1_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again.
 
 | Argument | Default | Meaning |
 |---|---|---|

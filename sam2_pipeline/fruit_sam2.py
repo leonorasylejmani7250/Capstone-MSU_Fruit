@@ -3641,16 +3641,17 @@ def train_detector(
 ):
     """Train a YOLO segmentation model on the labelled clips (same train / val split).
 
-    Returns the path of its best weights. `every`: use every n-th frame of each clip
-    (neighbouring frames are near-copies); `batch`: lower it when the GPU (or a CPU
-    test) runs out of memory.
+    Returns the path of its best weights. The clips are exported into the run's own
+    folder, runs/<name>/dataset/, so detectors trained at the same time do not rewrite
+    each other's images. `every`: use every n-th frame of each clip (neighbouring frames
+    are near-copies); `batch`: lower it when the GPU (or a CPU test) runs out of memory.
     """
     ul = _ultralytics()
     best = RUNS / name / "weights" / "best.pt"
     if best.exists():
         print(f"{best} already exists, reusing it. Pick a new name to train again.")
         return best
-    data = export_yolo_seg(every=every)
+    data = export_yolo_seg(RUNS / name / "dataset", every=every)
     model = ul.YOLO(base)
     model.train(
         data=str(data),

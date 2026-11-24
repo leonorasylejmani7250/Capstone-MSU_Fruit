@@ -12,10 +12,10 @@ One folder for all the pipelines. For the SAM 2.1 pipeline it is the project fol
 | `predictions/<model>/` | What each model drew on the clips, in the format of `Annotations/`; the leaderboard scores these. | no |
 | `boxes/<detector>/` | Each detector's boxes on the labelled val clips (`fruit.py boxes`), which SAM 3 follows in `run.py clips --boxes`. | no |
 | `models/` | Fine-tuned SAM 2.1 weights, each with a `.json` recipe. | no |
-| `runs/` | Training runs: `runs/<name>/` (SAM 2.1 fine-tuning and `train-detector`), `runs/yolo26/<name>/` and `runs/yolo11/<name>/` (YOLO on WGISD), `runs/sam3_<name>/` and `runs/sam3_1_<name>/`. | `yolo11/wgisd/` |
+| `runs/` | Training runs: `runs/<name>/` (SAM 2.1 fine-tuning and `train-detector`), `runs/yolo26/<name>/` and `runs/yolo11/<name>/` (YOLO on WGISD), `runs/sam3_<name>/` and `runs/sam3_1_<name>/`. `train-detector` and the SAM 3 and SAM 3.1 fine-tuning keep the copy of our clips they train on in the run's `dataset/`. `run_all_<name>.txt`: the jobs `hpcc/run_all.sh` submitted for that name. | `yolo11/wgisd/` |
 | `wgisd/` | Public Embrapa WGISD grape dataset: 300 photos, 137 of them with hand-drawn cluster masks (CC BY-NC 4.0). Fetched by `get_wgisd.py` (section below). On the HPCC a link to the team's shared folder. | no |
 | `wgisd_yolo/` | WGISD as YOLO labels (`train/` 94 photos, `val/` 16, `test/` 27), `grape.yaml`, and `prepare_wgisd.py`, which rebuilds the labels. | the labels and the 27 test photos; `get_wgisd.py` copies the other photos in |
-| `yolo_dataset/`, `sam3_dataset/` | Our labelled clips exported for YOLO and for SAM 3 training; written by the training commands. | no |
+| `yolo_dataset/` | Our labelled clips exported for YOLO by `fruit.py export-yolo`. | no |
 | `demo/`, `count_test/` | What the two SAM 2.1 notebooks make. Delete to start over. | no |
 
 ## Where the outputs are

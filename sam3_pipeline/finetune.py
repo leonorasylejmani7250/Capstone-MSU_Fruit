@@ -9,8 +9,9 @@ On the HPCC this is a GPU job: sbatch hpcc/run.sb finetune.py --run grapes_v1
 What it does:
 
   1. Our labelled clips (../data/dataset, from the SAM 2.1 labeller) become a COCO
-     dataset in ../data/sam3_dataset/: train clips in train/, val clips in test/, one
-     annotation per cluster with its outline.
+     dataset in ../data/runs/<pipeline>_<run>/dataset/: train clips in train/, val
+     clips in test/, one annotation per cluster with its outline. Each run has its own
+     copy, so SAM 3 and SAM 3.1 can be fine-tuned at the same time.
   2. Meta's trainer (sam3.train.train) fine-tunes the detector, the part of the model
      that finds clusters from the text prompt, starting from the released weights. It
      is started through meta_trainer.py, which corrects one layer so that it can be
@@ -351,8 +352,8 @@ def main():
     )
     args = p.parse_args()
     data = args.data.expanduser().resolve() if args.data else P.DATA
-    dataset_root = data / "sam3_dataset"
     log_dir = data / "runs" / f"{P.NAME}_{args.run}"
+    dataset_root = log_dir / "dataset"
     out = P.MODEL_DIR / f"{P.NAME}_{args.run}.pt"
     print(f'{P.MODEL_NAME} fine-tuning "{args.run}" · project folder {data}')
 

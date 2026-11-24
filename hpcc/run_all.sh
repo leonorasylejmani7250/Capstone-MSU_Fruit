@@ -14,7 +14,8 @@
 # fine-tuning and the masks of the fine-tuned model; then the leaderboard of every
 # model. Before running it, the environments must exist (hpcc/setup.sh) and data/dataset
 # must hold labelled clips marked done (LABELLING.md). Nothing here needs a GPU on the
-# node it is run from.
+# node it is run from. A run name whose jobs are still queued or running is not
+# submitted again.
 #
 # hpcc/README.md, step 4, describes the jobs and their logs.
 
@@ -42,14 +43,35 @@ if [ ! -f "$PROJECT_DIR/dataset/clips.json" ]; then
     exit 1
 fi
 
+# The ids of the jobs submitted for a run name are kept in runs/run_all_<name>.txt.
+# While any of them is queued or running, submitting the name again would train a
+# second time into the same folders, so the script stops.
+JOBS="$PROJECT_DIR/runs/run_all_$RUN.txt"
+if [ -f "$JOBS" ]; then
+    QUEUED=$(squeue --me --noheader --format=%i)
+    LIVE=""
+    while read -r j; do
+        if [ -n "$j" ] && grep -qx "$j" <<<"$QUEUED"; then
+            LIVE="$LIVE $j"
+        fi
+    done <"$JOBS"
+    if [ -n "$LIVE" ]; then
+        echo "$RUN is already submitted and job(s)$LIVE are still queued or running." \
+            "Wait for them, or cancel them first: scancel$LIVE" >&2
+        exit 1
+    fi
+fi
+mkdir -p "$PROJECT_DIR/runs"
+: >"$JOBS"
+
 #    submit <folder> <sbatch options...> <job script and arguments...>
-# Submits a job from that folder and prints its job id.
+# Submits a job from that folder, prints its job id and adds it to $JOBS.
 submit() {
     local folder="$1"
     shift
     local out
     out=$(cd "$folder" && sbatch --parsable "$@")
-    echo "${out%%;*}"
+    echo "${out%%;*}" | tee -a "$JOBS"
 }
 
 J_SAM2=$(submit "$SAM2" hpcc/run.sb train --run "$RUN" --steps "$STEPS")

@@ -75,7 +75,7 @@ cd ~/Capstone-MSU_Fruit
 bash hpcc/run_all.sh grapes_v1
 ```
 
-It submits a chain of batch jobs and returns at once. Every model learns from the labelled `train` clips. The last job scores all of them on the `val` clips, next to the models that were not fine-tuned: `data/results/leaderboard_val.csv`. Each row says what the model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<name>)`.
+It submits a chain of batch jobs and returns at once. Run it once per name: while that name's jobs are queued or running, a second call stops and prints the line that cancels them. Every model learns from the labelled `train` clips. The last job scores all of them on the `val` clips, next to the models that were not fine-tuned: `data/results/leaderboard_val.csv`. Each row says what the model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<name>)`.
 
 | Model | Starts from | Fine-tuned model |
 |---|---|---|
