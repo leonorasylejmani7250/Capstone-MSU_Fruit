@@ -1,5 +1,5 @@
 # MSU FRUIT: HPCC instructions, labelling guide and pipeline guide
-The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `db7d3ca`) as one file, in this order:
+The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `48cd011`) as one file, in this order:
 
 1. [HPCC instructions](#hpcc-instructions): the whole workflow on the MSU HPCC, from logging in to the cluster counts
 2. [Labelling guide](#labelling-guide)
@@ -88,7 +88,7 @@ cd ~/Capstone-MSU_Fruit
 bash hpcc/run_all.sh grapes_v1
 ```
 
-It submits a chain of batch jobs and returns at once. Every model learns from the labelled `train` clips. The last job scores all of them on the `val` clips, next to the models that were not fine-tuned: `data/results/leaderboard_val.csv`. Each row says what the model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<name>)`.
+It submits a chain of batch jobs and returns at once. Run it once per name: while that name's jobs are queued or running, a second call stops and prints the line that cancels them. Every model learns from the labelled `train` clips. The last job scores all of them on the `val` clips, next to the models that were not fine-tuned: `data/results/leaderboard_val.csv`. Each row says what the model is: `· pretrained`, `· trained on WGISD`, `· zero-shot`, or `→ fine-tuned on our clips (<name>)`.
 
 | Model | Starts from | Fine-tuned model |
 |---|---|---|
@@ -673,7 +673,7 @@ The new rows are `<detector> → SAM 3 · fine-tuned (grapes_v1)`, for example `
 
 #### `finetune.py`
 
-It exports the labelled clips as a COCO dataset (`../data/sam3_dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again.
+It exports the labelled clips as a COCO dataset (`../data/runs/sam3_grapes_v1/dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again.
 
 | Argument | Default | Meaning |
 |---|---|---|
@@ -830,7 +830,7 @@ Its row is `SAM 3.1 · text 'grape cluster' → fine-tuned on our clips (grapes_
 
 #### `finetune.py`
 
-It exports the labelled clips as a COCO dataset (`../data/sam3_dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_1_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_1_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again.
+It exports the labelled clips as a COCO dataset (`../data/runs/sam3_1_grapes_v1/dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_1_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_1_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again.
 
 | Argument | Default | Meaning |
 |---|---|---|
