@@ -15,7 +15,8 @@ What it does:
   2. Meta's trainer (sam3.train.train) fine-tunes the detector, the part of the model
      that finds clusters from the text prompt, starting from the released weights. It
      is started through meta_trainer.py, which corrects one layer so that it can be
-     trained. Log and checkpoint go to ../data/runs/<pipeline>_<run>/.
+     trained and leaves out a training step whose numbers are not finite. Log and
+     checkpoint go to ../data/runs/<pipeline>_<run>/.
   3. The fine-tuned detector is merged into the released video checkpoint:
      model/<pipeline>_<run>.pt, with a .json recipe beside it.
 
@@ -31,6 +32,9 @@ on our clips (<run>)".
 
 --dry-run does step 1, writes the recipe and
 prints the training command without running it.
+
+--merge-only <checkpoint> does step 3 alone: it makes the model from a checkpoint that
+is already trained, such as the last finished epoch of a run that stopped.
 """
 
 from __future__ import annotations
@@ -269,9 +273,11 @@ def trainer_env() -> dict:
     return env
 
 
-def merge(base: Path, trained: Path, out: Path) -> tuple[int, list[str]]:
+def merge(base: Path, trained: Path, out: Path) -> tuple[int, list[str], int | None]:
     """Put the fine-tuned detector weights into the
-    released video checkpoint (detector + tracker).
+    released video checkpoint (detector + tracker). Returns the number of tensors
+    replaced, the names not matched, and the number of epochs the trained checkpoint
+    holds (None if it does not say).
     """
     import torch
 
@@ -280,6 +286,7 @@ def merge(base: Path, trained: Path, out: Path) -> tuple[int, list[str]]:
         ckpt["model"] if "model" in ckpt and isinstance(ckpt["model"], dict) else ckpt
     )
     ft = torch.load(trained, map_location="cpu", weights_only=True)
+    epochs = ft.get("epoch") if isinstance(ft.get("model"), dict) else None
     ft = ft["model"] if "model" in ft and isinstance(ft["model"], dict) else ft
     replaced, unmatched = 0, []
     for k, v in ft.items():
@@ -295,7 +302,37 @@ def merge(base: Path, trained: Path, out: Path) -> tuple[int, list[str]]:
             "written. The trained checkpoint is kept."
         )
     torch.save({"model": state}, out)
-    return replaced, unmatched
+    return replaced, unmatched, int(epochs) if isinstance(epochs, int) else None
+
+
+def skipped_steps(log_dir: Path, epochs: int) -> int:
+    """How many training steps of the first `epochs` epochs meta_trainer.py left out
+    because their numbers were not finite: the lines of logs/skipped_steps.txt, a step
+    counted once however often its epoch was started.
+    """
+    try:
+        lines = (log_dir / "logs" / "skipped_steps.txt").read_text().splitlines()
+    except OSError:
+        return 0
+    steps = set()
+    for line in lines:
+        epoch, step = (line.split("\t") + ["", ""])[:2]
+        if epoch.isdigit() and step.isdigit() and int(epoch) < epochs:
+            steps.add((int(epoch), int(step)))
+    return len(steps)
+
+
+def trainer_stopped(trained: Path, run: str) -> str:
+    """What to do when Meta's trainer ended with an error."""
+    text = "Meta's trainer stopped with an error: its last lines are above."
+    if not trained.is_file():
+        return text + " No epoch was finished, so nothing is saved."
+    return (
+        f"{text}\nThe last finished epoch is saved in {trained}\n"
+        "  to continue from it, run the same line again\n"
+        "  to make the model from it as it is: "
+        f"python finetune.py --run {run} --merge-only {trained}"
+    )
 
 
 def main():
@@ -347,8 +384,9 @@ def main():
         "--merge-only",
         type=Path,
         metavar="CHECKPOINT",
-        help="skip training: merge this trained checkpoint "
-        "(…/checkpoints/checkpoint.pt) into the released weights",
+        help="skip training: make the model from this trained checkpoint "
+        "(…/checkpoints/checkpoint.pt), for example the last finished epoch of a run "
+        "that stopped",
     )
     args = p.parse_args()
     data = args.data.expanduser().resolve() if args.data else P.DATA
@@ -388,8 +426,9 @@ def main():
             return
         env = trainer_env()
         print(f"trainer CPU threads: {env['OMP_NUM_THREADS']}")
-        subprocess.run(cmd, check=True, env=env)
         trained = log_dir / "checkpoints" / "checkpoint.pt"
+        if subprocess.run(cmd, env=env).returncode:
+            sys.exit(trainer_stopped(trained, args.run))
         if not trained.is_file():
             sys.exit(f"training finished but {trained} is missing; see {log_dir}/logs")
     else:
@@ -397,11 +436,19 @@ def main():
         base = base_checkpoint()
         trained = args.merge_only
 
-    replaced, unmatched = merge(base, trained, out)
+    replaced, unmatched, epochs = merge(base, trained, out)
+    epochs = args.epochs if epochs is None else epochs
+    skipped = skipped_steps(log_dir, epochs)
     print(
         f"merged {replaced} detector tensors into {base.name} → {out}"
         + (f" ({len(unmatched)} not matched)" if unmatched else "")
+        + f" · trained for {epochs} epochs"
     )
+    if skipped:
+        print(
+            f"{skipped} training step(s) were left out, their numbers were not "
+            f"finite: {log_dir / 'logs' / 'skipped_steps.txt'}"
+        )
     out.with_suffix(".json").write_text(
         json.dumps(
             {
@@ -412,7 +459,8 @@ def main():
                 "trained_detector": str(trained),
                 "dataset": str(dataset_root),
                 "images": counts,
-                "epochs": args.epochs,
+                "epochs": epochs,
+                "skipped_steps": skipped,
                 "epoch_size": args.epoch_size,
                 "resolution": args.resolution,
                 "text": args.text,

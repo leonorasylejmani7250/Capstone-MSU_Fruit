@@ -51,7 +51,7 @@ cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
 sbatch --time=04:00:00 hpcc/run.sb finetune.py --run grapes_v1
 ```
 
-One batch job, about 40 minutes for a few labelled clips. To see how far it is (the first number in brackets is the epoch, 0 to 19):
+One batch job: about 40 minutes for a few labelled clips, about 70 minutes for 30. To see how far it is (the first number in brackets is the epoch, 0 to 19):
 
 ```bash
 cd ~/Capstone-MSU_Fruit/sam3_1_pipeline
@@ -85,7 +85,7 @@ Its row is `SAM 3.1 · text 'grape cluster' → fine-tuned on our clips (grapes_
 
 ### `finetune.py`
 
-It exports the labelled clips as a COCO dataset (`../data/runs/sam3_1_grapes_v1/dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_1_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_1_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again.
+It exports the labelled clips as a COCO dataset (`../data/runs/sam3_1_grapes_v1/dataset/`: train clips → `train/`, val clips → `test/`), runs Meta's trainer on it starting from the released weights (log, curves and checkpoint in `../data/runs/sam3_1_grapes_v1/`), and merges the fine-tuned detector into the released video checkpoint: `model/sam3_1_grapes_v1.pt` with a `.json` recipe. The trainer fine-tunes the detector, the part that finds clusters from the text; the tracker that follows them through the video stays as released. A job that runs out of time continues from its last finished epoch when the same line is submitted again. A training step whose numbers are not finite (NaN) is left out and listed in `../data/runs/sam3_1_grapes_v1/logs/skipped_steps.txt`; the recipe counts these steps as `skipped_steps`.
 
 | Argument | Default | Meaning |
 |---|---|---|
@@ -97,7 +97,7 @@ It exports the labelled clips as a COCO dataset (`../data/runs/sam3_1_grapes_v1/
 | `--every` | `2` | Use every n-th frame of a clip |
 | `--text` | `grape cluster` | The category name, which is the text prompt the model learns |
 | `--dry-run` | | Export the dataset and write the recipe without training |
-| `--merge-only <checkpoint>` | | Merge an already trained `checkpoints/checkpoint.pt` into the released weights |
+| `--merge-only <checkpoint>` | | No training: make the model from a trained `checkpoints/checkpoint.pt`, such as the last finished epoch of a run that stopped. The recipe records the epochs that checkpoint has |
 
 With the defaults that is 2,000 training steps or more, about a second each on an A100 or H200. The fine-tuned file is 3 GB and ignored by git; share it through a GitHub Release ([model/README.md](model/README.md)).
 
@@ -108,7 +108,7 @@ With the defaults that is 2,000 training steps or more, about a second each on a
 | `run.py` | `video`: counts the clusters in a video, or in every video of a folder. `clips`: masks for the labelled val clips. |
 | `finetune.py` | Fine-tunes the model on our labelled clips with Meta's trainer and writes the result to `model/`. |
 | `finetune.yaml` | Meta's fine-tuning recipe with our dataset and settings (filled in by `finetune.py`). |
-| `meta_trainer.py` | Starts Meta's trainer for `finetune.py`, with the one correction it needs to train. |
+| `meta_trainer.py` | Starts Meta's trainer for `finetune.py` with two corrections: the vision backbone can be trained, and a training step whose numbers are not finite is left out. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](model/README.md)). |
 | `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. What each one does and how to change the environment: [`../hpcc/README.md`](../hpcc/README.md#the-environments). |
@@ -146,6 +146,7 @@ Colab: *Runtime ▸ Change runtime type ▸ T4 GPU*, then `!git clone --filter=b
 | `Killed` in the middle of a run in the terminal | The process used up the two hours of CPU time it gets on a development node. Submit the run as a batch job: `sbatch --time=04:00:00 hpcc/run.sb` and then the command without `python`. |
 | `CUDA out of memory` | `run.py`: lower `--max-objects`, shorten `--seconds`. `finetune.py`: `--resolution 768`, or a bigger GPU. |
 | `No module named sam3.train`, `psutil`, `einops`, `pycocotools` or `pkg_resources` | `python -m pip install -r requirements.txt`: it holds the `[train]` extra and the packages `sam3` imports without declaring them. |
+| The fine-tuning job fails with `training stops` after `matrix contains invalid numeric entries` or `Loss is nan` | More than 20 training steps had numbers that are not finite. The last finished epoch is saved: make the model from it with `python finetune.py --run grapes_v1 --merge-only ../data/runs/sam3_1_grapes_v1/checkpoints/checkpoint.pt`. |
 | `No detector weights matched` after training | The trained checkpoint is kept in `../data/runs/sam3_1_<run>/checkpoints/`; open an issue with the first lines of `unmatched_tensors` from the `.json`. |
 | Masks look right but the leaderboard shows 0 tracks | Check that `../data/dataset/clips.json` lists the clip as `val` and `done`. |
 
