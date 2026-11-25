@@ -42,7 +42,7 @@ sbatch hpcc/run.sb train --run grapes_v1 --steps 3000
 sbatch hpcc/run.sb train-detector --base ../yolo26_pipeline/model/best.pt --name yolo26_grapes_v1
 ```
 
-Two batch jobs: SAM 2.1 from Meta's pretrained weights (→ `data/models/sam2.1_base_plus_grapes_v1.pt`) and the YOLO26 detector from its WGISD model (→ `data/runs/yolo26_grapes_v1/weights/best.pt`). `squeue --me` lists them until they are done; the logs are `fruit-<job id>.out` in this folder. A run name is trained once: after labelling more clips, use a new name such as `grapes_v2`.
+Two batch jobs: SAM 2.1 from Meta's pretrained weights (→ `data/models/sam2.1_base_plus_grapes_v1.pt`) and the YOLO26 detector from its WGISD model (→ `data/runs/yolo26_grapes_v1/weights/best.pt`). `squeue --me` lists them until they are done; the logs are `fruit-<job id>.out` in this folder. A job has 4 hours, and 3000 steps on many clips can take longer: if the SAM 2.1 model is not there when its job has ended, submit the same line again and it goes on where it stopped. A run name is trained once: after labelling more clips, use a new name such as `grapes_v2`.
 
 ### 4. The leaderboard
 

@@ -10,7 +10,8 @@
 # (3000), the YOLO epochs (100) and the SAM 3 epochs (20).
 #
 # It submits one job per step through each pipeline's hpcc/run.sb: the fine-tuning of
-# SAM 2.1, YOLO26 and YOLO11; for SAM 3 and for SAM 3.1 the zero-shot masks, the
+# SAM 2.1 (two jobs: the second goes on where the first stopped if its 4 hours were not
+# enough), of YOLO26 and of YOLO11; for SAM 3 and for SAM 3.1 the zero-shot masks, the
 # fine-tuning and the masks of the fine-tuned model; then the leaderboard of every
 # model. Before running it, the environments must exist (hpcc/setup.sh) and data/dataset
 # must hold labelled clips marked done (LABELLING.md). Nothing here needs a GPU on the
@@ -78,6 +79,14 @@ J_SAM2=$(submit "$SAM2" hpcc/run.sb train --run "$RUN" --steps "$STEPS")
 echo "job $J_SAM2: SAM 2.1  fine-tune on our clips from Meta's pretrained base_plus" \
     "($STEPS steps) → $PROJECT_DIR/models/sam2.1_base_plus_$RUN.pt"
 
+# The same line once more: a job gets 4 hours, and $STEPS steps on many clips can take
+# longer. The second job goes on from the first one's last checkpoint; when the model is
+# already there it ends at once.
+J_SAM2_MORE=$(submit "$SAM2" "--dependency=afterany:$J_SAM2" hpcc/run.sb train \
+    --run "$RUN" --steps "$STEPS")
+echo "job $J_SAM2_MORE: SAM 2.1  the same training again, after job $J_SAM2: it goes on" \
+    "where that job stopped if 4 hours were not enough"
+
 J_Y26=$(submit "$SAM2" --time=02:00:00 hpcc/run.sb train-detector \
     --base "$YOLO26_MODEL" --epochs "$EPOCHS" --name "yolo26_$RUN")
 echo "job $J_Y26: YOLO26   fine-tune on our clips from yolo26_pipeline/model/best.pt" \
@@ -90,8 +99,8 @@ echo "job $J_Y11: YOLO11   fine-tune on our clips from yolo11_pipeline/model/bes
 
 # DEPS: the jobs the leaderboard waits for. ALL: every job, for the scancel line printed
 # at the end.
-DEPS="$J_SAM2:$J_Y26:$J_Y11"
-ALL="$J_SAM2 $J_Y26 $J_Y11"
+DEPS="$J_SAM2_MORE:$J_Y26:$J_Y11"
+ALL="$J_SAM2 $J_SAM2_MORE $J_Y26 $J_Y11"
 
 #    sam3_jobs <label> <folder> <environment>
 # The three jobs of one SAM 3 pipeline: zero-shot masks, fine-tuning, masks with the

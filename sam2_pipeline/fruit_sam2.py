@@ -3511,9 +3511,10 @@ def finetune(
     shortest = min((len(c) for c in clips if len(c) > 1), default=1)
     while rung < len(_LADDER) - 1 and _LADDER[rung][0] > shortest:
         rung += 1
-    while True:
+
+    def plan_at(rung, amp_dtype):
         frames, objects = _LADDER[rung]
-        config_name, plan = write_train_config(
+        return write_train_config(
             run,
             clips,
             size,
@@ -3526,19 +3527,39 @@ def finetune(
             data_root=data_root,
             amp_dtype=amp_dtype,
         )
-        old = (
-            json.loads((run_dir / "plan.json").read_text())
-            if (run_dir / "plan.json").exists()
-            else plan
+
+    def start_over():
+        for sub in ("checkpoints", "logs", "tensorboard"):
+            shutil.rmtree(run_dir / sub, ignore_errors=True)
+
+    # An attempt under this name that was interrupted (a job's time limit) may have gone
+    # on with fewer frames or objects after running out of GPU memory, or in bfloat16
+    # after float16 overflowed. Start with the settings it had reached, so that it is
+    # resumed and not started over.
+    last = run_dir / "plan.json"
+    if last.exists():
+        old = json.loads(last.read_text())
+        reached = [
+            (r, d)
+            for d in dict.fromkeys([amp_dtype, "bfloat16"])
+            for r in range(rung, len(_LADDER))
+        ]
+        rung, amp_dtype = next(
+            (x for x in reached if plan_at(*x)[1] == old), (rung, amp_dtype)
         )
-        if old != plan:  # same name, different settings: do not resume the old attempt
+    first = True
+    while True:
+        frames, objects = _LADDER[rung]
+        config_name, plan = plan_at(rung, amp_dtype)
+        # same name, different settings: do not resume the old attempt
+        if first and last.exists() and json.loads(last.read_text()) != plan:
             print(
                 "  settings changed since the last attempt under this name, starting "
                 "it over"
             )
-            for sub in ("checkpoints", "logs", "tensorboard"):
-                shutil.rmtree(run_dir / sub, ignore_errors=True)
-        (run_dir / "plan.json").write_text(json.dumps(plan, indent=1))
+            start_over()
+        first = False
+        last.write_text(json.dumps(plan, indent=1))
         print(
             f"training {size}: {plan['steps']} steps on {plan['video_clips']} video + "
             f"{plan['image_clips']} image clip(s), "
@@ -3554,7 +3575,7 @@ def finetune(
             break
         if "out of memory" in tail.lower() and rung < len(_LADDER) - 1:
             rung += 1
-            shutil.rmtree(run_dir / "checkpoints", ignore_errors=True)
+            start_over()
             print(
                 f"  GPU ran out of memory; retrying with {_LADDER[rung][0]} frames × "
                 f"{_LADDER[rung][1]} objects"
@@ -3568,7 +3589,7 @@ def finetune(
             amp_dtype = (
                 "bfloat16"  # float16 overflowed: slower but steadier on this GPU
             )
-            shutil.rmtree(run_dir / "checkpoints", ignore_errors=True)
+            start_over()
             print(
                 "  the loss became infinite in float16; retrying in bfloat16 (slower "
                 "on this GPU)"
