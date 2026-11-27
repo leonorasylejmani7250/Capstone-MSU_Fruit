@@ -15,8 +15,9 @@ What it does:
   2. Meta's trainer (sam3.train.train) fine-tunes the detector, the part of the model
      that finds clusters from the text prompt, starting from the released weights. It
      is started through meta_trainer.py, which corrects one layer so that it can be
-     trained and leaves out a training step whose numbers are not finite. Log and
-     checkpoint go to ../data/runs/<pipeline>_<run>/.
+     trained, keeps the gradient scale from shrinking to nothing, and lets a training
+     step whose numbers are not finite change no weights. Log and checkpoint go to
+     ../data/runs/<pipeline>_<run>/.
   3. The fine-tuned detector is merged into the released video checkpoint:
      model/<pipeline>_<run>.pt, with a .json recipe beside it.
 
@@ -306,9 +307,9 @@ def merge(base: Path, trained: Path, out: Path) -> tuple[int, list[str], int | N
 
 
 def skipped_steps(log_dir: Path, epochs: int) -> int:
-    """How many training steps of the first `epochs` epochs meta_trainer.py left out
-    because their numbers were not finite: the lines of logs/skipped_steps.txt, a step
-    counted once however often its epoch was started.
+    """How many training steps of the first `epochs` epochs changed no weights because
+    their numbers were not finite: the lines meta_trainer.py wrote to
+    logs/skipped_steps.txt, a step counted once however often its epoch was started.
     """
     try:
         lines = (log_dir / "logs" / "skipped_steps.txt").read_text().splitlines()
@@ -446,7 +447,7 @@ def main():
     )
     if skipped:
         print(
-            f"{skipped} training step(s) were left out, their numbers were not "
+            f"{skipped} training step(s) changed no weights, their numbers were not "
             f"finite: {log_dir / 'logs' / 'skipped_steps.txt'}"
         )
     out.with_suffix(".json").write_text(
