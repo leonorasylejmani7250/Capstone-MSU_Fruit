@@ -15,9 +15,9 @@ What it does:
   2. Meta's trainer (sam3.train.train) fine-tunes the detector, the part of the model
      that finds clusters from the text prompt, starting from the released weights. It
      is started through meta_trainer.py, which corrects one layer so that it can be
-     trained, keeps the gradient scale from shrinking to nothing, and lets a training
-     step whose numbers are not finite change no weights. Log and checkpoint go to
-     ../data/runs/<pipeline>_<run>/.
+     trained, gives the presence loss a slope everywhere, keeps the gradient scale from
+     shrinking to nothing, and lets a training step whose numbers are not finite change
+     no weights. Log and checkpoint go to ../data/runs/<pipeline>_<run>/.
   3. The fine-tuned detector is merged into the released video checkpoint:
      model/<pipeline>_<run>.pt, with a .json recipe beside it.
 

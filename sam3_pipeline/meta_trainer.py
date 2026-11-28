@@ -1,4 +1,4 @@
-"""Start Meta's trainer with three corrections, so that fine-tuning can run.
+"""Start Meta's trainer with four corrections, so that fine-tuning can run.
 
 finetune.py calls this file with the arguments of `python -m sam3.train.train`:
 
@@ -11,19 +11,34 @@ works for inference. Meta's own trainer therefore stops on the first training st
 forward pass back (linear layer, activation, linear layer: the same computation, and
 what the code did before that release).
 
-2. The gradient scale stays usable. Meta's trainer multiplies the loss by a scale before
-the gradients are computed and divides the gradients by it afterwards (PyTorch's
-GradScaler). After a step whose gradient is not finite, PyTorch halves the scale, and
-it doubles the scale again only after 2,000 steps in a row without such a step. When
-one comes every few dozen steps, the scale only shrinks. Once it is small enough, small
-gradients are rounded to zero, and after 144 such steps dividing by it gives infinity:
-the next step turns every weight into NaN, and the step after that stops the trainer
-with "ValueError: matrix contains invalid numeric entries". Here the scale never falls
-below MIN_GRADIENT_SCALE. Training runs in bfloat16, which holds numbers as small as
-float32 does, so a scale below 1 helps nothing. And whatever the scale, a gradient that
-is not finite never reaches the optimizer.
+2. The presence loss has a slope everywhere. The loss for "is the thing in this image at
+all" is a focal loss with gamma = 0, computed by Meta's GPU kernel
+(sam3/train/loss/sigmoid_focal_loss.py). For the slope, the kernel computes
+(1 - p) ** (gamma - 1), where p says how right the prediction is. With gamma = 0 that
+is 1 / (1 - p): once a prediction is right to the last digit of float32 (a presence
+logit above about 16.6, or below about -17.3 for an image without the thing), it
+divides by zero, and the gradient of the whole step is NaN although the loss is an
+ordinary number. With gamma = 0 a focal loss is the cross entropy weighted by alpha.
+Here it is computed as that: the same value up to rounding, and a slope that is
+finite everywhere. Any other gamma goes to Meta's kernel as before.
 
-3. A training step whose numbers are not finite changes no weights and is written down.
+3. The gradient scale stays usable. Meta's trainer multiplies the loss by a scale before
+the gradients are computed and divides the gradients by it afterwards (PyTorch's
+GradScaler). After a step whose gradient is not finite, PyTorch skips the step's update
+and halves the scale, and it doubles the scale again only after 2,000 steps in a row
+without such a step. When such steps keep coming, the scale only shrinks, and the
+smaller it is, the less PyTorch's check is worth, because it looks at the gradients
+while they are still multiplied by the scale: a gradient too large for float32 passes
+as an ordinary number and overflows only when it is divided by the scale (after 144
+halvings 1 / scale is itself infinite, and every gradient does). The optimizer then
+writes NaN into the weights, and the step after that stops the trainer with
+"ValueError: matrix contains invalid numeric entries". Small gradients, for their part,
+are rounded to zero. Here the scale never falls below MIN_GRADIENT_SCALE. Training runs
+in bfloat16, which holds numbers as small as float32 does, so a scale below 1 helps
+nothing. And whatever the scale, a gradient that is not finite never reaches the
+optimizer.
+
+4. A training step whose numbers are not finite changes no weights and is written down.
 Two things can be not finite. The model's output or the loss: Meta's trainer then stops,
 with "ValueError: matrix contains invalid numeric entries" from the step that pairs
 predictions with labels, or with "FloatingPointError: Loss is nan", and the epoch it was
@@ -95,6 +110,44 @@ def correct_vision_mlp() -> bool:
     if "addmm_act" not in source:
         return False
     mlp.forward = trainable_mlp_forward
+    return True
+
+
+def correct_focal_loss_with_gamma_zero() -> bool:
+    """With gamma = 0, compute Meta's focal loss as the cross entropy weighted by alpha,
+    which is what it then is, in place of Meta's GPU kernel, whose slope is NaN for a
+    prediction that is exactly right. Any other gamma goes to the kernel. True if the
+    kernel's two entry points were found.
+    """
+    try:
+        from sam3.train.loss import loss_fns
+    except ImportError:
+        return False
+    import torch.nn.functional as F
+
+    each_kernel = getattr(loss_fns, "triton_sigmoid_focal_loss", None)
+    summed_kernel = getattr(loss_fns, "triton_sigmoid_focal_loss_reduce", None)
+    if each_kernel is None or summed_kernel is None:
+        return False
+
+    def cross_entropy(inputs, targets, alpha):
+        # float32, like the kernel, whatever precision the model runs in
+        inputs, targets = inputs.float(), targets.float()
+        loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
+        return (alpha * targets + (1 - alpha) * (1 - targets)) * loss
+
+    def each(inputs, targets, alpha=0.25, gamma=2):
+        if gamma == 0:
+            return cross_entropy(inputs, targets, alpha)
+        return each_kernel(inputs, targets, alpha, gamma)
+
+    def summed(inputs, targets, alpha=0.25, gamma=2):
+        if gamma == 0:
+            return cross_entropy(inputs, targets, alpha).sum()
+        return summed_kernel(inputs, targets, alpha, gamma)
+
+    loss_fns.triton_sigmoid_focal_loss = each
+    loss_fns.triton_sigmoid_focal_loss_reduce = summed
     return True
 
 
@@ -362,7 +415,17 @@ if __name__ == "__main__":
             flush=True,
         )
     else:
-        print("meta_trainer: this sam3 version needs no correction.", flush=True)
+        print(
+            "meta_trainer: the vision backbone's MLP of this sam3 version needs no "
+            "correction.",
+            flush=True,
+        )
+    if correct_focal_loss_with_gamma_zero():
+        print(
+            "meta_trainer: a focal loss with gamma = 0 (the presence loss) is computed "
+            "as the weighted cross entropy it is, so its gradient is finite.",
+            flush=True,
+        )
     report_matching_inputs()
     if skip_steps_that_are_not_finite():
         print(
