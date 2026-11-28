@@ -1,5 +1,5 @@
 # MSU FRUIT: HPCC instructions, labelling guide and pipeline guide
-The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `426ecaf`) as one file, in this order:
+The guides on `main` of [Capstone-MSU_Fruit](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit) (commit `1aa5f5c`) as one file, in this order:
 
 1. [HPCC instructions](#hpcc-instructions): the whole workflow on the MSU HPCC, from logging in to the cluster counts
 2. [Labelling guide](#labelling-guide)
@@ -696,7 +696,7 @@ With the defaults that is 2,000 training steps or more, about a second each on a
 | `run.py` | `video`: counts the clusters in a video, or in every video of a folder. `clips`: masks for the labelled val clips, from the text, or from a detector's boxes with `--boxes`. |
 | `finetune.py` | Fine-tunes the model on our labelled clips with Meta's trainer and writes the result to `model/`. |
 | `finetune.yaml` | Meta's fine-tuning recipe with our dataset and settings (filled in by `finetune.py`). |
-| `meta_trainer.py` | Starts Meta's trainer for `finetune.py` with three corrections: the vision backbone can be trained, the gradient scale cannot shrink to nothing, and a training step whose numbers are not finite changes no weights. |
+| `meta_trainer.py` | Starts Meta's trainer for `finetune.py` with four corrections: the vision backbone can be trained, the presence loss has a slope everywhere, the gradient scale cannot shrink to nothing, and a training step whose numbers are not finite changes no weights. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam3_pipeline/model/README.md)). |
 | `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
@@ -854,7 +854,7 @@ With the defaults that is 2,000 training steps or more, about a second each on a
 | `run.py` | `video`: counts the clusters in a video, or in every video of a folder. `clips`: masks for the labelled val clips. |
 | `finetune.py` | Fine-tunes the model on our labelled clips with Meta's trainer and writes the result to `model/`. |
 | `finetune.yaml` | Meta's fine-tuning recipe with our dataset and settings (filled in by `finetune.py`). |
-| `meta_trainer.py` | Starts Meta's trainer for `finetune.py` with three corrections: the vision backbone can be trained, the gradient scale cannot shrink to nothing, and a training step whose numbers are not finite changes no weights. |
+| `meta_trainer.py` | Starts Meta's trainer for `finetune.py` with four corrections: the vision backbone can be trained, the presence loss has a slope everywhere, the gradient scale cannot shrink to nothing, and a training step whose numbers are not finite changes no weights. |
 | `pipeline.py` | The names every script uses: model version, weights, data folder, where predictions and results go. |
 | `model/` | The weights: Meta's release and our fine-tuned checkpoints ([model/README.md](https://github.com/leonorasylejmani7250/Capstone-MSU_Fruit/blob/main/sam3_1_pipeline/model/README.md)). |
 | `hpcc/` | On the HPCC: `activate.sh` for a terminal, `run.sb` for a batch job, `setup_env.sh` builds the environment. What each one does and how to change the environment: [`../hpcc/README.md`](#the-environments). |
